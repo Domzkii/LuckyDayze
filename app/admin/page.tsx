@@ -12,10 +12,31 @@ const STATUSES = [
   { value: 'cancelled', label: 'Cancelled', color: 'bg-red-500/20 text-red-400' },
 ]
 
+interface OrderItem {
+  id: string
+  name: string
+  price: number
+  qty: number
+  emoji: string
+  category: string
+}
+
+interface Order {
+  id: string
+  created_at: string
+  customer_name: string
+  customer_phone: string
+  customer_address: string
+  order_notes: string
+  items: OrderItem[]
+  total: number
+  status: string
+}
+
 export default function AdminPage() {
-  const [orders, setOrders] = useState([])
+  const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedOrder, setSelectedOrder] = useState(null)
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [filter, setFilter] = useState('all')
 
   useEffect(() => {
@@ -26,7 +47,9 @@ export default function AdminPage() {
         loadOrders()
       })
       .subscribe()
-    return () => supabase.removeChannel(channel)
+    return () => {
+      supabase.removeChannel(channel)
+    }
   }, [])
 
   async function loadOrders() {
@@ -38,21 +61,21 @@ export default function AdminPage() {
     setLoading(false)
   }
 
-  async function updateStatus(orderId, status) {
+  async function updateStatus(orderId: string, status: string) {
     await supabase.from('orders').update({ status }).eq('id', orderId)
     setSelectedOrder(prev => prev ? { ...prev, status } : null)
     loadOrders()
   }
 
-  function getStatusStyle(status) {
+  function getStatusStyle(status: string) {
     return STATUSES.find(s => s.value === status)?.color || 'bg-gray-500/20 text-gray-400'
   }
 
-  function getStatusLabel(status) {
+  function getStatusLabel(status: string) {
     return STATUSES.find(s => s.value === status)?.label || status
   }
 
-  function formatTime(ts) {
+  function formatTime(ts: string) {
     return new Date(ts).toLocaleString('en-US', {
       month: 'short', day: 'numeric',
       hour: 'numeric', minute: '2-digit', hour12: true
@@ -91,7 +114,7 @@ export default function AdminPage() {
           <div className="text-2xl font-bold text-blue-400">{active}</div>
         </div>
         <div className="bg-[#1c201e] border border-white/10 rounded-2xl p-4">
-          <div className="text-white/40 text-xs mb-1">Delivered Today</div>
+          <div className="text-white/40 text-xs mb-1">Delivered</div>
           <div className="text-2xl font-bold text-green-400">{delivered}</div>
         </div>
         <div className="bg-[#1c201e] border border-white/10 rounded-2xl p-4">
@@ -132,7 +155,7 @@ export default function AdminPage() {
               <div
                 key={order.id}
                 onClick={() => setSelectedOrder(order)}
-                className="bg-[#1c201e] border border-white/10 rounded-2xl p-4 cursor-pointer hover:border-[#c9a84c]/40 transition-all active:scale-99"
+                className="bg-[#1c201e] border border-white/10 rounded-2xl p-4 cursor-pointer hover:border-[#c9a84c]/40 transition-all"
               >
                 <div className="flex items-start justify-between mb-3">
                   <div>
@@ -146,7 +169,7 @@ export default function AdminPage() {
                 <div className="text-white/50 text-sm mb-3">{order.customer_address}</div>
                 <div className="flex items-center justify-between">
                   <div className="text-white/40 text-xs">
-                    {Array.isArray(order.items) ? order.items.map(i => `${i.emoji} ${i.name} ×${i.qty}`).join(', ') : ''}
+                    {Array.isArray(order.items) ? order.items.map(i => `${i.emoji} ${i.name} x${i.qty}`).join(', ') : ''}
                   </div>
                   <div className="text-[#c9a84c] font-bold">${order.total}</div>
                 </div>
@@ -163,7 +186,7 @@ export default function AdminPage() {
           <div className="relative w-full max-w-md bg-[#141816] border border-white/10 rounded-t-3xl sm:rounded-3xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-5 border-b border-white/10">
               <h2 className="font-bold text-lg">Order Details</h2>
-              <button onClick={() => setSelectedOrder(null)} className="text-white/40 text-2xl leading-none">×</button>
+              <button onClick={() => setSelectedOrder(null)} className="text-white/40 text-2xl leading-none">x</button>
             </div>
 
             <div className="p-6">
@@ -189,7 +212,7 @@ export default function AdminPage() {
                 <div className="text-white/40 text-xs font-bold uppercase tracking-wider mb-3">Items Ordered</div>
                 {Array.isArray(selectedOrder.items) && selectedOrder.items.map((item, i) => (
                   <div key={i} className="flex justify-between items-center mb-2">
-                    <span className="text-sm">{item.emoji} {item.name} × {item.qty}</span>
+                    <span className="text-sm">{item.emoji} {item.name} x {item.qty}</span>
                     <span className="text-[#c9a84c] font-bold text-sm">${(item.price * item.qty).toFixed(2)}</span>
                   </div>
                 ))}

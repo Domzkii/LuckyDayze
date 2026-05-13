@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react'
 import { supabase } from './supabase'
 
 export default function Home() {
-  const [products, setProducts] = useState([])
-  const [cart, setCart] = useState([])
+  const [products, setProducts] = useState<any[]>([])
+  const [cart, setCart] = useState<any[]>([])
   const [cartOpen, setCartOpen] = useState(false)
   const [checkoutOpen, setCheckoutOpen] = useState(false)
   const [orderPlaced, setOrderPlaced] = useState(false)
@@ -23,23 +23,23 @@ export default function Home() {
     loadProducts()
   }, [])
 
-  function addToCart(product) {
-    setCart(prev => {
-      const existing = prev.find(i => i.id === product.id)
+  function addToCart(product: any) {
+    setCart((prev: any[]) => {
+      const existing = prev.find((i: any) => i.id === product.id)
       if (existing) {
-        return prev.map(i => i.id === product.id ? { ...i, qty: i.qty + 1 } : i)
+        return prev.map((i: any) => i.id === product.id ? { ...i, qty: i.qty + 1 } : i)
       }
       return [...prev, { ...product, qty: 1 }]
     })
     setCartOpen(true)
   }
 
-  function removeFromCart(id) {
-    setCart(prev => prev.filter(i => i.id !== id))
+  function removeFromCart(id: any) {
+    setCart((prev: any[]) => prev.filter((i: any) => i.id !== id))
   }
 
-  function changeQty(id, delta) {
-    setCart(prev => prev.map(i => {
+  function changeQty(id: any, delta: any) {
+    setCart((prev: any[]) => prev.map((i: any) => {
       if (i.id !== id) return i
       const newQty = i.qty + delta
       if (newQty < 1) return null
@@ -47,8 +47,8 @@ export default function Home() {
     }).filter(Boolean))
   }
 
-  const total = cart.reduce((sum, i) => sum + i.price * i.qty, 0)
-  const cartCount = cart.reduce((sum, i) => sum + i.qty, 0)
+  const total = cart.reduce((sum: number, i: any) => sum + i.price * i.qty, 0)
+  const cartCount = cart.reduce((sum: number, i: any) => sum + i.qty, 0)
 
   async function placeOrder() {
     if (!name || !phone || !address) {
@@ -56,7 +56,7 @@ export default function Home() {
       return
     }
     setLoading(true)
-    const orderItems = cart.map(i => ({
+    const orderItems = cart.map((i: any) => ({
       id: i.id,
       name: i.name,
       price: i.price,
@@ -200,7 +200,7 @@ export default function Home() {
       <section className="px-6 pb-16">
         <h2 className="text-xl font-bold mb-6">Menu 🌿</h2>
         <div className="grid grid-cols-2 gap-4 max-w-2xl">
-          {products.map((product) => (
+          {products.map((product: any) => (
             <div
               key={product.id}
               className="bg-[#1c201e] border border-white/10 rounded-2xl overflow-hidden hover:border-[#c9a84c]/50 transition-all"
@@ -262,7 +262,7 @@ export default function Home() {
             ) : (
               <>
                 <div className="flex-1 px-6 py-4 flex flex-col gap-4">
-                  {cart.map(item => (
+                  {cart.map((item: any) => (
                     <div key={item.id} className="flex gap-3 items-start">
                       <div className="w-12 h-12 bg-[#1a3d2b] rounded-xl flex items-center justify-center text-2xl flex-shrink-0">
                         {item.emoji}
@@ -334,7 +334,7 @@ export default function Home() {
             {/* ORDER SUMMARY */}
             <div className="bg-[#1c201e] border border-white/10 rounded-2xl p-5 mb-6">
               <h3 className="font-bold mb-4">Order Summary</h3>
-              {cart.map(item => (
+              {cart.map((item: any) => (
                 <div key={item.id} className="flex justify-between text-sm mb-2">
                   <span className="text-white/70">{item.name} × {item.qty}</span>
                   <span className="font-semibold">${(item.price * item.qty).toFixed(2)}</span>
