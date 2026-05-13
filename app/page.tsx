@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from './supabase'
 
 export default function Home() {
+  const [ageVerified, setAgeVerified] = useState(false)
   const [products, setProducts] = useState<any[]>([])
   const [cart, setCart] = useState<any[]>([])
   const [cartOpen, setCartOpen] = useState(false)
@@ -83,7 +84,36 @@ export default function Home() {
     setCheckoutOpen(false)
     setOrderPlaced(true)
   }
-
+if (!ageVerified) {
+  return (
+    <main className="min-h-screen bg-[#0a0c0b] text-[#f0ede6] flex flex-col items-center justify-center px-6 text-center">
+      <div className="text-6xl mb-4">🌿</div>
+      <div className="text-[#c9a84c] text-4xl font-bold mb-2">LuckyDayze</div>
+      <div className="text-white/40 text-sm mb-12 tracking-widest uppercase">NYC Cannabis Delivery</div>
+      <h1 className="text-2xl font-bold mb-3">Are you 21 or older?</h1>
+      <p className="text-white/40 text-sm mb-10 max-w-xs">
+        You must be of legal age to purchase cannabis. Please confirm your age to continue.
+      </p>
+      <div className="flex gap-4">
+        <button
+          onClick={() => setAgeVerified(true)}
+          className="bg-[#c9a84c] text-black font-bold px-10 py-4 rounded-full text-lg hover:bg-[#e8c97a] transition-all"
+        >
+          Yes, I'm 21+
+        </button>
+        <button
+          onClick={() => alert('You must be 21 or older to enter.')}
+          className="border border-white/20 text-white/50 px-10 py-4 rounded-full text-lg hover:border-white/40 transition-all"
+        >
+          No
+        </button>
+      </div>
+      <p className="text-white/20 text-xs mt-10 max-w-xs">
+        By entering you confirm you are of legal age to purchase cannabis in your state.
+      </p>
+    </main>
+  )
+}
   if (orderPlaced) {
     return (
       <main className="min-h-screen bg-[#0a0c0b] text-[#f0ede6] flex flex-col items-center justify-center px-6 text-center">
