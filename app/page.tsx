@@ -8,6 +8,12 @@ export default function Home() {
   const [cart, setCart] = useState([])
   const [cartOpen, setCartOpen] = useState(false)
   const [checkoutOpen, setCheckoutOpen] = useState(false)
+  const [orderPlaced, setOrderPlaced] = useState(false)
+  const [name, setName] = useState('')
+  const [phone, setPhone] = useState('')
+  const [address, setAddress] = useState('')
+  const [notes, setNotes] = useState('')
+  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     async function loadProducts() {
@@ -43,6 +49,73 @@ export default function Home() {
 
   const total = cart.reduce((sum, i) => sum + i.price * i.qty, 0)
   const cartCount = cart.reduce((sum, i) => sum + i.qty, 0)
+
+  async function placeOrder() {
+    if (!name || !phone || !address) {
+      alert('Please fill in your name, phone number, and address.')
+      return
+    }
+    setLoading(true)
+    const orderItems = cart.map(i => ({
+      id: i.id,
+      name: i.name,
+      price: i.price,
+      qty: i.qty,
+      emoji: i.emoji,
+      category: i.category
+    }))
+    const { error } = await supabase.from('orders').insert({
+      customer_name: name,
+      customer_phone: phone,
+      customer_address: address,
+      order_notes: notes,
+      items: orderItems,
+      total: total,
+      status: 'pending_payment'
+    })
+    setLoading(false)
+    if (error) {
+      console.log(error)
+      alert('Something went wrong: ' + error.message)
+      return
+    }
+    setCart([])
+    setCheckoutOpen(false)
+    setOrderPlaced(true)
+  }
+
+  if (orderPlaced) {
+    return (
+      <main className="min-h-screen bg-[#0a0c0b] text-[#f0ede6] flex flex-col items-center justify-center px-6 text-center">
+        <div className="text-6xl mb-6">🌿</div>
+        <h1 className="text-3xl font-bold mb-3">Order Received!</h1>
+        <p className="text-white/50 text-lg mb-2">Thanks, {name}!</p>
+        <p className="text-white/40 text-sm mb-8 max-w-sm">
+          We are confirming your Cash App payment now. You will get a call or text at {phone} once your order is on the way.
+        </p>
+        <div className="bg-[#1c201e] border border-white/10 rounded-2xl p-6 mb-8 max-w-sm w-full">
+          <p className="text-white/50 text-sm mb-1">Delivering to</p>
+          <p className="font-bold">{address}</p>
+          <div className="border-t border-white/10 mt-4 pt-4">
+            <p className="text-white/50 text-sm mb-1">Amount sent</p>
+            <p className="text-[#c9a84c] text-2xl font-bold">${total.toFixed(2)}</p>
+          </div>
+        </div>
+        <button
+          onClick={() => {
+            setOrderPlaced(false)
+            setName('')
+            setPhone('')
+            setAddress('')
+            setNotes('')
+          }}
+          className="bg-[#c9a84c] text-black font-bold px-8 py-3 rounded-full"
+        >
+          Back to Menu
+        </button>
+      </main>
+    )
+  }
 
   return (
     <main className="min-h-screen bg-[#0a0c0b] text-[#f0ede6]">
@@ -256,7 +329,7 @@ export default function Home() {
             </button>
 
             <h1 className="text-2xl font-bold mb-2">Checkout</h1>
-            <p className="text-white/50 text-sm mb-8">Send payment to complete your order</p>
+            <p className="text-white/50 text-sm mb-8">Fill in your info and send payment</p>
 
             {/* ORDER SUMMARY */}
             <div className="bg-[#1c201e] border border-white/10 rounded-2xl p-5 mb-6">
@@ -278,55 +351,57 @@ export default function Home() {
               <h3 className="font-bold mb-4">Delivery Info</h3>
               <input
                 type="text"
-                placeholder="Your full name"
+                placeholder="Your full name *"
+                value={name}
+                onChange={e => setName(e.target.value)}
                 className="w-full bg-[#242927] border border-white/10 rounded-xl px-4 py-3 text-sm mb-3 outline-none focus:border-[#c9a84c]/50 placeholder-white/30"
               />
               <input
                 type="tel"
-                placeholder="Phone number"
+                placeholder="Phone number *"
+                value={phone}
+                onChange={e => setPhone(e.target.value)}
                 className="w-full bg-[#242927] border border-white/10 rounded-xl px-4 py-3 text-sm mb-3 outline-none focus:border-[#c9a84c]/50 placeholder-white/30"
               />
               <input
                 type="text"
-                placeholder="Delivery address"
+                placeholder="Delivery address *"
+                value={address}
+                onChange={e => setAddress(e.target.value)}
                 className="w-full bg-[#242927] border border-white/10 rounded-xl px-4 py-3 text-sm mb-3 outline-none focus:border-[#c9a84c]/50 placeholder-white/30"
               />
               <textarea
                 placeholder="Order notes (optional)"
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
                 rows={2}
                 className="w-full bg-[#242927] border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#c9a84c]/50 placeholder-white/30 resize-none"
               />
             </div>
 
-            {/* PAYMENT - CASH APP ONLY */}
+            {/* PAYMENT */}
             <div className="bg-[#1c201e] border border-white/10 rounded-2xl p-5 mb-6">
               <h3 className="font-bold mb-2">Send Payment</h3>
               <p className="text-white/50 text-sm mb-5">
                 Send <span className="text-[#c9a84c] font-bold">${total.toFixed(2)}</span> to our Cash App below then tap confirm.
               </p>
-
               <div className="bg-[#242927] border border-[#c9a84c]/20 rounded-xl p-6 text-center mb-4">
                 <div className="text-5xl mb-3">💚</div>
                 <p className="font-bold text-lg mb-1">Cash App</p>
                 <p className="text-white/40 text-sm mb-3">Tap to open Cash App and send payment:</p>
-                
-                  <a href="https://cash.app/$Luckydayz3" target="_blank" rel="noopener noreferrer" className="text-[#c9a84c] text-3xl font-bold underline underline-offset-4 hover:text-[#e8c97a] transition-all">{'$Luckydayz3'}</a>
+                <a href="https://cash.app/$Luckydayz3" target="_blank" rel="noopener noreferrer" className="text-[#c9a84c] text-3xl font-bold underline underline-offset-4 hover:text-[#e8c97a] transition-all">{'$Luckydayz3'}</a>
               </div>
-
               <p className="text-white/30 text-xs text-center">
                 Screenshot your payment confirmation — you may be asked to verify
               </p>
             </div>
 
             <button
-              onClick={() => {
-                alert("Order placed! We'll confirm your payment and start your delivery shortly. 🌿")
-                setCart([])
-                setCheckoutOpen(false)
-              }}
-              className="w-full bg-[#c9a84c] text-black font-bold py-4 rounded-2xl text-lg hover:bg-[#e8c97a] transition-all"
+              onClick={placeOrder}
+              disabled={loading}
+              className="w-full bg-[#c9a84c] text-black font-bold py-4 rounded-2xl text-lg hover:bg-[#e8c97a] transition-all disabled:opacity-50"
             >
-              I've Sent Payment ✓
+              {loading ? 'Placing Order...' : "I've Sent Payment ✓"}
             </button>
 
             <p className="text-white/20 text-xs text-center mt-4">
