@@ -15,6 +15,7 @@ export default function Home() {
   const [address, setAddress] = useState('')
   const [notes, setNotes] = useState('')
   const [loading, setLoading] = useState(false)
+  const [finalTotal, setFinalTotal] = useState(0)
 
   useEffect(() => {
     async function loadProducts() {
@@ -80,9 +81,10 @@ export default function Home() {
       alert('Something went wrong: ' + error.message)
       return
     }
-    setCart([])
-    setCheckoutOpen(false)
-    setOrderPlaced(true)
+    setFinalTotal(total)
+setCart([])
+setCheckoutOpen(false)
+setOrderPlaced(true)
   }
 if (!ageVerified) {
   return (
@@ -128,7 +130,7 @@ if (!ageVerified) {
           <p className="font-bold">{address}</p>
           <div className="border-t border-white/10 mt-4 pt-4">
             <p className="text-white/50 text-sm mb-1">Amount sent</p>
-            <p className="text-[#c9a84c] text-2xl font-bold">${total.toFixed(2)}</p>
+            <p className="text-[#c9a84c] text-2xl font-bold">${finalTotal.toFixed(2)}</p>
           </div>
         </div>
         <button
