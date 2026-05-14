@@ -87,6 +87,19 @@ export default function Home() {
   p_spent: total
 })
 setFinalTotal(total)
+
+fetch('/api/notify', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    customerName: name,
+    customerPhone: phone,
+    customerAddress: address,
+    total: total,
+    items: orderItems
+  })
+})
+
 setCart([])
 setCheckoutOpen(false)
 setOrderPlaced(true)
