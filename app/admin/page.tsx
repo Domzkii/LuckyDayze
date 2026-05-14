@@ -44,10 +44,11 @@ const [wrongPassword, setWrongPassword] = useState(false)
 
   useEffect(() => {
     loadOrders()
+    Notification.requestPermission()
     const channel = supabase
       .channel('orders')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
-        loadOrders()
+        loadOrders(true)
       })
       .subscribe()
     return () => {
@@ -55,12 +56,22 @@ const [wrongPassword, setWrongPassword] = useState(false)
     }
   }, [])
 
-  async function loadOrders() {
+  async function loadOrders(notify = false) {
     const { data } = await supabase
       .from('orders')
       .select('*')
       .order('created_at', { ascending: false })
-    setOrders(data || [])
+    const newOrders = data || []
+    if (notify && newOrders.length > orders.length) {
+      const latest = newOrders[0]
+      if (Notification.permission === 'granted') {
+        new Notification('New LuckyDayze Order!', {
+          body: `${latest.customer_name} ordered $${latest.total} — ${latest.customer_address}`,
+          icon: '/favicon.ico'
+        })
+      }
+    }
+    setOrders(newOrders)
     setLoading(false)
   }
 
