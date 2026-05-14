@@ -38,6 +38,9 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true)
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [filter, setFilter] = useState('all')
+  const [authenticated, setAuthenticated] = useState(false)
+const [password, setPassword] = useState('')
+const [wrongPassword, setWrongPassword] = useState(false)
 
   useEffect(() => {
     loadOrders()
@@ -88,6 +91,57 @@ export default function AdminPage() {
   const delivered = orders.filter(o => o.status === 'delivered').length
   const revenue = orders.filter(o => o.status !== 'cancelled').reduce((sum, o) => sum + (o.total || 0), 0)
 
+  if (!authenticated) {
+  return (
+    <main className="min-h-screen bg-[#0a0c0b] text-[#f0ede6] flex flex-col items-center justify-center px-6">
+      <div className="w-full max-w-sm">
+        <div className="text-center mb-10">
+          <div className="text-[#c9a84c] text-3xl font-bold mb-2">LuckyDayze</div>
+          <div className="text-white/40 text-sm">Admin Access</div>
+        </div>
+        <div className="bg-[#1c201e] border border-white/10 rounded-2xl p-6">
+          <h2 className="font-bold text-lg mb-6">Enter Password</h2>
+          <input
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') {
+                if (password === 'luckydayze2025') {
+                  setAuthenticated(true)
+                  setWrongPassword(false)
+                } else {
+                  setWrongPassword(true)
+                }
+              }
+            }}
+            className="w-full bg-[#242927] border border-white/10 rounded-xl px-4 py-3 text-sm mb-3 outline-none focus:border-[#c9a84c]/50 placeholder-white/30"
+          />
+          {wrongPassword && (
+            <p className="text-red-400 text-xs mb-3">Incorrect password. Try again.</p>
+          )}
+          <button
+            onClick={() => {
+              if (password === 'luckydayze2025') {
+                setAuthenticated(true)
+                setWrongPassword(false)
+              } else {
+                setWrongPassword(true)
+              }
+            }}
+            className="w-full bg-[#c9a84c] text-black font-bold py-3 rounded-xl hover:bg-[#e8c97a] transition-all"
+          >
+            Login
+          </button>
+        </div>
+        <p className="text-white/20 text-xs text-center mt-6">
+          LuckyDayze Admin Panel
+        </p>
+      </div>
+    </main>
+  )
+}
   return (
     <main className="min-h-screen bg-[#0a0c0b] text-[#f0ede6]">
 
