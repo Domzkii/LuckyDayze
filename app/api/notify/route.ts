@@ -14,6 +14,7 @@ export async function POST(request: Request) {
 
     await client.messages.create({
       body: `New order received!\n\nCustomer: ${customerName}\nPhone: ${customerPhone}\nAddress: ${customerAddress}\nItems: ${itemsList}\nTotal: $${total}\n\nCheck admin panel to confirm.`,
+      from: '+18665823069',
       to: process.env.TWILIO_MY_PHONE!
     })
 
