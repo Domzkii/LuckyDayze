@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react'
 import { supabase } from './supabase'
 
 export default function Home() {
-  const [ageVerified, setAgeVerified] = useState(false)
   const [products, setProducts] = useState<any[]>([])
   const [cart, setCart] = useState<any[]>([])
   const [cartOpen, setCartOpen] = useState(false)
@@ -16,6 +15,7 @@ export default function Home() {
   const [notes, setNotes] = useState('')
   const [loading, setLoading] = useState(false)
   const [finalTotal, setFinalTotal] = useState(0)
+  const [ageVerified, setAgeVerified] = useState(false)
 
   useEffect(() => {
     async function loadProducts() {
@@ -33,7 +33,15 @@ export default function Home() {
       }
       return [...prev, { ...product, qty: 1 }]
     })
-    setCartOpen(true)
+    function addToCart(product: any) {
+    setCart((prev: any[]) => {
+      const existing = prev.find((i: any) => i.id === product.id)
+      if (existing) {
+        return prev.map((i: any) => i.id === product.id ? { ...i, qty: i.qty + 1 } : i)
+      }
+      return [...prev, { ...product, qty: 1 }]
+    })
+  }
   }
 
   function removeFromCart(id: any) {
@@ -77,115 +85,65 @@ export default function Home() {
     })
     setLoading(false)
     if (error) {
-      console.log(error)
       alert('Something went wrong: ' + error.message)
       return
     }
-    await supabase.rpc('award_loyalty_points', {
-  p_phone: phone,
-  p_name: name,
-  p_spent: total
-})
-setFinalTotal(total)
-
-fetch('/api/notify', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    customerName: name,
-    customerPhone: phone,
-    customerAddress: address,
-    total: total,
-    items: orderItems
-  })
-})
-setFinalTotal(total)
-
-fetch('/api/notify', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    customerName: name,
-    customerPhone: phone,
-    customerAddress: address,
-    total: total,
-    items: orderItems
-  })
-})
-setFinalTotal(total)
-
-fetch('/api/notify', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    customerName: name,
-    customerPhone: phone,
-    customerAddress: address,
-    total: total,
-    items: orderItems
-  })
-})
-
-setCart([])
-setCheckoutOpen(false)
-setOrderPlaced(true)
+    setFinalTotal(total)
+    fetch('/api/notify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        customerName: name,
+        customerPhone: phone,
+        customerAddress: address,
+        total: total,
+        items: orderItems
+      })
+    })
+    setCart([])
+    setCheckoutOpen(false)
+    setOrderPlaced(true)
   }
-if (!ageVerified) {
-  return (
-    <main className="min-h-screen bg-[#0a0c0b] text-[#f0ede6] flex flex-col items-center justify-center px-6 text-center">
-      <div className="text-6xl mb-4">🌿</div>
-      <div className="text-[#c9a84c] text-4xl font-bold mb-2">LuckyDayze</div>
-      <div className="text-white/40 text-sm mb-12 tracking-widest uppercase">NYC Cannabis Delivery</div>
-      <h1 className="text-2xl font-bold mb-3">Are you 21 or older?</h1>
-      <p className="text-white/40 text-sm mb-10 max-w-xs">
-        You must be of legal age to purchase cannabis. Please confirm your age to continue.
-      </p>
-      <div className="flex gap-4">
-        <button
-          onClick={() => setAgeVerified(true)}
-          className="bg-[#c9a84c] text-black font-bold px-10 py-4 rounded-full text-lg hover:bg-[#e8c97a] transition-all"
-        >
-          Yes, I'm 21+
-        </button>
-        <button
-          onClick={() => alert('You must be 21 or older to enter.')}
-          className="border border-white/20 text-white/50 px-10 py-4 rounded-full text-lg hover:border-white/40 transition-all"
-        >
-          No
-        </button>
-      </div>
-      <p className="text-white/20 text-xs mt-10 max-w-xs">
-        By entering you confirm you are of legal age to purchase cannabis in your state.
-      </p>
-    </main>
-  )
-}
+
+  if (!ageVerified) {
+    return (
+      <main className="min-h-screen bg-[#f5f0e8] text-[#1a1a1a] flex flex-col items-center justify-center px-6 text-center">
+        <div className="text-5xl mb-4">🌿</div>
+        <div style={{fontFamily: 'Georgia, serif'}} className="text-4xl font-bold text-[#1a1a1a] mb-1">LUCKY DAYZE</div>
+        <div className="text-xs tracking-widest uppercase text-[#666] mb-12">New York Cannabis House</div>
+        <h1 className="text-2xl font-bold mb-3">Are you 21 or older?</h1>
+        <p className="text-[#666] text-sm mb-10 max-w-xs">You must be of legal age to purchase cannabis. Please confirm your age to continue.</p>
+        <div className="flex gap-4">
+          <button onClick={() => setAgeVerified(true)} className="bg-[#1a1a1a] text-[#f5f0e8] font-bold px-10 py-4 rounded-full text-lg hover:bg-[#333] transition-all">
+            Yes, I'm 21+
+          </button>
+          <button onClick={() => alert('You must be 21 or older to enter.')} className="border border-[#1a1a1a]/30 text-[#666] px-10 py-4 rounded-full text-lg hover:border-[#1a1a1a] transition-all">
+            No
+          </button>
+        </div>
+        <p className="text-[#999] text-xs mt-10 max-w-xs">By entering you confirm you are of legal age to purchase cannabis in your state.</p>
+      </main>
+    )
+  }
+
   if (orderPlaced) {
     return (
-      <main className="min-h-screen bg-[#0a0c0b] text-[#f0ede6] flex flex-col items-center justify-center px-6 text-center">
+      <main className="min-h-screen bg-[#f5f0e8] text-[#1a1a1a] flex flex-col items-center justify-center px-6 text-center">
         <div className="text-6xl mb-6">🌿</div>
         <h1 className="text-3xl font-bold mb-3">Order Received!</h1>
-        <p className="text-white/50 text-lg mb-2">Thanks, {name}!</p>
-        <p className="text-white/40 text-sm mb-8 max-w-sm">
-          We are confirming your Cash App payment now. You will get a call or text at {phone} once your order is on the way.
-        </p>
-        <div className="bg-[#1c201e] border border-white/10 rounded-2xl p-6 mb-8 max-w-sm w-full">
-          <p className="text-white/50 text-sm mb-1">Delivering to</p>
-          <p className="font-bold">{address}</p>
-          <div className="border-t border-white/10 mt-4 pt-4">
-            <p className="text-white/50 text-sm mb-1">Amount sent</p>
+        <p className="text-[#666] text-lg mb-2">Thanks, {name}!</p>
+        <p className="text-[#888] text-sm mb-8 max-w-sm">We are confirming your Cash App payment now. You will get a call or text at {phone} once your order is on the way.</p>
+        <div className="bg-white border border-[#e0d9cc] rounded-2xl p-6 mb-8 max-w-sm w-full">
+          <p className="text-[#888] text-sm mb-1">Delivering to</p>
+          <p className="font-bold text-[#1a1a1a]">{address}</p>
+          <div className="border-t border-[#e0d9cc] mt-4 pt-4">
+            <p className="text-[#888] text-sm mb-1">Amount sent</p>
             <p className="text-[#c9a84c] text-2xl font-bold">${finalTotal.toFixed(2)}</p>
           </div>
         </div>
         <button
-          onClick={() => {
-            setOrderPlaced(false)
-            setName('')
-            setPhone('')
-            setAddress('')
-            setNotes('')
-          }}
-          className="bg-[#c9a84c] text-black font-bold px-8 py-3 rounded-full"
+          onClick={() => { setOrderPlaced(false); setName(''); setPhone(''); setAddress(''); setNotes('') }}
+          className="bg-[#1a1a1a] text-[#f5f0e8] font-bold px-8 py-3 rounded-full hover:bg-[#333] transition-all"
         >
           Back to Menu
         </button>
@@ -194,23 +152,24 @@ if (!ageVerified) {
   }
 
   return (
-    <main className="min-h-screen bg-[#0a0c0b] text-[#f0ede6]">
+    <main className="min-h-screen bg-[#f5f0e8] text-[#1a1a1a]">
 
       {/* NAV */}
-      <nav className="flex items-center justify-between px-6 py-4 border-b border-white/10 sticky top-0 bg-[#0a0c0b]/90 backdrop-blur z-40">
-        <div className="text-[#c9a84c] text-2xl font-bold tracking-tight">
-          LuckyDayze
+      <nav className="flex items-center justify-between px-6 py-5 border-b border-[#1a1a1a]/10 sticky top-0 bg-[#f5f0e8]/95 backdrop-blur z-40">
+        <div>
+          <div style={{fontFamily: 'Georgia, serif'}} className="text-xl font-bold tracking-wider text-[#1a1a1a]">LUCKY DAYZE</div>
+          <div className="text-xs tracking-widest uppercase text-[#999]">New York Cannabis House</div>
         </div>
-        <a href="/rewards" className="text-sm font-bold text-[#c9a84c] hover:text-[#e8c97a] transition-all">
+        <a href="/rewards" className="text-sm font-semibold text-[#c9a84c] hover:text-[#a07830] transition-all hidden sm:block tracking-wide">
           Rewards
         </a>
         <button
           onClick={() => setCartOpen(true)}
-          className="bg-[#c9a84c] text-black text-sm font-bold px-5 py-2 rounded-full relative"
+          className="bg-[#1a1a1a] text-[#f5f0e8] text-sm font-bold px-5 py-2 rounded-full relative hover:bg-[#333] transition-all"
         >
           Cart
           {cartCount > 0 && (
-            <span className="absolute -top-2 -right-2 bg-black text-[#c9a84c] text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center border border-[#c9a84c]">
+            <span className="absolute -top-2 -right-2 bg-[#c9a84c] text-[#1a1a1a] text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
               {cartCount}
             </span>
           )}
@@ -218,92 +177,75 @@ if (!ageVerified) {
       </nav>
 
       {/* HERO */}
-      <section className="px-6 py-16 max-w-2xl">
-        <p className="text-[#c9a84c] text-xs font-bold tracking-widest uppercase mb-3">
-          🌿 Fast Delivery · NYC
+      <section className="px-6 py-16 max-w-2xl border-b border-[#1a1a1a]/10">
+        <p className="text-xs font-bold tracking-widest uppercase text-[#c9a84c] mb-4">
+          Fast Delivery · NYC
         </p>
-        <h1 className="text-5xl font-bold leading-tight mb-4">
-          Premium Cannabis <br />
-          <span className="text-[#c9a84c] italic">Delivered Fast</span>
+        <h1 style={{fontFamily: 'Georgia, serif'}} className="text-5xl font-bold leading-tight mb-4 text-[#1a1a1a]">
+          Premium Cannabis<br />
+          <span className="italic text-[#c9a84c]">Delivered Fast.</span>
         </h1>
-        <p className="text-white/50 text-lg mb-8">
+        <p className="text-[#666] text-lg mb-8 max-w-md">
           Flower, edibles, vapes and more — delivered to your door in under 45 minutes.
         </p>
-        <div className="flex gap-4">
+        <div className="flex gap-4 flex-wrap">
           <button
             onClick={() => setCartOpen(true)}
-            className="bg-[#c9a84c] text-black font-bold px-8 py-3 rounded-full"
+            className="bg-[#1a1a1a] text-[#f5f0e8] font-bold px-8 py-3 rounded-full hover:bg-[#333] transition-all"
           >
             View Cart
           </button>
+          <a href="/rewards" className="border border-[#1a1a1a]/30 text-[#1a1a1a] font-bold px-8 py-3 rounded-full hover:border-[#1a1a1a] transition-all">
+            Rewards
+          </a>
         </div>
       </section>
 
       {/* ETA BANNER */}
-      <div className="mx-6 bg-[#1a3d2b] border border-white/10 rounded-2xl px-6 py-4 flex items-center gap-4 max-w-2xl">
+      <div className="mx-6 mt-8 bg-[#1a1a1a] rounded-2xl px-6 py-4 flex items-center gap-4 max-w-2xl">
         <span className="text-2xl">🚗</span>
         <div>
-          <p className="font-semibold">Delivering to Lower East Side</p>
-          <p className="text-white/50 text-sm">Open until 11 PM</p>
+          <p className="font-semibold text-[#f5f0e8]">Delivering to Lower East Side</p>
+          <p className="text-[#f5f0e8]/50 text-sm">Open until 11 PM</p>
         </div>
         <div className="ml-auto bg-[#c9a84c]/20 text-[#c9a84c] text-sm font-bold px-4 py-1 rounded-full">
           ⚡ 32 min
         </div>
       </div>
 
-      {/* CATEGORIES */}
-      <section className="px-6 py-12">
-        <h2 className="text-xl font-bold mb-6">Shop by Category</h2>
-        <div className="grid grid-cols-3 gap-4 max-w-2xl">
-          {[
-            { icon: "🌿", name: "Flower" },
-            { icon: "🚬", name: "Pre-Rolls" },
-            { icon: "🍬", name: "Edibles" },
-            { icon: "💨", name: "Vapes" },
-            { icon: "🍯", name: "Concentrates" },
-            { icon: "🛒", name: "Accessories" },
-          ].map((cat) => (
-            <div
-              key={cat.name}
-              className="bg-[#1c201e] border border-white/10 rounded-2xl p-5 flex flex-col items-center gap-2 cursor-pointer hover:border-[#c9a84c]/50 transition-all"
-            >
-              <span className="text-3xl">{cat.icon}</span>
-              <span className="text-sm font-semibold">{cat.name}</span>
-            </div>
-          ))}
-        </div>
-      </section>
-
       {/* PRODUCTS */}
-      <section className="px-6 pb-16">
-        <h2 className="text-xl font-bold mb-6">Menu 🌿</h2>
+      <section className="px-6 py-12 pb-16">
+        <div className="flex items-baseline justify-between mb-8 max-w-2xl">
+          <h2 style={{fontFamily: 'Georgia, serif'}} className="text-2xl font-bold">The Menu</h2>
+          <span className="text-xs tracking-widest uppercase text-[#999]">{products.length} products</span>
+        </div>
         <div className="grid grid-cols-2 gap-4 max-w-2xl">
           {products.map((product: any) => (
             <div
               key={product.id}
-              className="bg-[#1c201e] border border-white/10 rounded-2xl overflow-hidden hover:border-[#c9a84c]/50 transition-all"
+              className="bg-white border border-[#e0d9cc] rounded-2xl overflow-hidden hover:border-[#c9a84c] transition-all group"
             >
-              <div className="h-28 bg-[#1a3d2b] flex items-center justify-center text-5xl">
+              <div className="h-32 bg-[#f0ebe0] flex items-center justify-center text-5xl group-hover:bg-[#e8e0d0] transition-all">
                 {product.emoji}
               </div>
               <div className="p-4">
-                <div className="flex items-center gap-2 mb-1 flex-wrap">
-                  <p className="font-bold">{product.name}</p>
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
-                    product.strain_type === 'Sativa' ? 'bg-yellow-500/20 text-yellow-400' :
-                    product.strain_type === 'Indica' ? 'bg-purple-500/20 text-purple-400' :
-                    'bg-green-500/20 text-green-400'
+                <div className="flex items-start justify-between gap-2 mb-1">
+                  <p style={{fontFamily: 'Georgia, serif'}} className="font-bold text-[#1a1a1a] leading-tight">{product.name}</p>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-semibold flex-shrink-0 ${
+                    product.strain_type === 'Sativa' ? 'bg-amber-100 text-amber-700' :
+                    product.strain_type === 'Indica' ? 'bg-purple-100 text-purple-700' :
+                    'bg-green-100 text-green-700'
                   }`}>
                     {product.strain_type}
                   </span>
                 </div>
-                <p className="text-white/50 text-xs mb-1">{product.category} · {product.thc} THC</p>
-                <p className="text-white/30 text-xs mb-3 line-clamp-2">{product.description}</p>
+                <p className="text-[#999] text-xs mb-1">{product.category} · {product.thc} THC</p>
+                <p className="text-[#888] text-xs mb-3 line-clamp-2">{product.description}</p>
                 <div className="flex items-center justify-between">
-                  <span className="text-[#c9a84c] font-bold text-lg">${product.price}</span>
+                  <span className="text-[#1a1a1a] font-bold text-lg">${product.price}</span>
                   <button
                     onClick={() => addToCart(product)}
-                    className="bg-[#c9a84c] text-black font-bold w-8 h-8 rounded-full text-lg hover:bg-[#e8c97a] transition-all"
+                    className="bg-[#1a1a1a] text-[#f5f0e8] font-bold w-8 h-8 rounded-full text-lg hover:bg-[#c9a84c] hover:text-[#1a1a1a] transition-all"
                   >
                     +
                   </button>
@@ -317,23 +259,15 @@ if (!ageVerified) {
       {/* CART DRAWER */}
       {cartOpen && (
         <div className="fixed inset-0 z-50 flex">
-          <div
-            className="flex-1 bg-black/60 backdrop-blur-sm"
-            onClick={() => setCartOpen(false)}
-          />
-          <div className="w-full max-w-sm bg-[#141816] border-l border-white/10 flex flex-col h-full overflow-y-auto">
-            <div className="flex items-center justify-between px-6 py-5 border-b border-white/10">
-              <h2 className="text-lg font-bold">Your Cart 🛒</h2>
-              <button
-                onClick={() => setCartOpen(false)}
-                className="text-white/50 text-2xl leading-none"
-              >
-                ×
-              </button>
+          <div className="flex-1 bg-black/40 backdrop-blur-sm" onClick={() => setCartOpen(false)} />
+          <div className="w-full max-w-sm bg-[#f5f0e8] border-l border-[#e0d9cc] flex flex-col h-full overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-[#e0d9cc]">
+              <h2 style={{fontFamily: 'Georgia, serif'}} className="text-lg font-bold">Your Cart</h2>
+              <button onClick={() => setCartOpen(false)} className="text-[#999] text-2xl leading-none hover:text-[#1a1a1a]">×</button>
             </div>
 
             {cart.length === 0 ? (
-              <div className="flex-1 flex flex-col items-center justify-center gap-3 text-white/30">
+              <div className="flex-1 flex flex-col items-center justify-center gap-3 text-[#999]">
                 <span className="text-5xl">🛒</span>
                 <p>Your cart is empty</p>
               </div>
@@ -342,49 +276,33 @@ if (!ageVerified) {
                 <div className="flex-1 px-6 py-4 flex flex-col gap-4">
                   {cart.map((item: any) => (
                     <div key={item.id} className="flex gap-3 items-start">
-                      <div className="w-12 h-12 bg-[#1a3d2b] rounded-xl flex items-center justify-center text-2xl flex-shrink-0">
+                      <div className="w-12 h-12 bg-[#e8e0d0] rounded-xl flex items-center justify-center text-2xl flex-shrink-0">
                         {item.emoji}
                       </div>
                       <div className="flex-1">
-                        <p className="font-bold text-sm">{item.name}</p>
-                        <p className="text-white/40 text-xs">{item.category}</p>
+                        <p className="font-bold text-sm text-[#1a1a1a]">{item.name}</p>
+                        <p className="text-[#999] text-xs">{item.category}</p>
                         <div className="flex items-center gap-3 mt-2">
-                          <button
-                            onClick={() => changeQty(item.id, -1)}
-                            className="w-6 h-6 rounded-full border border-white/20 text-white/60 text-sm flex items-center justify-center hover:border-[#c9a84c] hover:text-[#c9a84c]"
-                          >
-                            −
-                          </button>
+                          <button onClick={() => changeQty(item.id, -1)} className="w-6 h-6 rounded-full border border-[#1a1a1a]/20 text-[#666] text-sm flex items-center justify-center hover:border-[#1a1a1a] hover:text-[#1a1a1a]">−</button>
                           <span className="text-sm font-bold">{item.qty}</span>
-                          <button
-                            onClick={() => changeQty(item.id, 1)}
-                            className="w-6 h-6 rounded-full border border-white/20 text-white/60 text-sm flex items-center justify-center hover:border-[#c9a84c] hover:text-[#c9a84c]"
-                          >
-                            +
-                          </button>
+                          <button onClick={() => changeQty(item.id, 1)} className="w-6 h-6 rounded-full border border-[#1a1a1a]/20 text-[#666] text-sm flex items-center justify-center hover:border-[#1a1a1a] hover:text-[#1a1a1a]">+</button>
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="text-[#c9a84c] font-bold">${(item.price * item.qty).toFixed(2)}</p>
-                        <button
-                          onClick={() => removeFromCart(item.id)}
-                          className="text-white/20 text-xs mt-1 hover:text-red-400"
-                        >
-                          remove
-                        </button>
+                        <p className="text-[#1a1a1a] font-bold">${(item.price * item.qty).toFixed(2)}</p>
+                        <button onClick={() => removeFromCart(item.id)} className="text-[#bbb] text-xs mt-1 hover:text-red-500">remove</button>
                       </div>
                     </div>
                   ))}
                 </div>
-
-                <div className="px-6 py-5 border-t border-white/10">
+                <div className="px-6 py-5 border-t border-[#e0d9cc]">
                   <div className="flex justify-between mb-4">
-                    <span className="text-white/50">Total</span>
-                    <span className="text-[#c9a84c] font-bold text-xl">${total.toFixed(2)}</span>
+                    <span className="text-[#666]">Total</span>
+                    <span className="text-[#1a1a1a] font-bold text-xl">${total.toFixed(2)}</span>
                   </div>
                   <button
                     onClick={() => { setCartOpen(false); setCheckoutOpen(true) }}
-                    className="w-full bg-[#c9a84c] text-black font-bold py-4 rounded-2xl text-lg hover:bg-[#e8c97a] transition-all"
+                    className="w-full bg-[#1a1a1a] text-[#f5f0e8] font-bold py-4 rounded-2xl text-lg hover:bg-[#333] transition-all"
                   >
                     Checkout → ${total.toFixed(2)}
                   </button>
@@ -395,94 +313,62 @@ if (!ageVerified) {
         </div>
       )}
 
-      {/* CHECKOUT SCREEN */}
+      {/* CHECKOUT */}
       {checkoutOpen && (
-        <div className="fixed inset-0 z-50 bg-[#0a0c0b] overflow-y-auto">
+        <div className="fixed inset-0 z-50 bg-[#f5f0e8] overflow-y-auto">
           <div className="max-w-md mx-auto px-6 py-8">
-            <button
-              onClick={() => { setCheckoutOpen(false); setCartOpen(true) }}
-              className="text-white/50 text-sm mb-6 flex items-center gap-2 hover:text-white"
-            >
+            <button onClick={() => { setCheckoutOpen(false); setCartOpen(true) }} className="text-[#999] text-sm mb-6 flex items-center gap-2 hover:text-[#1a1a1a]">
               ← Back to cart
             </button>
 
-            <h1 className="text-2xl font-bold mb-2">Checkout</h1>
-            <p className="text-white/50 text-sm mb-8">Fill in your info and send payment</p>
+            <h1 style={{fontFamily: 'Georgia, serif'}} className="text-2xl font-bold mb-2 text-[#1a1a1a]">Checkout</h1>
+            <p className="text-[#888] text-sm mb-8">Fill in your info and send payment</p>
 
-            {/* ORDER SUMMARY */}
-            <div className="bg-[#1c201e] border border-white/10 rounded-2xl p-5 mb-6">
-              <h3 className="font-bold mb-4">Order Summary</h3>
+            <div className="bg-white border border-[#e0d9cc] rounded-2xl p-5 mb-6">
+              <h3 className="font-bold mb-4 text-[#1a1a1a]">Order Summary</h3>
               {cart.map((item: any) => (
                 <div key={item.id} className="flex justify-between text-sm mb-2">
-                  <span className="text-white/70">{item.name} × {item.qty}</span>
-                  <span className="font-semibold">${(item.price * item.qty).toFixed(2)}</span>
+                  <span className="text-[#666]">{item.name} × {item.qty}</span>
+                  <span className="font-semibold text-[#1a1a1a]">${(item.price * item.qty).toFixed(2)}</span>
                 </div>
               ))}
-              <div className="border-t border-white/10 mt-3 pt-3 flex justify-between font-bold">
+              <div className="border-t border-[#e0d9cc] mt-3 pt-3 flex justify-between font-bold">
                 <span>Total</span>
                 <span className="text-[#c9a84c] text-lg">${total.toFixed(2)}</span>
               </div>
             </div>
 
-            {/* DELIVERY INFO */}
-            <div className="bg-[#1c201e] border border-white/10 rounded-2xl p-5 mb-6">
-              <h3 className="font-bold mb-4">Delivery Info</h3>
-              <input
-                type="text"
-                placeholder="Your full name *"
-                value={name}
-                onChange={e => setName(e.target.value)}
-                className="w-full bg-[#242927] border border-white/10 rounded-xl px-4 py-3 text-sm mb-3 outline-none focus:border-[#c9a84c]/50 placeholder-white/30"
-              />
-              <input
-                type="tel"
-                placeholder="Phone number *"
-                value={phone}
-                onChange={e => setPhone(e.target.value)}
-                className="w-full bg-[#242927] border border-white/10 rounded-xl px-4 py-3 text-sm mb-3 outline-none focus:border-[#c9a84c]/50 placeholder-white/30"
-              />
-              <input
-                type="text"
-                placeholder="Delivery address *"
-                value={address}
-                onChange={e => setAddress(e.target.value)}
-                className="w-full bg-[#242927] border border-white/10 rounded-xl px-4 py-3 text-sm mb-3 outline-none focus:border-[#c9a84c]/50 placeholder-white/30"
-              />
-              <textarea
-                placeholder="Order notes (optional)"
-                value={notes}
-                onChange={e => setNotes(e.target.value)}
-                rows={2}
-                className="w-full bg-[#242927] border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#c9a84c]/50 placeholder-white/30 resize-none"
-              />
+            <div className="bg-white border border-[#e0d9cc] rounded-2xl p-5 mb-6">
+              <h3 className="font-bold mb-4 text-[#1a1a1a]">Delivery Info</h3>
+              <input type="text" placeholder="Your full name *" value={name} onChange={e => setName(e.target.value)} className="w-full bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl px-4 py-3 text-sm mb-3 outline-none focus:border-[#c9a84c] placeholder-[#bbb] text-[#1a1a1a]" />
+              <input type="tel" placeholder="Phone number *" value={phone} onChange={e => setPhone(e.target.value)} className="w-full bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl px-4 py-3 text-sm mb-3 outline-none focus:border-[#c9a84c] placeholder-[#bbb] text-[#1a1a1a]" />
+              <input type="text" placeholder="Delivery address *" value={address} onChange={e => setAddress(e.target.value)} className="w-full bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl px-4 py-3 text-sm mb-3 outline-none focus:border-[#c9a84c] placeholder-[#bbb] text-[#1a1a1a]" />
+              <textarea placeholder="Order notes (optional)" value={notes} onChange={e => setNotes(e.target.value)} rows={2} className="w-full bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl px-4 py-3 text-sm outline-none focus:border-[#c9a84c] placeholder-[#bbb] text-[#1a1a1a] resize-none" />
             </div>
 
-            {/* PAYMENT */}
-            <div className="bg-[#1c201e] border border-white/10 rounded-2xl p-5 mb-6">
-              <h3 className="font-bold mb-2">Send Payment</h3>
-              <p className="text-white/50 text-sm mb-5">
-                Send <span className="text-[#c9a84c] font-bold">${total.toFixed(2)}</span> to our Cash App below then tap confirm.
+            <div className="bg-white border border-[#e0d9cc] rounded-2xl p-5 mb-6">
+              <h3 className="font-bold mb-2 text-[#1a1a1a]">Send Payment</h3>
+              <p className="text-[#888] text-sm mb-5">
+                Send <span className="text-[#c9a84c] font-bold">${total.toFixed(2)}</span> to our Cash App then tap confirm.
               </p>
-              <div className="bg-[#242927] border border-[#c9a84c]/20 rounded-xl p-6 text-center mb-4">
+              <div className="bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl p-6 text-center mb-4">
                 <div className="text-5xl mb-3">💚</div>
-                <p className="font-bold text-lg mb-1">Cash App</p>
-                <p className="text-white/40 text-sm mb-3">Tap to open Cash App and send payment:</p>
-                <a href="https://cash.app/$Luckydayz3" target="_blank" rel="noopener noreferrer" className="text-[#c9a84c] text-3xl font-bold underline underline-offset-4 hover:text-[#e8c97a] transition-all">{'$Luckydayz3'}</a>
+                <p style={{fontFamily: 'Georgia, serif'}} className="font-bold text-lg mb-1 text-[#1a1a1a]">Cash App</p>
+                <p className="text-[#999] text-sm mb-3">Tap to open Cash App and send payment:</p>
+                <a href="https://cash.app/$Luckydayz3" target="_blank" rel="noopener noreferrer" className="text-[#c9a84c] text-3xl font-bold underline underline-offset-4 hover:text-[#a07830] transition-all">{'$Luckydayz3'}</a>
               </div>
-              <p className="text-white/30 text-xs text-center">
-                Screenshot your payment confirmation — you may be asked to verify
-              </p>
+              <p className="text-[#bbb] text-xs text-center">Screenshot your payment confirmation — you may be asked to verify</p>
             </div>
 
             <button
               onClick={placeOrder}
               disabled={loading}
-              className="w-full bg-[#c9a84c] text-black font-bold py-4 rounded-2xl text-lg hover:bg-[#e8c97a] transition-all disabled:opacity-50"
+              className="w-full bg-[#1a1a1a] text-[#f5f0e8] font-bold py-4 rounded-2xl text-lg hover:bg-[#333] transition-all disabled:opacity-50"
             >
               {loading ? 'Placing Order...' : "I've Sent Payment ✓"}
             </button>
 
-            <p className="text-white/20 text-xs text-center mt-4">
+            <p className="text-[#bbb] text-xs text-center mt-4">
               Your order will be confirmed once payment is verified. Average delivery 30–45 min.
             </p>
           </div>
