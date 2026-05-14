@@ -13,8 +13,7 @@ export async function POST(request: Request) {
     const itemsList = items.map((i: any) => `${i.emoji} ${i.name} x${i.qty}`).join(', ')
 
     await client.messages.create({
-      body: `🌿 NEW LUCKYDAYZE ORDER!\n\nCustomer: ${customerName}\nPhone: ${customerPhone}\nAddress: ${customerAddress}\nItems: ${itemsList}\nTotal: $${total}\n\nGo to /admin to confirm!`,
-      from: process.env.TWILIO_PHONE_NUMBER,
+      body: `New order received!\n\nCustomer: ${customerName}\nPhone: ${customerPhone}\nAddress: ${customerAddress}\nItems: ${itemsList}\nTotal: $${total}\n\nCheck admin panel to confirm.`,
       to: process.env.TWILIO_MY_PHONE!
     })
 
