@@ -99,6 +99,32 @@ fetch('/api/notify', {
     items: orderItems
   })
 })
+setFinalTotal(total)
+
+fetch('/api/notify', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    customerName: name,
+    customerPhone: phone,
+    customerAddress: address,
+    total: total,
+    items: orderItems
+  })
+})
+setFinalTotal(total)
+
+fetch('/api/notify', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    customerName: name,
+    customerPhone: phone,
+    customerAddress: address,
+    total: total,
+    items: orderItems
+  })
+})
 
 setCart([])
 setCheckoutOpen(false)
