@@ -91,7 +91,6 @@ export default function AdminPage() {
   return (
     <main className="min-h-screen bg-[#0a0c0b] text-[#f0ede6]">
 
-      {/* TOP BAR */}
       <nav className="flex items-center justify-between px-6 py-4 border-b border-white/10 sticky top-0 bg-[#0a0c0b]/90 backdrop-blur z-40">
         <div>
           <div className="text-[#c9a84c] text-xl font-bold">LuckyDayze Admin</div>
@@ -103,7 +102,6 @@ export default function AdminPage() {
         </div>
       </nav>
 
-      {/* STATS */}
       <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-4">
         <div className="bg-[#1c201e] border border-white/10 rounded-2xl p-4">
           <div className="text-white/40 text-xs mb-1">Pending Payment</div>
@@ -123,7 +121,6 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* FILTER TABS */}
       <div className="flex gap-2 px-4 pb-4 overflow-x-auto">
         {['all', 'pending_payment', 'confirmed', 'preparing', 'out_for_delivery', 'delivered'].map(f => (
           <button
@@ -140,7 +137,6 @@ export default function AdminPage() {
         ))}
       </div>
 
-      {/* ORDERS LIST */}
       <div className="px-4 pb-24">
         {loading ? (
           <div className="text-center text-white/30 py-20">Loading orders...</div>
@@ -179,7 +175,6 @@ export default function AdminPage() {
         )}
       </div>
 
-      {/* ORDER DETAIL MODAL */}
       {selectedOrder && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setSelectedOrder(null)} />
@@ -190,24 +185,22 @@ export default function AdminPage() {
             </div>
 
             <div className="p-6">
-              {/* CUSTOMER INFO */}
               <div className="bg-[#1c201e] rounded-2xl p-4 mb-4">
                 <div className="text-white/40 text-xs font-bold uppercase tracking-wider mb-3">Customer</div>
                 <div className="font-bold text-lg mb-1">{selectedOrder.customer_name}</div>
                 <a href={`tel:${selectedOrder.customer_phone}`} className="text-[#c9a84c] text-sm mb-1 block">
-                  📞 {selectedOrder.customer_phone}
+                  {selectedOrder.customer_phone}
                 </a>
                 <a href={`https://maps.google.com/?q=${encodeURIComponent(selectedOrder.customer_address)}`} target="_blank" rel="noopener noreferrer" className="text-blue-400 text-sm block">
-                  📍 {selectedOrder.customer_address}
+                  {selectedOrder.customer_address}
                 </a>
                 {selectedOrder.order_notes && (
                   <div className="mt-3 bg-[#242927] rounded-xl p-3 text-sm text-white/60">
-                    💬 {selectedOrder.order_notes}
+                    {selectedOrder.order_notes}
                   </div>
                 )}
               </div>
 
-              {/* ITEMS */}
               <div className="bg-[#1c201e] rounded-2xl p-4 mb-4">
                 <div className="text-white/40 text-xs font-bold uppercase tracking-wider mb-3">Items Ordered</div>
                 {Array.isArray(selectedOrder.items) && selectedOrder.items.map((item, i) => (
@@ -222,7 +215,6 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {/* STATUS UPDATE */}
               <div className="bg-[#1c201e] rounded-2xl p-4 mb-4">
                 <div className="text-white/40 text-xs font-bold uppercase tracking-wider mb-3">Update Status</div>
                 <div className="flex flex-col gap-2">

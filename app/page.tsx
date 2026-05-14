@@ -81,7 +81,12 @@ export default function Home() {
       alert('Something went wrong: ' + error.message)
       return
     }
-    setFinalTotal(total)
+    await supabase.rpc('award_loyalty_points', {
+  p_phone: phone,
+  p_name: name,
+  p_spent: total
+})
+setFinalTotal(total)
 setCart([])
 setCheckoutOpen(false)
 setOrderPlaced(true)
@@ -157,7 +162,9 @@ if (!ageVerified) {
         <div className="text-[#c9a84c] text-2xl font-bold tracking-tight">
           LuckyDayze
         </div>
-        <div className="text-sm text-white/50 hidden sm:block">NYC Cannabis Delivery</div>
+        <a href="/rewards" className="text-sm font-bold text-[#c9a84c] hover:text-[#e8c97a] transition-all">
+          Rewards
+        </a>
         <button
           onClick={() => setCartOpen(true)}
           className="bg-[#c9a84c] text-black text-sm font-bold px-5 py-2 rounded-full relative"
