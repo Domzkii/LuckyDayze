@@ -100,7 +100,8 @@ const [wrongPassword, setWrongPassword] = useState(false)
             .eq('name', item.name)
             .single()
 
-          const grams = product?.grams || 3.5
+          const isPreRoll = item.category === 'Pre-Rolls'
+          const grams = isPreRoll ? 1 : (product?.grams || 3.5)
           const gramsSold = grams * item.qty
           const inventoryCost = costPerGram * gramsSold
           const revenue = item.price * item.qty
@@ -131,8 +132,22 @@ const [wrongPassword, setWrongPassword] = useState(false)
 week_id: activeWeek?.id || null
           })
 
-          if (product) {
-            const newStock = (product.stock_grams || 112) - gramsSold
+          // Deduct from inventory
+          if (isPreRoll) {
+            // Deduct from flower pool (product with most grams)
+            const { data: flowerProducts } = await supabase
+              .from('products')
+              .select('id, stock_grams')
+              .eq('category', 'Flower')
+              .order('stock_grams', { ascending: false })
+              .limit(1)
+            if (flowerProducts && flowerProducts.length > 0) {
+              const topFlower = flowerProducts[0]
+              const newStock = Math.max(0, (topFlower.stock_grams || 0) - gramsSold)
+              await supabase.from('products').update({ stock_grams: newStock }).eq('id', topFlower.id)
+            }
+          } else if (product) {
+            const newStock = Math.max(0, (product.stock_grams || 0) - gramsSold)
             await supabase.from('products').update({ stock_grams: newStock }).eq('name', item.name)
           }
         }

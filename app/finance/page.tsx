@@ -36,6 +36,8 @@ export default function FinancePage() {
   const [carryoverGrams, setCarryoverGrams] = useState(0)
   const [closingWeek, setClosingWeek] = useState(false)
 
+const [productGrams, setProductGrams] = useState<Record<string, number>>({})
+
   const [costPerQP, setCostPerQP] = useState(400)
   const [deliveryCost, setDeliveryCost] = useState(10)
   const [prices, setPrices] = useState<Record<string, number>>({
@@ -76,24 +78,25 @@ export default function FinancePage() {
   }
 
   async function startNewWeek() {
-    const totalGrams = newGrams + carryoverGrams
     const weekNumber = weekHistory.length + 1
     const startDate = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    const totalGrams = Object.values(productGrams).reduce((sum: number, g: any) => sum + (Number(g) || 0), 0)
     const { data: newWeek } = await supabase.from('weeks').insert({
       week_number: weekNumber,
       start_date: startDate,
       end_date: '',
-      carried_over_grams: carryoverGrams,
-      new_grams_added: newGrams,
+      carried_over_grams: 0,
+      new_grams_added: totalGrams,
       status: 'active'
     }).select().single()
-    // Update products stock
+    // Update each product's stock individually
     for (const product of products) {
-      await supabase.from('products').update({ stock_grams: totalGrams / products.length }).eq('id', product.id)
+      await supabase.from('products')
+        .update({ stock_grams: Number(productGrams[product.id]) || 0 })
+        .eq('id', product.id)
     }
     setShowNewWeek(false)
-    setNewGrams(112)
-    setCarryoverGrams(0)
+    setProductGrams({})
     await loadData()
   }
 
@@ -318,7 +321,7 @@ export default function FinancePage() {
             <div className="bg-white border border-[#e0d9cc] rounded-2xl p-6 mb-6">
               <h2 style={{fontFamily: 'Georgia, serif'}} className="text-lg font-bold mb-4">Inventory Status</h2>
               <div className="flex flex-col gap-3">
-                {products.map((p: any) => {
+                {products.filter((p: any) => p.category !== 'Pre-Rolls').map((p: any) => {
                   const stockPct = Math.max(0, Math.min(100, ((p.stock_grams || 0) / 112) * 100))
                   const isLow = (p.stock_grams || 0) < 14
                   return (
@@ -558,31 +561,31 @@ export default function FinancePage() {
       {showNewWeek && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-6">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowNewWeek(false)} />
-          <div className="relative w-full max-w-sm bg-[#f5f0e8] border border-[#e0d9cc] rounded-2xl p-6">
+          <div className="relative w-full max-w-sm bg-[#f5f0e8] border border-[#e0d9cc] rounded-2xl p-6 max-h-[90vh] overflow-y-auto">
             <h2 style={{fontFamily: 'Georgia, serif'}} className="text-xl font-bold mb-2">Start New Week</h2>
-            <p className="text-[#999] text-sm mb-6">Set your inventory for the new week.</p>
-            <div className="mb-4">
-              <label className="text-xs uppercase tracking-wider text-[#999] block mb-2">Carried Over Grams</label>
-              <input type="number" value={carryoverGrams} onChange={e => setCarryoverGrams(Number(e.target.value))} className="w-full bg-white border border-[#e0d9cc] rounded-xl px-4 py-3 text-sm outline-none focus:border-[#c9a84c]" />
-              <p className="text-xs text-[#999] mt-1">Leftover grams from last week</p>
-            </div>
-            <div className="mb-6">
-              <label className="text-xs uppercase tracking-wider text-[#999] block mb-2">New Grams Added</label>
-              <input type="number" value={newGrams} onChange={e => setNewGrams(Number(e.target.value))} className="w-full bg-white border border-[#e0d9cc] rounded-xl px-4 py-3 text-sm outline-none focus:border-[#c9a84c]" />
-              <p className="text-xs text-[#999] mt-1">New inventory this week</p>
+            <p className="text-[#999] text-sm mb-6">Set how many grams you have for each product this week.</p>
+            <div className="flex flex-col gap-4 mb-6">
+{products.filter((p: any) => p.category !== 'Pre-Rolls').map((product: any) => (                <div key={product.id}>
+                  <label className="text-sm font-bold block mb-1">{product.emoji} {product.name}</label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="number"
+                      placeholder="0"
+                      value={productGrams[product.id] || ''}
+                      onChange={e => setProductGrams(prev => ({ ...prev, [product.id]: Number(e.target.value) }))}
+                      className="flex-1 bg-white border border-[#e0d9cc] rounded-xl px-4 py-3 text-sm outline-none focus:border-[#c9a84c]"
+                    />
+                    <span className="text-[#999] text-sm">grams</span>
+                  </div>
+                </div>
+              ))}
             </div>
             <div className="bg-white border border-[#e0d9cc] rounded-xl p-4 mb-6">
-              <div className="flex justify-between text-sm mb-1">
-                <span className="text-[#999]">Carried over</span>
-                <span className="font-bold">{carryoverGrams}g</span>
-              </div>
-              <div className="flex justify-between text-sm mb-1">
-                <span className="text-[#999]">New inventory</span>
-                <span className="font-bold">{newGrams}g</span>
-              </div>
-              <div className="flex justify-between text-sm font-bold border-t border-[#e0d9cc] pt-2 mt-2">
-                <span>Total available</span>
-                <span className="text-[#c9a84c]">{carryoverGrams + newGrams}g</span>
+              <div className="flex justify-between text-sm font-bold">
+                <span>Total inventory</span>
+                <span className="text-[#c9a84c]">
+                  {Object.values(productGrams).reduce((sum: number, g: any) => sum + (Number(g) || 0), 0)}g
+                </span>
               </div>
             </div>
             <button onClick={startNewWeek} className="w-full bg-[#1a1a1a] text-[#f5f0e8] font-bold py-3 rounded-xl hover:bg-[#333] transition-all">
