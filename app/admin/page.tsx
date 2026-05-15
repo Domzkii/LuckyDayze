@@ -240,9 +240,17 @@ week_id: activeWeek?.id || null
           <div className="text-[#c9a84c] text-xl font-bold">LuckyDayze Admin</div>
           <div className="text-white/40 text-xs">Order Management</div>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
-          <span className="text-white/40 text-xs">Live</span>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
+            <span className="text-white/40 text-xs">Live</span>
+          </div>
+          <button onClick={() => loadOrders()} className="border border-white/20 text-white/60 text-sm font-bold px-4 py-2 rounded-full hover:border-white/40 hover:text-white transition-all">
+            Refresh
+          </button>
+          <a href="/finance" className="bg-[#c9a84c] text-black text-sm font-bold px-4 py-2 rounded-full hover:bg-[#e8c97a] transition-all">
+            Finance
+          </a>
         </div>
       </nav>
 
