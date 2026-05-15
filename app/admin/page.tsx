@@ -83,6 +83,13 @@ const [wrongPassword, setWrongPassword] = useState(false)
 
       await supabase.from('orders').update({ status }).eq('id', orderId)
 
+      // Get active week
+      const { data: activeWeek } = await supabase
+        .from('weeks')
+        .select('id')
+        .eq('status', 'active')
+        .single()
+
       const costPerGram = 400 / 112
 
       if (Array.isArray(selectedOrder.items)) {
@@ -120,7 +127,8 @@ const [wrongPassword, setWrongPassword] = useState(false)
             delivery_cost: itemDeliveryCost,
             net_profit: netProfit,
             delivery_shares: roleDeliveryShares,
-            status: 'delivered'
+            status: 'delivered',
+week_id: activeWeek?.id || null
           })
 
           if (product) {
