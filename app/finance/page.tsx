@@ -250,7 +250,7 @@ export default function FinancePage() {
           <>
             <div className="bg-[#1a1a1a] text-[#f5f0e8] rounded-2xl p-6 mb-6">
               <div className="text-xs tracking-widest uppercase text-[#c9a84c] mb-4">All Time Stats</div>
-              <div className="grid grid-cols-2 gap-4 mb-4">
+              <div className="grid grid-cols-2 gap-4 mb-6">
                 <div>
                   <div className="text-[#999] text-xs mb-1">Total Revenue</div>
                   <div style={{fontFamily: 'Georgia, serif'}} className="text-3xl font-bold text-[#c9a84c]">${totalRevenue.toFixed(2)}</div>
@@ -267,6 +267,50 @@ export default function FinancePage() {
                   <div className="text-[#999] text-xs mb-1">Total Orders</div>
                   <div className="text-xl font-bold">{[...new Set(sales.map((s: any) => s.order_id))].length}</div>
                 </div>
+              </div>
+
+              {/* ALL TIME PAYOUTS PER ROLE */}
+              <div className="border-t border-white/10 pt-5">
+                <div className="text-xs tracking-widest uppercase text-[#c9a84c] mb-4">All Time Payouts by Role</div>
+                {ROLES.map(role => {
+                  const allTimePayouts = weekHistory.reduce((sum: number, week: any) => {
+                    const weekPayout = weekPayouts.find((p: any) => p.week_id === week.id && p.role === role.key)
+                    return sum + (weekPayout?.net_payout || 0)
+                  }, 0)
+                  const allTimeDelivery = weekHistory.reduce((sum: number, week: any) => {
+                    const weekPayout = weekPayouts.find((p: any) => p.week_id === week.id && p.role === role.key)
+                    return sum + (weekPayout?.delivery_contribution || 0)
+                  }, 0)
+                  const allTimeGross = weekHistory.reduce((sum: number, week: any) => {
+                    const weekPayout = weekPayouts.find((p: any) => p.week_id === week.id && p.role === role.key)
+                    return sum + (weekPayout?.gross_payout || 0)
+                  }, 0)
+                  return (
+                    <div key={role.key} className="mb-4 pb-4 border-b border-white/10 last:border-0 last:mb-0 last:pb-0">
+                      <div className="flex items-center justify-between mb-2">
+                        <div>
+                          <span className="font-bold">{role.label}</span>
+                          <span className="text-[#999] text-xs ml-2">{role.desc}</span>
+                        </div>
+                        <span className="text-[#c9a84c] font-bold text-lg">${allTimePayouts.toFixed(2)}</span>
+                      </div>
+                      <div className="flex gap-4 text-xs">
+                        <div className="flex items-center gap-1">
+                          <span className="text-[#999]">Gross:</span>
+                          <span className="font-bold text-[#f5f0e8]/80">${allTimeGross.toFixed(2)}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-[#999]">Delivery paid:</span>
+                          <span className="font-bold text-red-400">−${allTimeDelivery.toFixed(2)}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-[#999]">Net:</span>
+                          <span className="font-bold text-green-400">${allTimePayouts.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             </div>
 
