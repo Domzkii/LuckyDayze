@@ -40,9 +40,9 @@ export default function Home() {
 
     return cart.map((i: any) => {
       if (i.category !== 'Pre-Rolls') return i
-      const share = (i.qty / totalQty) * totalPreRollCost
-      const pricePerUnit = parseFloat((share / i.qty).toFixed(2))
-      const promo = totalPreRolls >= 2 ? `2 for $15` : null
+      const share = Math.round((i.qty / totalQty) * totalPreRollCost)
+      const pricePerUnit = share / i.qty
+      const promo = totalPreRolls >= 2 ? '2 for $15' : null
       return { ...i, price: pricePerUnit, promo }
     })
   }
@@ -325,7 +325,7 @@ export default function Home() {
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="text-[#1a1a1a] font-bold">${(item.price * item.qty).toFixed(2)}</p>
+                        <p className="text-[#1a1a1a] font-bold">${Math.round(item.price * item.qty)}</p>
                         <button onClick={() => removeFromCart(item.id)} className="text-[#bbb] text-xs mt-1 hover:text-red-500">remove</button>
                       </div>
                     </div>
@@ -402,7 +402,7 @@ export default function Home() {
               {cart.map((item: any) => (
                 <div key={item.id} className="flex justify-between text-sm mb-2">
                   <span className="text-[#666]">{item.name} × {item.qty} {item.promo ? '🎉' : ''}</span>
-                  <span className="font-semibold text-[#1a1a1a]">${(item.price * item.qty).toFixed(2)}</span>
+                  <span className="font-semibold text-[#1a1a1a]">${Math.round(item.price * item.qty)}</span>
                 </div>
               ))}
               <div className="border-t border-[#e0d9cc] mt-3 pt-3 flex justify-between font-bold">
