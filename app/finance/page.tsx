@@ -584,11 +584,30 @@ const [productGrams, setProductGrams] = useState<Record<string, number>>({})
               ))}
             </div>
             <div className="bg-white border border-[#e0d9cc] rounded-xl p-4 mb-6">
-              <div className="flex justify-between text-sm font-bold">
-                <span>Total inventory</span>
-                <span className="text-[#c9a84c]">
-                  {Object.values(productGrams).reduce((sum: number, g: any) => sum + (Number(g) || 0), 0)}g
-                </span>
+              <div className="text-xs uppercase tracking-wider text-[#999] mb-3">Inventory Breakdown</div>
+              {Object.entries(productGrams).map(([id, grams]: any) => {
+                const product = products.find((p: any) => p.id === id)
+                if (!product || !grams) return null
+                const g = Number(grams)
+                const oz = (g / 128).toFixed(2)
+const qp = (g / 512).toFixed(2)
+                return (
+                  <div key={id} className="flex justify-between text-sm py-1.5 border-b border-[#e0d9cc] last:border-0">
+                    <span className="font-bold">{product.emoji} {product.name}</span>
+                    <span className="text-[#999]">{g}g · {oz}oz · {qp} QP</span>
+                  </div>
+                )
+              })}
+              <div className="flex justify-between text-sm font-bold pt-3 mt-1 border-t border-[#e0d9cc]">
+                <span>Total</span>
+                <div className="text-right">
+                  {(() => {
+                    const totalG = Object.values(productGrams).reduce((sum: number, g: any) => sum + (Number(g) || 0), 0)
+                    const totalOz = (totalG / 128).toFixed(2)
+const totalQP = (totalG / 512).toFixed(2)
+                    return <span className="text-[#c9a84c]">{totalG}g · {totalOz}oz · {totalQP} QP</span>
+                  })()}
+                </div>
               </div>
             </div>
             <button onClick={startNewWeek} className="w-full bg-[#1a1a1a] text-[#f5f0e8] font-bold py-3 rounded-xl hover:bg-[#333] transition-all">
