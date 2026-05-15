@@ -38,12 +38,25 @@ export default function Home() {
     const preRollItems = cart.filter((i: any) => i.category === 'Pre-Rolls')
     const totalQty = preRollItems.reduce((sum: number, i: any) => sum + i.qty, 0)
 
+    // Distribute cost cleanly — give remainder to first item
+    let remaining = totalPreRollCost
+    let firstPreRoll = true
+
     return cart.map((i: any) => {
       if (i.category !== 'Pre-Rolls') return i
-      const share = Math.round((i.qty / totalQty) * totalPreRollCost)
-      const pricePerUnit = share / i.qty
       const promo = totalPreRolls >= 2 ? '2 for $15' : null
-      return { ...i, price: pricePerUnit, promo }
+      if (firstPreRoll) {
+        firstPreRoll = false
+        const otherPreRolls = preRollItems
+          .filter((p: any) => p.id !== i.id)
+          .reduce((sum: number, p: any) => sum + Math.floor((p.qty / totalQty) * totalPreRollCost), 0)
+        const thisShare = totalPreRollCost - otherPreRolls
+        remaining -= thisShare
+        return { ...i, price: thisShare / i.qty, promo }
+      } else {
+        const share = Math.floor((i.qty / totalQty) * totalPreRollCost)
+        return { ...i, price: share / i.qty, promo }
+      }
     })
   }
 
