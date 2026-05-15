@@ -23,7 +23,10 @@ export async function POST(request: Request) {
             <p><strong>Items:</strong> ${itemsList}</p>
             <p><strong>Total:</strong> $${total}</p>
           </div>
-          <p style="color: #888;">Log in to your admin panel to confirm the order.</p>
+          <a href="https://lucky-dayze.vercel.app/admin" style="display: inline-block; background: #c9a84c; color: #000; font-weight: bold; padding: 14px 28px; border-radius: 50px; text-decoration: none; margin-top: 8px;">
+            View Order in Admin →
+          </a>
+          <p style="color: #888; margin-top: 16px; font-size: 12px;">LuckyDayze · New York Cannabis House</p>
         </div>
       `
     })
