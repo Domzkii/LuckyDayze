@@ -237,6 +237,9 @@ export default function AdminPage() {
           <a href="/finance" className="bg-[#1a1a1a] text-[#f5f0e8] text-sm font-bold px-5 py-2 rounded-full hover:bg-[#333] transition-all">
             Finance
           </a>
+          <a href="/" className="border border-[#1a1a1a]/20 text-[#666] text-sm font-bold px-4 py-2 rounded-full hover:border-[#1a1a1a] transition-all">
+            Store
+          </a>
         </div>
       </nav>
 

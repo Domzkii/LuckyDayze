@@ -233,6 +233,9 @@ const [productGrams, setProductGrams] = useState<Record<string, number>>({})
         <div className="flex gap-2">
           <button onClick={loadData} className="border border-[#1a1a1a]/20 text-[#666] text-sm font-bold px-4 py-2 rounded-full hover:border-[#1a1a1a] transition-all">Refresh</button>
           <a href="/admin" className="bg-[#1a1a1a] text-[#f5f0e8] text-sm font-bold px-5 py-2 rounded-full hover:bg-[#333] transition-all">Admin</a>
+          <a href="/" className="border border-[#1a1a1a]/20 text-[#666] text-sm font-bold px-4 py-2 rounded-full hover:border-[#1a1a1a] transition-all">
+            Store
+          </a>
         </div>
       </nav>
 
