@@ -35,6 +35,8 @@ export default function FinancePage() {
   const [newGrams, setNewGrams] = useState(112)
   const [carryoverGrams, setCarryoverGrams] = useState(0)
   const [closingWeek, setClosingWeek] = useState(false)
+  const [newStrains, setNewStrains] = useState<any[]>([])
+const [deletedProducts, setDeletedProducts] = useState<string[]>([])
 
 const [productGrams, setProductGrams] = useState<Record<string, number>>({})
 
@@ -81,6 +83,32 @@ const [productGrams, setProductGrams] = useState<Record<string, number>>({})
     const weekNumber = weekHistory.length + 1
     const startDate = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
     const totalGrams = Object.values(productGrams).reduce((sum: number, g: any) => sum + (Number(g) || 0), 0)
+    
+    // Add any new strains to products table
+    for (const newStrain of newStrains) {
+      if (newStrain.name && newStrain.grams) {
+        const { data: inserted } = await supabase.from('products').insert({
+          name: newStrain.name,
+          category: 'Flower',
+          price: 40,
+          thc: '—',
+          strain_type: 'Hybrid',
+          description: 'New strain',
+          emoji: '🌿',
+          in_stock: true,
+          stock_grams: Number(newStrain.grams)
+        }).select().single()
+        if (inserted) {
+          productGrams[inserted.id] = Number(newStrain.grams)
+        }
+      }
+    }
+
+    // Delete removed products
+    for (const id of deletedProducts) {
+      await supabase.from('products').delete().eq('id', id)
+    }
+
     const { data: newWeek } = await supabase.from('weeks').insert({
       week_number: weekNumber,
       start_date: startDate,
@@ -89,14 +117,18 @@ const [productGrams, setProductGrams] = useState<Record<string, number>>({})
       new_grams_added: totalGrams,
       status: 'active'
     }).select().single()
-    // Update each product's stock individually
-    for (const product of products) {
+
+    // Update each existing product's stock
+    for (const product of products.filter((p: any) => p.category !== 'Pre-Rolls' && !deletedProducts.includes(p.id))) {
       await supabase.from('products')
         .update({ stock_grams: Number(productGrams[product.id]) || 0 })
         .eq('id', product.id)
     }
+
     setShowNewWeek(false)
     setProductGrams({})
+    setNewStrains([])
+    setDeletedProducts([])
     await loadData()
   }
 
@@ -566,50 +598,99 @@ const [productGrams, setProductGrams] = useState<Record<string, number>>({})
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowNewWeek(false)} />
           <div className="relative w-full max-w-sm bg-[#f5f0e8] border border-[#e0d9cc] rounded-2xl p-6 max-h-[90vh] overflow-y-auto">
             <h2 style={{fontFamily: 'Georgia, serif'}} className="text-xl font-bold mb-2">Start New Week</h2>
-            <p className="text-[#999] text-sm mb-6">Set how many grams you have for each product this week.</p>
-            <div className="flex flex-col gap-4 mb-6">
-{products.filter((p: any) => p.category !== 'Pre-Rolls').map((product: any) => (                <div key={product.id}>
-                  <label className="text-sm font-bold block mb-1">{product.emoji} {product.name}</label>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="number"
-                      placeholder="0"
-                      value={productGrams[product.id] || ''}
-                      onChange={e => setProductGrams(prev => ({ ...prev, [product.id]: Number(e.target.value) }))}
-                      className="flex-1 bg-white border border-[#e0d9cc] rounded-xl px-4 py-3 text-sm outline-none focus:border-[#c9a84c]"
-                    />
-                    <span className="text-[#999] text-sm">grams</span>
+            <p className="text-[#999] text-sm mb-6">Set your inventory. Add new strains or remove ones you don't have.</p>
+
+            {/* EXISTING PRODUCTS */}
+            <div className="flex flex-col gap-3 mb-4">
+              {products.filter((p: any) => p.category !== 'Pre-Rolls' && !deletedProducts.includes(p.id)).map((product: any) => (
+                <div key={product.id}>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-sm font-bold">{product.emoji} {product.name}</label>
+                    <button
+                      onClick={() => setDeletedProducts(prev => [...prev, product.id])}
+                      className="text-xs text-red-400 hover:text-red-600 font-bold"
+                    >
+                      Remove
+                    </button>
                   </div>
+                  <input
+                    type="number"
+                    placeholder="0"
+                    value={productGrams[product.id] || ''}
+                    onChange={e => setProductGrams(prev => ({ ...prev, [product.id]: Number(e.target.value) }))}
+                    className="w-full bg-white border border-[#e0d9cc] rounded-xl px-4 py-2 text-sm outline-none focus:border-[#c9a84c]"
+                  />
                 </div>
               ))}
             </div>
-            <div className="bg-white border border-[#e0d9cc] rounded-xl p-4 mb-6">
+
+            {/* NEW STRAINS */}
+            {newStrains.map((strain, idx) => (
+              <div key={idx} className="mb-3 bg-white border border-[#c9a84c]/30 rounded-xl p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-[#c9a84c] uppercase tracking-wider">New Strain</span>
+                  <button onClick={() => setNewStrains(prev => prev.filter((_, i) => i !== idx))} className="text-xs text-red-400 hover:text-red-600 font-bold">Remove</button>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Strain name"
+                  value={strain.name}
+                  onChange={e => setNewStrains(prev => prev.map((s, i) => i === idx ? { ...s, name: e.target.value } : s))}
+                  className="w-full bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl px-3 py-2 text-sm mb-2 outline-none focus:border-[#c9a84c]"
+                />
+                <input
+                  type="number"
+                  placeholder="Grams"
+                  value={strain.grams}
+                  onChange={e => setNewStrains(prev => prev.map((s, i) => i === idx ? { ...s, grams: e.target.value } : s))}
+                  className="w-full bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl px-3 py-2 text-sm outline-none focus:border-[#c9a84c]"
+                />
+              </div>
+            ))}
+
+            <button
+              onClick={() => setNewStrains(prev => [...prev, { name: '', grams: '' }])}
+              className="w-full border border-dashed border-[#c9a84c] text-[#c9a84c] font-bold py-2 rounded-xl text-sm hover:bg-[#c9a84c]/5 transition-all mb-4"
+            >
+              + Add New Strain
+            </button>
+
+            {/* BREAKDOWN */}
+            <div className="bg-white border border-[#e0d9cc] rounded-xl p-4 mb-4">
               <div className="text-xs uppercase tracking-wider text-[#999] mb-3">Inventory Breakdown</div>
-              {Object.entries(productGrams).map(([id, grams]: any) => {
-                const product = products.find((p: any) => p.id === id)
-                if (!product || !grams) return null
-                const g = Number(grams)
-                const oz = (g / 128).toFixed(2)
-const qp = (g / 512).toFixed(2)
+              {products.filter((p: any) => p.category !== 'Pre-Rolls' && !deletedProducts.includes(p.id)).map((product: any) => {
+                const g = Number(productGrams[product.id] || 0)
+                if (!g) return null
                 return (
-                  <div key={id} className="flex justify-between text-sm py-1.5 border-b border-[#e0d9cc] last:border-0">
+                  <div key={product.id} className="flex justify-between text-sm py-1 border-b border-[#e0d9cc] last:border-0">
                     <span className="font-bold">{product.emoji} {product.name}</span>
-                    <span className="text-[#999]">{g}g · {oz}oz · {qp} QP</span>
+                    <span className="text-[#999]">{g}g · {(g/128).toFixed(2)}oz · {(g/512).toFixed(2)} QP</span>
                   </div>
                 )
               })}
-              <div className="flex justify-between text-sm font-bold pt-3 mt-1 border-t border-[#e0d9cc]">
+              {newStrains.filter(s => s.name && s.grams).map((s, i) => {
+                const g = Number(s.grams)
+                return (
+                  <div key={i} className="flex justify-between text-sm py-1 border-b border-[#e0d9cc] last:border-0">
+                    <span className="font-bold">🌿 {s.name}</span>
+                    <span className="text-[#999]">{g}g · {(g/128).toFixed(2)}oz · {(g/512).toFixed(2)} QP</span>
+                  </div>
+                )
+              })}
+              <div className="flex justify-between text-sm font-bold pt-2 mt-1 border-t border-[#e0d9cc]">
                 <span>Total</span>
-                <div className="text-right">
+                <span className="text-[#c9a84c]">
                   {(() => {
-                    const totalG = Object.values(productGrams).reduce((sum: number, g: any) => sum + (Number(g) || 0), 0)
-                    const totalOz = (totalG / 128).toFixed(2)
-const totalQP = (totalG / 512).toFixed(2)
-                    return <span className="text-[#c9a84c]">{totalG}g · {totalOz}oz · {totalQP} QP</span>
+                    const totalG = [
+                      ...products.filter((p: any) => p.category !== 'Pre-Rolls' && !deletedProducts.includes(p.id)).map((p: any) => Number(productGrams[p.id] || 0)),
+                      ...newStrains.filter(s => s.grams).map(s => Number(s.grams))
+                    ].reduce((a, b) => a + b, 0)
+                    return `${totalG}g · ${(totalG/128).toFixed(2)}oz · ${(totalG/512).toFixed(2)} QP`
                   })()}
-                </div>
+                </span>
               </div>
             </div>
+
             <button onClick={startNewWeek} className="w-full bg-[#1a1a1a] text-[#f5f0e8] font-bold py-3 rounded-xl hover:bg-[#333] transition-all">
               Start Week
             </button>
