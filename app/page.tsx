@@ -16,6 +16,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false)
   const [finalTotal, setFinalTotal] = useState(0)
   const [ageVerified, setAgeVerified] = useState(false)
+  const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'pickup'>('delivery')
 
   useEffect(() => {
     async function loadProducts() {
@@ -82,8 +83,16 @@ export default function Home() {
   const cartCount = cart.reduce((sum: number, i: any) => sum + i.qty, 0)
 
   async function placeOrder() {
-    if (!name || !phone || !address) {
-      alert('Please fill in your name, phone number, and address.')
+    if (!name || !phone) {
+      alert('Please fill in your name and phone number.')
+      return
+    }
+    if (deliveryMethod === 'delivery' && !address) {
+      alert('Please fill in your delivery address.')
+      return
+    }
+    if (deliveryMethod === 'delivery' && total < 25) {
+      alert('Minimum order for delivery is $25. Add more items or select pickup!')
       return
     }
     setLoading(true)
@@ -98,7 +107,7 @@ export default function Home() {
     const { error } = await supabase.from('orders').insert({
       customer_name: name,
       customer_phone: phone,
-      customer_address: address,
+      customer_address: deliveryMethod === 'delivery' ? address : 'PICKUP',
       order_notes: notes,
       items: orderItems,
       total: total,
@@ -349,7 +358,44 @@ export default function Home() {
             </button>
 
             <h1 style={{fontFamily: 'Georgia, serif'}} className="text-2xl font-bold mb-2 text-[#1a1a1a]">Checkout</h1>
-            <p className="text-[#888] text-sm mb-8">Fill in your info and send payment</p>
+            <p className="text-[#888] text-sm mb-6">Fill in your info and send payment</p>
+
+            {/* DELIVERY METHOD */}
+            <div className="bg-white border border-[#e0d9cc] rounded-2xl p-5 mb-6">
+              <h3 className="font-bold mb-4 text-[#1a1a1a]">How would you like to receive your order?</h3>
+              <div className="flex flex-col gap-3">
+                <div
+                  onClick={() => setDeliveryMethod('delivery')}
+                  className={`flex items-center gap-4 p-4 rounded-xl border cursor-pointer transition-all ${deliveryMethod === 'delivery' ? 'border-[#c9a84c] bg-[#c9a84c]/5' : 'border-[#e0d9cc]'}`}
+                >
+                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${deliveryMethod === 'delivery' ? 'border-[#c9a84c]' : 'border-[#ccc]'}`}>
+                    {deliveryMethod === 'delivery' && <div className="w-2.5 h-2.5 rounded-full bg-[#c9a84c]" />}
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-bold text-sm text-[#1a1a1a]">🚗 Delivery</div>
+                    <div className="text-xs text-[#999]">We come to you · $25 minimum order</div>
+                  </div>
+                  {total > 0 && total < 25 && deliveryMethod === 'delivery' && (
+                    <div className="text-xs text-red-500 font-bold">Add ${(25 - total).toFixed(2)} more</div>
+                  )}
+                  {total >= 25 && deliveryMethod === 'delivery' && (
+                    <div className="text-xs text-green-600 font-bold">✓ Eligible</div>
+                  )}
+                </div>
+                <div
+                  onClick={() => setDeliveryMethod('pickup')}
+                  className={`flex items-center gap-4 p-4 rounded-xl border cursor-pointer transition-all ${deliveryMethod === 'pickup' ? 'border-[#c9a84c] bg-[#c9a84c]/5' : 'border-[#e0d9cc]'}`}
+                >
+                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${deliveryMethod === 'pickup' ? 'border-[#c9a84c]' : 'border-[#ccc]'}`}>
+                    {deliveryMethod === 'pickup' && <div className="w-2.5 h-2.5 rounded-full bg-[#c9a84c]" />}
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-bold text-sm text-[#1a1a1a]">📍 Pickup</div>
+                    <div className="text-xs text-[#999]">No minimum · We'll send you a location in one of the 5 boroughs</div>
+                  </div>
+                </div>
+              </div>
+            </div>
 
             <div className="bg-white border border-[#e0d9cc] rounded-2xl p-5 mb-6">
               <h3 className="font-bold mb-4 text-[#1a1a1a]">Order Summary</h3>
@@ -369,7 +415,14 @@ export default function Home() {
               <h3 className="font-bold mb-4 text-[#1a1a1a]">Delivery Info</h3>
               <input type="text" placeholder="Your full name *" value={name} onChange={e => setName(e.target.value)} className="w-full bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl px-4 py-3 text-sm mb-3 outline-none focus:border-[#c9a84c] placeholder-[#bbb] text-[#1a1a1a]" />
               <input type="tel" placeholder="Phone number *" value={phone} onChange={e => setPhone(e.target.value)} className="w-full bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl px-4 py-3 text-sm mb-3 outline-none focus:border-[#c9a84c] placeholder-[#bbb] text-[#1a1a1a]" />
-              <input type="text" placeholder="Delivery address *" value={address} onChange={e => setAddress(e.target.value)} className="w-full bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl px-4 py-3 text-sm mb-3 outline-none focus:border-[#c9a84c] placeholder-[#bbb] text-[#1a1a1a]" />
+              {deliveryMethod === 'delivery' && (
+                <input type="text" placeholder="Delivery address *" value={address} onChange={e => setAddress(e.target.value)} className="w-full bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl px-4 py-3 text-sm mb-3 outline-none focus:border-[#c9a84c] placeholder-[#bbb] text-[#1a1a1a]" />
+              )}
+              {deliveryMethod === 'pickup' && (
+                <div className="bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl px-4 py-3 text-sm mb-3 text-[#888]">
+                  📍 After your order is confirmed we will text you a pickup location in one of the 5 boroughs.
+                </div>
+              )}
               <textarea placeholder="Order notes (optional)" value={notes} onChange={e => setNotes(e.target.value)} rows={2} className="w-full bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl px-4 py-3 text-sm outline-none focus:border-[#c9a84c] placeholder-[#bbb] text-[#1a1a1a] resize-none" />
             </div>
 
