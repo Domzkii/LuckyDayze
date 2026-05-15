@@ -25,36 +25,57 @@ export default function Home() {
     loadProducts()
   }, [])
 
-  function addToCart(product: any) {
-    setCart((prev: any[]) => {
-      const existing = prev.find((i: any) => i.id === product.id)
-      if (existing) {
-        return prev.map((i: any) => i.id === product.id ? { ...i, qty: i.qty + 1 } : i)
-      }
-      return [...prev, { ...product, qty: 1 }]
-    })
-    function addToCart(product: any) {
-    setCart((prev: any[]) => {
-      const existing = prev.find((i: any) => i.id === product.id)
-      if (existing) {
-        return prev.map((i: any) => i.id === product.id ? { ...i, qty: i.qty + 1 } : i)
-      }
-      return [...prev, { ...product, qty: 1 }]
+  function applyPreRollPricing(cart: any[]) {
+    const totalPreRolls = cart
+      .filter((i: any) => i.category === 'Pre-Rolls')
+      .reduce((sum: number, i: any) => sum + i.qty, 0)
+
+    const pairs = Math.floor(totalPreRolls / 2)
+    const singles = totalPreRolls % 2
+    const totalPreRollCost = (pairs * 15) + (singles * 10)
+
+    const preRollItems = cart.filter((i: any) => i.category === 'Pre-Rolls')
+    const totalQty = preRollItems.reduce((sum: number, i: any) => sum + i.qty, 0)
+
+    return cart.map((i: any) => {
+      if (i.category !== 'Pre-Rolls') return i
+      const share = (i.qty / totalQty) * totalPreRollCost
+      const pricePerUnit = parseFloat((share / i.qty).toFixed(2))
+      const promo = totalPreRolls >= 2 ? `2 for $15` : null
+      return { ...i, price: pricePerUnit, promo }
     })
   }
+
+  function addToCart(product: any) {
+    setCart((prev: any[]) => {
+      let newCart
+      const existing = prev.find((i: any) => i.id === product.id)
+      if (existing) {
+        newCart = prev.map((i: any) => i.id === product.id ? { ...i, qty: i.qty + 1 } : i)
+      } else {
+        newCart = [...prev, { ...product, qty: 1, originalPrice: product.price }]
+      }
+      return applyPreRollPricing(newCart)
+    })
   }
 
   function removeFromCart(id: any) {
-    setCart((prev: any[]) => prev.filter((i: any) => i.id !== id))
+    setCart((prev: any[]) => {
+      const newCart = prev.filter((i: any) => i.id !== id)
+      return applyPreRollPricing(newCart)
+    })
   }
 
   function changeQty(id: any, delta: any) {
-    setCart((prev: any[]) => prev.map((i: any) => {
-      if (i.id !== id) return i
-      const newQty = i.qty + delta
-      if (newQty < 1) return null
-      return { ...i, qty: newQty }
-    }).filter(Boolean))
+    setCart((prev: any[]) => {
+      const newCart = prev.map((i: any) => {
+        if (i.id !== id) return i
+        const newQty = i.qty + delta
+        if (newQty < 1) return null
+        return { ...i, qty: newQty }
+      }).filter(Boolean)
+      return applyPreRollPricing(newCart)
+    })
   }
 
   const total = cart.reduce((sum: number, i: any) => sum + i.price * i.qty, 0)
@@ -240,6 +261,9 @@ export default function Home() {
                   </span>
                 </div>
                 <p className="text-[#999] text-xs mb-1">{product.category} · {product.thc} THC</p>
+                {product.category === 'Pre-Rolls' && (
+                  <p className="text-green-600 text-xs font-bold mb-1">🎉 2 for $15</p>
+                )}
                 <p className="text-[#888] text-xs mb-3 line-clamp-2">{product.description}</p>
                 <div className="flex items-center justify-between">
                   <span className="text-[#1a1a1a] font-bold text-lg">${product.price}</span>
@@ -281,6 +305,9 @@ export default function Home() {
                       </div>
                       <div className="flex-1">
                         <p className="font-bold text-sm text-[#1a1a1a]">{item.name}</p>
+                        {item.promo && (
+                          <span className="text-xs bg-green-100 text-green-700 font-bold px-2 py-0.5 rounded-full">{item.promo} 🎉</span>
+                        )}
                         <p className="text-[#999] text-xs">{item.category}</p>
                         <div className="flex items-center gap-3 mt-2">
                           <button onClick={() => changeQty(item.id, -1)} className="w-6 h-6 rounded-full border border-[#1a1a1a]/20 text-[#666] text-sm flex items-center justify-center hover:border-[#1a1a1a] hover:text-[#1a1a1a]">−</button>
@@ -328,7 +355,7 @@ export default function Home() {
               <h3 className="font-bold mb-4 text-[#1a1a1a]">Order Summary</h3>
               {cart.map((item: any) => (
                 <div key={item.id} className="flex justify-between text-sm mb-2">
-                  <span className="text-[#666]">{item.name} × {item.qty}</span>
+                  <span className="text-[#666]">{item.name} × {item.qty} {item.promo ? '🎉' : ''}</span>
                   <span className="font-semibold text-[#1a1a1a]">${(item.price * item.qty).toFixed(2)}</span>
                 </div>
               ))}
