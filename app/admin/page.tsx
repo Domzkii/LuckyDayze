@@ -77,6 +77,52 @@ const [wrongPassword, setWrongPassword] = useState(false)
 
   async function updateStatus(orderId: string, status: string) {
     await supabase.from('orders').update({ status }).eq('id', orderId)
+
+    // When marked delivered, log the sale to finance
+    if (status === 'delivered' && selectedOrder) {
+      const deliveryCost = 10 // default delivery cost
+      const costPerGram = 400 / 112 // $400 per QP
+
+      if (Array.isArray(selectedOrder.items)) {
+        for (const item of selectedOrder.items) {
+          // Get grams for this product
+          const { data: product } = await supabase
+            .from('products')
+            .select('grams, stock_grams')
+            .eq('name', item.name)
+            .single()
+
+          const grams = product?.grams || 3.5
+          const gramsSold = grams * item.qty
+          const inventoryCost = costPerGram * gramsSold
+          const revenue = item.price * item.qty
+          const netProfit = revenue - inventoryCost - (deliveryCost / selectedOrder.items.length)
+
+          // Log sale
+          await supabase.from('sales').insert({
+            order_id: orderId,
+            product_name: item.name,
+            category: item.category,
+            grams_sold: gramsSold,
+            revenue: revenue,
+            inventory_cost: inventoryCost,
+            delivery_cost: deliveryCost / selectedOrder.items.length,
+            net_profit: netProfit,
+            status: 'delivered'
+          })
+
+          // Deduct from inventory
+          if (product) {
+            const newStock = (product.stock_grams || 112) - gramsSold
+            await supabase
+              .from('products')
+              .update({ stock_grams: newStock })
+              .eq('name', item.name)
+          }
+        }
+      }
+    }
+
     setSelectedOrder(prev => prev ? { ...prev, status } : null)
     loadOrders()
   }
