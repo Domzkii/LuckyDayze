@@ -76,17 +76,17 @@ const [wrongPassword, setWrongPassword] = useState(false)
   }
 
   async function updateStatus(orderId: string, status: string) {
-    await supabase.from('orders').update({ status }).eq('id', orderId)
+    if (status === 'delivered' && selectedOrder) {
+      const input = window.prompt('Enter actual delivery cost for this order ($):', '10')
+      if (input === null) return // cancelled
+      const actualDeliveryCost = parseFloat(input) || 10
 
-    // When marked delivered, log the sale to finance
-    console.log('updateStatus called', status, selectedOrder)
-if (status === 'delivered' && selectedOrder) {
-      const deliveryCost = 10 // default delivery cost
-      const costPerGram = 400 / 112 // $400 per QP
+      await supabase.from('orders').update({ status }).eq('id', orderId)
+
+      const costPerGram = 400 / 112
 
       if (Array.isArray(selectedOrder.items)) {
         for (const item of selectedOrder.items) {
-          // Get grams for this product
           const { data: product } = await supabase
             .from('products')
             .select('grams, stock_grams')
@@ -97,9 +97,19 @@ if (status === 'delivered' && selectedOrder) {
           const gramsSold = grams * item.qty
           const inventoryCost = costPerGram * gramsSold
           const revenue = item.price * item.qty
-          const netProfit = revenue - inventoryCost - (deliveryCost / selectedOrder.items.length)
+          const itemDeliveryCost = actualDeliveryCost / selectedOrder.items.length
+          const netProfit = revenue - inventoryCost - itemDeliveryCost
 
-          // Log sale
+          // Calculate each role's delivery contribution
+          const roleDeliveryShares: Record<string, number> = {}
+          STATUSES.forEach(() => {})
+          const roleSplits: Record<string, number> = {
+            ceo: 35, cfo: 20, acquisitions: 25, delivery: 20
+          }
+          Object.keys(roleSplits).forEach(role => {
+            roleDeliveryShares[role] = parseFloat((itemDeliveryCost * (roleSplits[role] / 100)).toFixed(2))
+          })
+
           await supabase.from('sales').insert({
             order_id: orderId,
             product_name: item.name,
@@ -107,21 +117,20 @@ if (status === 'delivered' && selectedOrder) {
             grams_sold: gramsSold,
             revenue: revenue,
             inventory_cost: inventoryCost,
-            delivery_cost: deliveryCost / selectedOrder.items.length,
+            delivery_cost: itemDeliveryCost,
             net_profit: netProfit,
+            delivery_shares: roleDeliveryShares,
             status: 'delivered'
           })
 
-          // Deduct from inventory
           if (product) {
             const newStock = (product.stock_grams || 112) - gramsSold
-            await supabase
-              .from('products')
-              .update({ stock_grams: newStock })
-              .eq('name', item.name)
+            await supabase.from('products').update({ stock_grams: newStock }).eq('name', item.name)
           }
         }
       }
+    } else {
+      await supabase.from('orders').update({ status }).eq('id', orderId)
     }
 
     setSelectedOrder(prev => prev ? { ...prev, status } : null)

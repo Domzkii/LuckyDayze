@@ -238,15 +238,30 @@ export default function FinancePage() {
           ) : (
             <div className="flex flex-col gap-2">
               {sales.slice(0, 10).map((sale: any) => (
-                <div key={sale.id} className="flex items-center justify-between py-2 border-b border-[#e0d9cc] last:border-0 text-sm">
-                  <div>
-                    <div className="font-bold">{sale.product_name}</div>
-                    <div className="text-[#999] text-xs">{sale.grams_sold}g · {new Date(sale.created_at).toLocaleDateString()}</div>
+                <div key={sale.id} className="py-3 border-b border-[#e0d9cc] last:border-0">
+                  <div className="flex items-center justify-between text-sm mb-2">
+                    <div>
+                      <div className="font-bold">{sale.product_name}</div>
+                      <div className="text-[#999] text-xs">{sale.grams_sold}g · {new Date(sale.created_at).toLocaleDateString()}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-bold text-[#1a1a1a]">${sale.revenue?.toFixed(2)}</div>
+                      <div className="text-green-600 text-xs">+${sale.net_profit?.toFixed(2)} profit</div>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <div className="font-bold text-[#1a1a1a]">${sale.revenue?.toFixed(2)}</div>
-                    <div className="text-green-600 text-xs">+${sale.net_profit?.toFixed(2)} profit</div>
-                  </div>
+                  {sale.delivery_shares && (
+                    <div className="bg-[#f5f0e8] rounded-xl p-3">
+                      <div className="text-xs text-[#999] uppercase tracking-wider mb-2">Delivery cost split — ${sale.delivery_cost?.toFixed(2)} total</div>
+                      <div className="flex flex-col gap-1">
+                        {Object.entries(sale.delivery_shares).map(([role, amount]: any) => (
+                          <div key={role} className="flex justify-between text-xs border-b border-[#e0d9cc] last:border-0 py-1">
+                            <span className="text-[#666] capitalize">{role}</span>
+                            <span className="font-bold text-red-500">−${amount.toFixed(2)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
