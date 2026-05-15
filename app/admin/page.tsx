@@ -79,7 +79,8 @@ const [wrongPassword, setWrongPassword] = useState(false)
     await supabase.from('orders').update({ status }).eq('id', orderId)
 
     // When marked delivered, log the sale to finance
-    if (status === 'delivered' && selectedOrder) {
+    console.log('updateStatus called', status, selectedOrder)
+if (status === 'delivered' && selectedOrder) {
       const deliveryCost = 10 // default delivery cost
       const costPerGram = 400 / 112 // $400 per QP
 
