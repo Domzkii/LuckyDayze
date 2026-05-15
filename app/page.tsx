@@ -200,7 +200,23 @@ export default function Home() {
       {/* NAV */}
       <nav className="flex items-center justify-between px-6 py-5 border-b border-[#1a1a1a]/10 sticky top-0 bg-[#f5f0e8]/95 backdrop-blur z-40">
         <div>
-          <div style={{fontFamily: 'Georgia, serif'}} className="text-xl font-bold tracking-wider text-[#1a1a1a]">LUCKY DAYZE</div>
+          <div
+            onClick={() => {
+              const now = Date.now()
+              const w = window as any
+              if (!w._tapTimes) w._tapTimes = []
+              w._tapTimes = w._tapTimes.filter((t: number) => now - t < 3000)
+              w._tapTimes.push(now)
+              if (w._tapTimes.length >= 7) {
+                w._tapTimes = []
+                window.location.href = '/secret'
+              }
+            }}
+            style={{fontFamily: 'Georgia, serif'}}
+            className="text-xl font-bold tracking-wider text-[#1a1a1a] cursor-default select-none"
+          >
+            LUCKY DAYZE
+          </div>
           <div className="text-xs tracking-widest uppercase text-[#999]">New York Cannabis House</div>
         </div>
         <a href="/rewards" className="text-sm font-semibold text-[#c9a84c] hover:text-[#a07830] transition-all hidden sm:block tracking-wide">
