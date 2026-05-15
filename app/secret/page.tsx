@@ -25,21 +25,10 @@ export default function SecretPage() {
             <div className="text-xs tracking-widest uppercase text-[#999]">Staff Access</div>
           </div>
           <div className="bg-white border border-[#e0d9cc] rounded-2xl p-6">
-            <input
-              type="password"
-              placeholder="Password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') check() }}
-              className="w-full bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl px-4 py-3 text-sm mb-3 outline-none focus:border-[#c9a84c] placeholder-[#bbb]"
-            />
+            <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') check() }} className="w-full bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl px-4 py-3 text-sm mb-3 outline-none focus:border-[#c9a84c] placeholder-[#bbb]" />
             {wrong && <p className="text-red-500 text-xs mb-3">Incorrect password.</p>}
-            <button
-              onClick={check}
-              className="w-full bg-[#1a1a1a] text-[#f5f0e8] font-bold py-3 rounded-xl hover:bg-[#333] transition-all"
-            >
-              Enter
-            </button>
+            <button onClick={check} className="w-full bg-[#1a1a1a] text-[#f5f0e8] font-bold py-3 rounded-xl hover:bg-[#333] transition-all mb-3">Enter</button>
+            <a href="/" className="w-full border border-[#1a1a1a]/20 text-[#666] font-bold py-3 rounded-xl hover:border-[#1a1a1a] transition-all text-center text-sm block">Back to Store</a>
           </div>
         </div>
       </main>
@@ -54,15 +43,9 @@ export default function SecretPage() {
           <div className="text-xs tracking-widest uppercase text-[#999]">Staff Portal</div>
         </div>
         <div className="flex flex-col gap-4">
-          <a href="/admin" className="bg-[#1a1a1a] text-[#f5f0e8] font-bold py-4 rounded-2xl text-center text-lg hover:bg-[#333] transition-all">
-            Admin Dashboard
-          </a>
-          <a href="/finance" className="bg-[#c9a84c] text-[#1a1a1a] font-bold py-4 rounded-2xl text-center text-lg hover:bg-[#e8c97a] transition-all">
-            Finance Dashboard
-          </a>
-          <a href="/" className="border border-[#1a1a1a]/20 text-[#666] font-bold py-4 rounded-2xl text-center hover:border-[#1a1a1a] transition-all">
-            Back to Store
-          </a>
+          <a href="/admin" className="bg-[#1a1a1a] text-[#f5f0e8] font-bold py-4 rounded-2xl text-center text-lg hover:bg-[#333] transition-all">Admin Dashboard</a>
+          <a href="/finance" className="bg-[#c9a84c] text-[#1a1a1a] font-bold py-4 rounded-2xl text-center text-lg hover:bg-[#e8c97a] transition-all">Finance Dashboard</a>
+          <a href="/" className="border border-[#1a1a1a]/20 text-[#666] font-bold py-4 rounded-2xl text-center hover:border-[#1a1a1a] transition-all">Back to Store</a>
         </div>
       </div>
     </main>
