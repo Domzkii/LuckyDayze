@@ -46,6 +46,32 @@ export default function RewardsPage() {
     setShowMemberForm(false)
     setShowHouseForm(false)
   }
+  async function claimReward(rewardName: string, pointsCost: number, rewardKey: string) {
+    if ((customer?.points || 0) < pointsCost) return
+    
+    // Deduct points and save claimed reward
+    await supabase.from('loyalty').update({
+      points: (customer.points || 0) - pointsCost,
+      claimed_reward: rewardKey
+    }).eq('customer_phone', customer.customer_phone)
+
+    // Save to localStorage so store can pick it up
+    localStorage.setItem('luckydayze_reward', JSON.stringify({
+      name: rewardName,
+      key: rewardKey,
+      phone: customer.customer_phone
+    }))
+
+    // Update local state
+    setCustomer((prev: any) => ({
+      ...prev,
+      points: (prev.points || 0) - pointsCost,
+      claimed_reward: rewardKey
+    }))
+
+    // Redirect to store
+    window.location.href = '/?reward=claimed'
+  }
 
   const purchaseCount = customer?.purchase_count || 0
   const points = customer?.points || 0
@@ -161,7 +187,7 @@ export default function RewardsPage() {
                       <div className="text-xs text-[#999]">100 points · Pickup only</div>
                     </div>
                     {points >= 100
-                      ? <span className="text-xs bg-green-600 text-white font-bold px-3 py-1 rounded-full">Available!</span>
+                      ? <button onClick={() => claimReward('Free Pre-Roll (Pickup)', 100, 'free_preroll')} className="text-xs bg-green-600 text-white font-bold px-3 py-1.5 rounded-full hover:bg-green-700 transition-all">Claim →</button>
                       : <span className="text-xs text-[#999] font-bold">{100 - points} pts away</span>}
                   </div>
                 </div>
@@ -176,7 +202,7 @@ export default function RewardsPage() {
                       <div className="text-xs text-[#999]">100 points</div>
                     </div>
                     {points >= 100
-                      ? <span className="text-xs bg-green-600 text-white font-bold px-3 py-1 rounded-full">Available!</span>
+                      ? <button onClick={() => claimReward('Free Pre-Roll', 100, 'free_preroll')} className="text-xs bg-green-600 text-white font-bold px-3 py-1.5 rounded-full hover:bg-green-700 transition-all">Claim →</button>
                       : <span className="text-xs text-[#999] font-bold">{100 - points} pts away</span>}
                   </div>
                   <div className={`flex justify-between items-center p-3 rounded-xl border ${points >= 300 ? 'border-green-200 bg-green-50' : 'border-[#e0d9cc] bg-[#f5f0e8]'}`}>
@@ -185,7 +211,7 @@ export default function RewardsPage() {
                       <div className="text-xs text-[#999]">300 points</div>
                     </div>
                     {points >= 300
-                      ? <span className="text-xs bg-green-600 text-white font-bold px-3 py-1 rounded-full">Available!</span>
+                      ? <button onClick={() => claimReward('Free Eighth', 300, 'free_eighth')} className="text-xs bg-green-600 text-white font-bold px-3 py-1.5 rounded-full hover:bg-green-700 transition-all">Claim →</button>
                       : <span className="text-xs text-[#999] font-bold">{300 - points} pts away</span>}
                   </div>
                   <div className={`flex justify-between items-center p-3 rounded-xl border ${points >= 500 && purchaseCount >= 6 ? 'border-[#c9a84c] bg-[#f5f0e8]' : 'border-[#e0d9cc] bg-[#f5f0e8]'}`}>
@@ -209,7 +235,7 @@ export default function RewardsPage() {
                       <div className="text-xs text-[#999]">100 points</div>
                     </div>
                     {points >= 100
-                      ? <span className="text-xs bg-green-600 text-white font-bold px-3 py-1 rounded-full">Available!</span>
+                      ? <button onClick={() => claimReward('Free Pre-Roll', 100, 'free_preroll')} className="text-xs bg-green-600 text-white font-bold px-3 py-1.5 rounded-full hover:bg-green-700 transition-all">Claim →</button>
                       : <span className="text-xs text-[#999] font-bold">{100 - points} pts away</span>}
                   </div>
                   <div className={`flex justify-between items-center p-3 rounded-xl border ${points >= 300 ? 'border-green-200 bg-green-50' : 'border-[#e0d9cc] bg-[#f5f0e8]'}`}>
@@ -218,7 +244,7 @@ export default function RewardsPage() {
                       <div className="text-xs text-[#999]">300 points</div>
                     </div>
                     {points >= 300
-                      ? <span className="text-xs bg-green-600 text-white font-bold px-3 py-1 rounded-full">Available!</span>
+                      ? <button onClick={() => claimReward('Free Eighth', 300, 'free_eighth')} className="text-xs bg-green-600 text-white font-bold px-3 py-1.5 rounded-full hover:bg-green-700 transition-all">Claim →</button>
                       : <span className="text-xs text-[#999] font-bold">{300 - points} pts away</span>}
                   </div>
                 </div>

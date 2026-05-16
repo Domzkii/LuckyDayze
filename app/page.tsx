@@ -24,18 +24,39 @@ export default function Home() {
       setProducts(data || [])
     }
     loadProducts()
+
+    // Check for claimed reward from rewards page
+    const rewardRaw = localStorage.getItem('luckydayze_reward')
+    if (rewardRaw) {
+      try {
+        const reward = JSON.parse(rewardRaw)
+        const rewardItem = {
+          id: 'reward_' + reward.key,
+          name: reward.name,
+          price: 0,
+          qty: 1,
+          emoji: '🎁',
+          category: reward.key === 'free_eighth' ? 'Flower' : 'Pre-Rolls',
+          isReward: true,
+          rewardPhone: reward.phone
+        }
+        setCart([rewardItem])
+        setCartOpen(true)
+        localStorage.removeItem('luckydayze_reward')
+      } catch (e) {}
+    }
   }, [])
 
   function applyPreRollPricing(cart: any[]) {
     const totalPreRolls = cart
-      .filter((i: any) => i.category === 'Pre-Rolls')
+      .filter((i: any) => i.category === 'Pre-Rolls' && !i.isReward)
       .reduce((sum: number, i: any) => sum + i.qty, 0)
 
     const pairs = Math.floor(totalPreRolls / 2)
     const singles = totalPreRolls % 2
     const totalPreRollCost = (pairs * 15) + (singles * 10)
 
-    const preRollItems = cart.filter((i: any) => i.category === 'Pre-Rolls')
+    const preRollItems = cart.filter((i: any) => i.category === 'Pre-Rolls' && !i.isReward)
     const totalQty = preRollItems.reduce((sum: number, i: any) => sum + i.qty, 0)
 
     // Distribute cost cleanly — give remainder to first item
@@ -43,7 +64,7 @@ export default function Home() {
     let firstPreRoll = true
 
     return cart.map((i: any) => {
-      if (i.category !== 'Pre-Rolls') return i
+      if (i.category !== 'Pre-Rolls' || i.isReward) return i
       const promo = totalPreRolls >= 2 ? '2 for $15' : null
       if (firstPreRoll) {
         firstPreRoll = false
@@ -348,9 +369,16 @@ export default function Home() {
                         )}
                         <p className="text-[#999] text-xs">{item.category}</p>
                         <div className="flex items-center gap-3 mt-2">
-                          <button onClick={() => changeQty(item.id, -1)} className="w-6 h-6 rounded-full border border-[#1a1a1a]/20 text-[#666] text-sm flex items-center justify-center hover:border-[#1a1a1a] hover:text-[#1a1a1a]">−</button>
-                          <span className="text-sm font-bold">{item.qty}</span>
-                          <button onClick={() => changeQty(item.id, 1)} className="w-6 h-6 rounded-full border border-[#1a1a1a]/20 text-[#666] text-sm flex items-center justify-center hover:border-[#1a1a1a] hover:text-[#1a1a1a]">+</button>
+                          {!item.isReward && (
+                            <>
+                              <button onClick={() => changeQty(item.id, -1)} className="w-6 h-6 rounded-full border border-[#1a1a1a]/20 text-[#666] text-sm flex items-center justify-center hover:border-[#1a1a1a] hover:text-[#1a1a1a]">−</button>
+                              <span className="text-sm font-bold">{item.qty}</span>
+                              <button onClick={() => changeQty(item.id, 1)} className="w-6 h-6 rounded-full border border-[#1a1a1a]/20 text-[#666] text-sm flex items-center justify-center hover:border-[#1a1a1a] hover:text-[#1a1a1a]">+</button>
+                            </>
+                          )}
+                          {item.isReward && (
+                            <span className="text-xs bg-green-100 text-green-700 font-bold px-3 py-1 rounded-full">🎁 Free Reward</span>
+                          )}
                         </div>
                       </div>
                       <div className="text-right">
