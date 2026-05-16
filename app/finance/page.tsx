@@ -37,6 +37,9 @@ export default function FinancePage() {
   const [closingWeek, setClosingWeek] = useState(false)
   const [newStrains, setNewStrains] = useState<any[]>([])
 const [deletedProducts, setDeletedProducts] = useState<string[]>([])
+const [reupFund, setReupFund] = useState<any>(null)
+const [reupGoal, setReupGoal] = useState(800)
+const [showReupModal, setShowReupModal] = useState(false)
 
 const [productGrams, setProductGrams] = useState<Record<string, number>>({})
 
@@ -76,6 +79,13 @@ const [productGrams, setProductGrams] = useState<Record<string, number>>({})
         .eq('week_id', active.id)
       setWeekPayouts(payoutsData || [])
     }
+    const { data: reupData } = await supabase
+      .from('reup_fund')
+      .select('*')
+      .eq('status', 'active')
+      .single()
+    setReupFund(reupData || null)
+    if (reupData) setReupGoal(reupData.goal)
     setLoadingData(false)
   }
 
@@ -132,7 +142,7 @@ const [productGrams, setProductGrams] = useState<Record<string, number>>({})
     await loadData()
   }
 
-  async function closeWeek() {
+ async function closeWeek() {
     if (!activeWeek) return
     setClosingWeek(true)
     const weekSales = sales.filter((s: any) => s.week_id === activeWeek.id)
@@ -141,6 +151,37 @@ const [productGrams, setProductGrams] = useState<Record<string, number>>({})
     const totalDelivery = weekSales.reduce((sum: number, s: any) => sum + (s.delivery_cost || 0), 0)
     const totalGramsSold = weekSales.reduce((sum: number, s: any) => sum + (s.grams_sold || 0), 0)
     const endDate = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+
+    // Re-Up Fund logic
+    let reupContribution = 0
+    let teamPayoutProfit = 0
+
+    if (reupFund) {
+      const currentBalance = reupFund.current_balance || 0
+      const goal = reupFund.goal || 800
+      const needed = Math.max(0, goal - currentBalance)
+
+      if (totalProfit <= needed) {
+        // All profit goes to Re-Up
+        reupContribution = totalProfit
+        teamPayoutProfit = 0
+      } else {
+        // Re-Up gets filled, surplus goes to team
+        reupContribution = needed
+        teamPayoutProfit = totalProfit - needed
+      }
+
+      const newBalance = currentBalance + reupContribution
+      const isGoalMet = newBalance >= goal
+
+      await supabase.from('reup_fund').update({
+        current_balance: newBalance,
+        status: isGoalMet ? 'completed' : 'active'
+      }).eq('id', reupFund.id)
+
+    } else {
+      teamPayoutProfit = totalProfit
+    }
 
     await supabase.from('weeks').update({
       end_date: endDate,
@@ -151,9 +192,9 @@ const [productGrams, setProductGrams] = useState<Record<string, number>>({})
       status: 'closed'
     }).eq('id', activeWeek.id)
 
-    // Calculate and save payouts
+    // Calculate payouts from surplus only
     for (const role of ROLES) {
-      const grossPayout = (totalProfit * splits[role.key]) / 100
+      const grossPayout = (teamPayoutProfit * splits[role.key]) / 100
       const deliveryContribution = (totalDelivery * splits[role.key]) / 100
       const netPayout = grossPayout - deliveryContribution
       await supabase.from('week_payouts').insert({
@@ -165,7 +206,6 @@ const [productGrams, setProductGrams] = useState<Record<string, number>>({})
       })
     }
 
-    // Calculate leftover grams
     const totalStartGrams = (activeWeek.new_grams_added || 0) + (activeWeek.carried_over_grams || 0)
     const leftoverGrams = Math.max(0, totalStartGrams - totalGramsSold)
     setCarryoverGrams(leftoverGrams)
@@ -381,6 +421,55 @@ const [productGrams, setProductGrams] = useState<Record<string, number>>({})
         {/* THIS WEEK TAB */}
         {tab === 'week' && (
           <>
+          {/* RE-UP FUND */}
+            {reupFund ? (
+              <div className="bg-[#1a1a1a] text-[#f5f0e8] rounded-2xl p-6 mb-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <div className="text-xs tracking-widest uppercase text-[#c9a84c] mb-1">Re-Up Fund</div>
+                    <div style={{fontFamily: 'Georgia, serif'}} className="text-lg font-bold">
+                      {reupFund.status === 'completed' ? '🎉 Goal Reached!' : 'Building Fund...'}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[#c9a84c] text-2xl font-bold">${(reupFund.current_balance || 0).toFixed(0)}</div>
+                    <div className="text-[#999] text-xs">of ${reupFund.goal} goal</div>
+                  </div>
+                </div>
+                <div className="h-3 bg-white/10 rounded-full overflow-hidden mb-3">
+                  <div
+                    className="h-full bg-[#c9a84c] rounded-full transition-all"
+                    style={{ width: `${Math.min(100, ((reupFund.current_balance || 0) / reupFund.goal) * 100)}%` }}
+                  />
+                </div>
+                <div className="flex justify-between text-xs text-[#999]">
+                  <span>${Math.max(0, reupFund.goal - (reupFund.current_balance || 0)).toFixed(0)} still needed</span>
+                  <span>{Math.min(100, Math.round(((reupFund.current_balance || 0) / reupFund.goal) * 100))}% funded</span>
+                </div>
+                {reupFund.status === 'completed' && (
+                  <div className="mt-4 pt-4 border-t border-white/10">
+                    <p className="text-[#c9a84c] text-sm font-bold mb-2">🎉 Re-Up goal met! Time to re-up and set a new goal.</p>
+                    <button
+                      onClick={() => setShowReupModal(true)}
+                      className="w-full bg-[#c9a84c] text-[#1a1a1a] font-bold py-2 rounded-xl text-sm hover:bg-[#e8c97a] transition-all"
+                    >
+                      Set New Re-Up Goal
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="bg-white border border-[#e0d9cc] rounded-2xl p-5 mb-6">
+                <div className="text-xs uppercase tracking-wider text-[#999] mb-2">Re-Up Fund</div>
+                <p className="text-[#888] text-sm mb-4">Set a Re-Up goal to track how much profit needs to go back into inventory before team payouts begin.</p>
+                <button
+                  onClick={() => setShowReupModal(true)}
+                  className="w-full bg-[#1a1a1a] text-[#f5f0e8] font-bold py-3 rounded-xl hover:bg-[#333] transition-all"
+                >
+                  Set Re-Up Goal
+                </button>
+              </div>
+            )}
             {!activeWeek ? (
               <div className="bg-white border border-[#e0d9cc] rounded-2xl p-8 text-center mb-6">
                 <div className="text-4xl mb-4">📅</div>
@@ -706,16 +795,56 @@ const [productGrams, setProductGrams] = useState<Record<string, number>>({})
             <h2 style={{fontFamily: 'Georgia, serif'}} className="text-xl font-bold mb-2">Close Week {activeWeek?.week_number}?</h2>
             <p className="text-[#999] text-sm mb-6">This will finalize all payouts and log the week permanently. You can then start a new week.</p>
             <div className="bg-white border border-[#e0d9cc] rounded-xl p-4 mb-6">
-              <div className="text-xs uppercase tracking-wider text-[#999] mb-3">Final Payouts</div>
-              {ROLES.map(role => (
-                <div key={role.key} className="flex justify-between text-sm py-1.5 border-b border-[#e0d9cc] last:border-0">
-                  <span className="font-bold">{role.label}</span>
-                  <span className="font-bold text-[#c9a84c]">${projectedPayouts[role.key]?.net.toFixed(2)}</span>
-                </div>
-              ))}
+              {reupFund && reupFund.status !== 'completed' && (
+                <>
+                  <div className="text-xs uppercase tracking-wider text-[#999] mb-3">Re-Up Fund First</div>
+                  {(() => {
+                    const needed = Math.max(0, (reupFund.goal || 800) - (reupFund.current_balance || 0))
+                    const contribution = Math.min(weekProfit, needed)
+                    const surplus = Math.max(0, weekProfit - needed)
+                    return (
+                      <>
+                        <div className="flex justify-between text-sm py-1.5 border-b border-[#e0d9cc]">
+                          <span className="text-[#999]">Goes to Re-Up Fund</span>
+                          <span className="font-bold text-[#c9a84c]">${contribution.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm py-1.5 border-b border-[#e0d9cc]">
+                          <span className="text-[#999]">Available for team</span>
+                          <span className="font-bold">${surplus.toFixed(2)}</span>
+                        </div>
+                        {surplus === 0 && (
+                          <p className="text-xs text-amber-600 mt-2">All profit goes to Re-Up this week. ${(needed - contribution).toFixed(0)} still needed to reach goal.</p>
+                        )}
+                      </>
+                    )
+                  })()}
+                  <div className="text-xs uppercase tracking-wider text-[#999] mb-3 mt-4">Team Payouts</div>
+                </>
+              )}
+              {ROLES.map(role => {
+                const needed = reupFund ? Math.max(0, (reupFund.goal || 800) - (reupFund.current_balance || 0)) : 0
+                const surplus = reupFund ? Math.max(0, weekProfit - needed) : weekProfit
+                const grossPayout = (surplus * splits[role.key]) / 100
+                const deliveryShare = (weekDelivery * splits[role.key]) / 100
+                const netPayout = grossPayout - deliveryShare
+                return (
+                  <div key={role.key} className="flex justify-between text-sm py-1.5 border-b border-[#e0d9cc] last:border-0">
+                    <span className="font-bold">{role.label}</span>
+                    <span className="font-bold text-[#c9a84c]">${netPayout.toFixed(2)}</span>
+                  </div>
+                )
+              })}
               <div className="flex justify-between text-sm pt-2 mt-2 font-bold">
                 <span>Total Paid Out</span>
-                <span>${Object.values(projectedPayouts).reduce((sum: number, p: any) => sum + p.net, 0).toFixed(2)}</span>
+                <span>${(() => {
+                  const needed = reupFund ? Math.max(0, (reupFund.goal || 800) - (reupFund.current_balance || 0)) : 0
+                  const surplus = reupFund ? Math.max(0, weekProfit - needed) : weekProfit
+                  return Object.keys(splits).reduce((sum, role) => {
+                    const gross = (surplus * splits[role]) / 100
+                    const delivery = (weekDelivery * splits[role]) / 100
+                    return sum + gross - delivery
+                  }, 0).toFixed(2)
+                })()}</span>
               </div>
             </div>
             <div className="flex gap-3">
