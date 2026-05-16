@@ -41,10 +41,13 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true)
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [filter, setFilter] = useState('all')
+  const [membershipRequests, setMembershipRequests] = useState<any[]>([])
+  const [activeTab, setActiveTab] = useState<'orders' | 'members'>('orders')
 
   useEffect(() => {
     if (authenticated) {
       loadOrders()
+      loadRequests()
       Notification.requestPermission()
       const channel = supabase
         .channel('orders')
@@ -75,6 +78,37 @@ export default function AdminPage() {
     setLoading(false)
   }
 
+  async function loadRequests() {
+    const { data } = await supabase
+      .from('membership_requests')
+      .select('*')
+      .order('created_at', { ascending: false })
+    setMembershipRequests(data || [])
+  }
+
+  async function handleMembership(requestId: string, customerPhone: string, tier: string, approve: boolean) {
+    await supabase.from('membership_requests').update({
+      status: approve ? 'approved' : 'declined'
+    }).eq('id', requestId)
+
+    if (approve) {
+      const paidUntil = tier === 'house'
+        ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        : null
+      await supabase.from('loyalty').update({
+        membership_tier: tier,
+        membership_approved: true,
+        membership_requested: null,
+        ...(paidUntil ? { house_paid_until: paidUntil } : {})
+      }).eq('customer_phone', customerPhone)
+    } else {
+      await supabase.from('loyalty').update({
+        membership_requested: null
+      }).eq('customer_phone', customerPhone)
+    }
+    loadRequests()
+  }
+
   async function updateStatus(orderId: string, status: string) {
     if (status === 'delivered' && selectedOrder) {
       const input = window.prompt('Enter actual delivery cost for this order ($):', '10')
@@ -91,7 +125,7 @@ export default function AdminPage() {
 
       const costPerGram = 400 / 112
 
-      // ── LOYALTY UPDATE (once per order, outside item loop) ──
+      // LOYALTY — once per order, outside item loop
       const { data: loyaltyRecord } = await supabase
         .from('loyalty')
         .select('*')
@@ -99,8 +133,8 @@ export default function AdminPage() {
         .single()
 
       const orderTotal = selectedOrder.total
-      const isHighSpend = orderTotal >= 50
       const currentTier = loyaltyRecord?.membership_tier || 'guest'
+      const isHighSpend = orderTotal >= 50
       const pointsToAdd = (currentTier === 'member' && isHighSpend) || currentTier === 'house'
         ? Math.floor(orderTotal) * 2
         : Math.floor(orderTotal)
@@ -123,7 +157,7 @@ export default function AdminPage() {
         })
       }
 
-      // ── ITEM LOOP (sales + inventory) ──
+      // ITEM LOOP — sales + inventory
       if (Array.isArray(selectedOrder.items)) {
         for (const item of selectedOrder.items) {
           const { data: product } = await supabase
@@ -140,9 +174,7 @@ export default function AdminPage() {
           const itemDeliveryCost = actualDeliveryCost / selectedOrder.items.length
           const netProfit = revenue - inventoryCost - itemDeliveryCost
 
-          const roleSplits: Record<string, number> = {
-            ceo: 35, cfo: 20, acquisitions: 25, delivery: 20
-          }
+          const roleSplits: Record<string, number> = { ceo: 35, cfo: 20, acquisitions: 25, delivery: 20 }
           const roleDeliveryShares: Record<string, number> = {}
           Object.keys(roleSplits).forEach(role => {
             roleDeliveryShares[role] = parseFloat((itemDeliveryCost * (roleSplits[role] / 100)).toFixed(2))
@@ -153,7 +185,7 @@ export default function AdminPage() {
             product_name: item.name,
             category: item.category,
             grams_sold: gramsSold,
-            revenue: revenue,
+            revenue,
             inventory_cost: inventoryCost,
             delivery_cost: itemDeliveryCost,
             net_profit: netProfit,
@@ -170,9 +202,8 @@ export default function AdminPage() {
               .order('stock_grams', { ascending: false })
               .limit(1)
             if (flowerProducts && flowerProducts.length > 0) {
-              const topFlower = flowerProducts[0]
-              const newStock = Math.max(0, (topFlower.stock_grams || 0) - gramsSold)
-              await supabase.from('products').update({ stock_grams: newStock }).eq('id', topFlower.id)
+              const newStock = Math.max(0, (flowerProducts[0].stock_grams || 0) - gramsSold)
+              await supabase.from('products').update({ stock_grams: newStock }).eq('id', flowerProducts[0].id)
             }
           } else if (product) {
             const newStock = Math.max(0, (product.stock_grams || 0) - gramsSold)
@@ -208,6 +239,7 @@ export default function AdminPage() {
   const active = orders.filter(o => ['confirmed', 'preparing', 'out_for_delivery'].includes(o.status)).length
   const delivered = orders.filter(o => o.status === 'delivered').length
   const revenue = orders.filter(o => o.status !== 'cancelled').reduce((sum, o) => sum + (o.total || 0), 0)
+  const pendingRequests = membershipRequests.filter(r => r.status === 'pending').length
 
   if (!authenticated) {
     return (
@@ -250,6 +282,8 @@ export default function AdminPage() {
 
   return (
     <main className="min-h-screen bg-[#f5f0e8] text-[#1a1a1a]">
+
+      {/* NAV */}
       <nav className="flex items-center justify-between px-6 py-5 border-b border-[#1a1a1a]/10 sticky top-0 bg-[#f5f0e8]/95 backdrop-blur z-40">
         <div>
           <div style={{fontFamily: 'Georgia, serif'}} className="text-xl font-bold tracking-wider">LUCKY DAYZE</div>
@@ -266,65 +300,145 @@ export default function AdminPage() {
         </div>
       </nav>
 
-      <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-4 max-w-2xl mx-auto">
-        <div className="bg-white border border-[#e0d9cc] rounded-2xl p-4">
-          <div className="text-[#999] text-xs mb-1">Pending Payment</div>
-          <div style={{fontFamily: 'Georgia, serif'}} className="text-2xl font-bold text-amber-600">{pending}</div>
-        </div>
-        <div className="bg-white border border-[#e0d9cc] rounded-2xl p-4">
-          <div className="text-[#999] text-xs mb-1">Active Orders</div>
-          <div style={{fontFamily: 'Georgia, serif'}} className="text-2xl font-bold text-blue-600">{active}</div>
-        </div>
-        <div className="bg-white border border-[#e0d9cc] rounded-2xl p-4">
-          <div className="text-[#999] text-xs mb-1">Delivered</div>
-          <div style={{fontFamily: 'Georgia, serif'}} className="text-2xl font-bold text-green-600">{delivered}</div>
-        </div>
-        <div className="bg-white border border-[#e0d9cc] rounded-2xl p-4">
-          <div className="text-[#999] text-xs mb-1">Total Revenue</div>
-          <div style={{fontFamily: 'Georgia, serif'}} className="text-2xl font-bold text-[#c9a84c]">${revenue.toFixed(0)}</div>
-        </div>
+      {/* TABS */}
+      <div className="flex gap-2 px-4 py-4 border-b border-[#1a1a1a]/10 max-w-2xl mx-auto">
+        <button onClick={() => setActiveTab('orders')}
+          className={`px-5 py-2 rounded-full text-sm font-bold transition-all ${activeTab === 'orders' ? 'bg-[#1a1a1a] text-[#f5f0e8]' : 'border border-[#1a1a1a]/20 text-[#666]'}`}>
+          Orders
+        </button>
+        <button onClick={() => { setActiveTab('members'); loadRequests() }}
+          className={`px-5 py-2 rounded-full text-sm font-bold transition-all relative ${activeTab === 'members' ? 'bg-[#1a1a1a] text-[#f5f0e8]' : 'border border-[#1a1a1a]/20 text-[#666]'}`}>
+          Membership
+          {pendingRequests > 0 && (
+            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold w-4 h-4 rounded-full flex items-center justify-center">
+              {pendingRequests}
+            </span>
+          )}
+        </button>
       </div>
 
-      <div className="flex gap-2 px-4 pb-4 overflow-x-auto max-w-2xl mx-auto">
-        {['all', 'pending_payment', 'confirmed', 'preparing', 'out_for_delivery', 'delivered'].map(f => (
-          <button key={f} onClick={() => setFilter(f)}
-            className={`flex-shrink-0 px-4 py-2 rounded-full text-xs font-bold transition-all ${filter === f ? 'bg-[#1a1a1a] text-[#f5f0e8]' : 'bg-white border border-[#e0d9cc] text-[#666]'}`}>
-            {f === 'all' ? 'All Orders' : getStatusLabel(f)}
-          </button>
-        ))}
-      </div>
-
-      <div className="px-4 pb-24 max-w-2xl mx-auto">
-        {loading ? (
-          <div className="text-center text-[#999] py-20">Loading orders...</div>
-        ) : filtered.length === 0 ? (
-          <div className="text-center text-[#999] py-20">
-            <div className="text-4xl mb-3">📭</div>
-            <p>No orders yet</p>
+      {/* ORDERS TAB */}
+      {activeTab === 'orders' && (
+        <>
+          <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-4 max-w-2xl mx-auto">
+            <div className="bg-white border border-[#e0d9cc] rounded-2xl p-4">
+              <div className="text-[#999] text-xs mb-1">Pending Payment</div>
+              <div style={{fontFamily: 'Georgia, serif'}} className="text-2xl font-bold text-amber-600">{pending}</div>
+            </div>
+            <div className="bg-white border border-[#e0d9cc] rounded-2xl p-4">
+              <div className="text-[#999] text-xs mb-1">Active Orders</div>
+              <div style={{fontFamily: 'Georgia, serif'}} className="text-2xl font-bold text-blue-600">{active}</div>
+            </div>
+            <div className="bg-white border border-[#e0d9cc] rounded-2xl p-4">
+              <div className="text-[#999] text-xs mb-1">Delivered</div>
+              <div style={{fontFamily: 'Georgia, serif'}} className="text-2xl font-bold text-green-600">{delivered}</div>
+            </div>
+            <div className="bg-white border border-[#e0d9cc] rounded-2xl p-4">
+              <div className="text-[#999] text-xs mb-1">Total Revenue</div>
+              <div style={{fontFamily: 'Georgia, serif'}} className="text-2xl font-bold text-[#c9a84c]">${revenue.toFixed(0)}</div>
+            </div>
           </div>
-        ) : (
-          <div className="flex flex-col gap-3">
-            {filtered.map(order => (
-              <div key={order.id} onClick={() => setSelectedOrder(order)}
-                className="bg-white border border-[#e0d9cc] rounded-2xl p-4 cursor-pointer hover:border-[#c9a84c] transition-all">
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <div style={{fontFamily: 'Georgia, serif'}} className="font-bold text-base text-[#1a1a1a]">{order.customer_name}</div>
-                    <div className="text-[#999] text-xs mt-0.5">{formatTime(order.created_at)}</div>
-                  </div>
-                  <span className={`text-xs font-bold px-3 py-1 rounded-full ${getStatusStyle(order.status)}`}>{getStatusLabel(order.status)}</span>
-                </div>
-                <div className="text-[#666] text-sm mb-3">{order.customer_address}</div>
-                <div className="flex items-center justify-between">
-                  <div className="text-[#999] text-xs">{Array.isArray(order.items) ? order.items.map(i => `${i.emoji} ${i.name} x${i.qty}`).join(', ') : ''}</div>
-                  <div className="text-[#c9a84c] font-bold">${order.total}</div>
-                </div>
-              </div>
+
+          <div className="flex gap-2 px-4 pb-4 overflow-x-auto max-w-2xl mx-auto">
+            {['all', 'pending_payment', 'confirmed', 'preparing', 'out_for_delivery', 'delivered'].map(f => (
+              <button key={f} onClick={() => setFilter(f)}
+                className={`flex-shrink-0 px-4 py-2 rounded-full text-xs font-bold transition-all ${filter === f ? 'bg-[#1a1a1a] text-[#f5f0e8]' : 'bg-white border border-[#e0d9cc] text-[#666]'}`}>
+                {f === 'all' ? 'All Orders' : getStatusLabel(f)}
+              </button>
             ))}
           </div>
-        )}
-      </div>
 
+          <div className="px-4 pb-24 max-w-2xl mx-auto">
+            {loading ? (
+              <div className="text-center text-[#999] py-20">Loading orders...</div>
+            ) : filtered.length === 0 ? (
+              <div className="text-center text-[#999] py-20">
+                <div className="text-4xl mb-3">📭</div>
+                <p>No orders yet</p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {filtered.map(order => (
+                  <div key={order.id} onClick={() => setSelectedOrder(order)}
+                    className="bg-white border border-[#e0d9cc] rounded-2xl p-4 cursor-pointer hover:border-[#c9a84c] transition-all">
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <div style={{fontFamily: 'Georgia, serif'}} className="font-bold text-base text-[#1a1a1a]">{order.customer_name}</div>
+                        <div className="text-[#999] text-xs mt-0.5">{formatTime(order.created_at)}</div>
+                      </div>
+                      <span className={`text-xs font-bold px-3 py-1 rounded-full ${getStatusStyle(order.status)}`}>{getStatusLabel(order.status)}</span>
+                    </div>
+                    <div className="text-[#666] text-sm mb-3">{order.customer_address}</div>
+                    <div className="flex items-center justify-between">
+                      <div className="text-[#999] text-xs">{Array.isArray(order.items) ? order.items.map(i => `${i.emoji} ${i.name} x${i.qty}`).join(', ') : ''}</div>
+                      <div className="text-[#c9a84c] font-bold">${order.total}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* MEMBERSHIP TAB */}
+      {activeTab === 'members' && (
+        <div className="px-4 pb-24 max-w-2xl mx-auto pt-6">
+          <h2 style={{fontFamily: 'Georgia, serif'}} className="text-xl font-bold mb-4">Membership Requests</h2>
+          {membershipRequests.length === 0 ? (
+            <div className="text-center text-[#999] py-20">
+              <div className="text-4xl mb-3">👥</div>
+              <p>No membership requests yet</p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {membershipRequests.map(req => (
+                <div key={req.id} className="bg-white border border-[#e0d9cc] rounded-2xl p-5">
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <div style={{fontFamily: 'Georgia, serif'}} className="font-bold text-base">{req.customer_name}</div>
+                      <div className="text-[#999] text-xs">{req.customer_phone}</div>
+                    </div>
+                    <span className={`text-xs font-bold px-3 py-1 rounded-full ${
+                      req.status === 'pending' ? 'bg-amber-100 text-amber-700' :
+                      req.status === 'approved' ? 'bg-green-100 text-green-700' :
+                      'bg-red-100 text-red-600'
+                    }`}>
+                      {req.status === 'pending' ? 'Pending' : req.status === 'approved' ? 'Approved ✓' : 'Declined'}
+                    </span>
+                  </div>
+                  <div className="flex flex-col gap-1 text-sm text-[#666] mb-4">
+                    <span>📧 {req.customer_email || '—'}</span>
+                    <span>🎂 {req.customer_birthday || '—'}</span>
+                    <span>🏷️ Requesting: <span className={`font-bold ${req.requested_tier === 'house' ? 'text-[#c9a84c]' : 'text-green-700'}`}>
+                      {req.requested_tier === 'house' ? 'The House' : 'Member'}
+                    </span></span>
+                    <span className="text-xs text-[#999]">Submitted {new Date(req.created_at).toLocaleDateString()}</span>
+                  </div>
+                  {req.status === 'pending' && (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleMembership(req.id, req.customer_phone, req.requested_tier, true)}
+                        className="flex-1 bg-[#1a1a1a] text-[#f5f0e8] font-bold py-2 rounded-xl text-sm hover:bg-[#333] transition-all"
+                      >
+                        ✓ Approve
+                      </button>
+                      <button
+                        onClick={() => handleMembership(req.id, req.customer_phone, req.requested_tier, false)}
+                        className="flex-1 border border-red-200 text-red-500 font-bold py-2 rounded-xl text-sm hover:bg-red-50 transition-all"
+                      >
+                        ✗ Decline
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ORDER DETAIL MODAL */}
       {selectedOrder && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setSelectedOrder(null)} />
