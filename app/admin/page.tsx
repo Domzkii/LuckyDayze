@@ -52,9 +52,7 @@ export default function AdminPage() {
           loadOrders(true)
         })
         .subscribe()
-      return () => {
-        supabase.removeChannel(channel)
-      }
+      return () => { supabase.removeChannel(channel) }
     }
   }, [authenticated])
 
@@ -68,7 +66,7 @@ export default function AdminPage() {
       const latest = newOrders[0]
       if (Notification.permission === 'granted') {
         new Notification('New LuckyDayze Order!', {
-          body: `${latest.customer_name} ordered $${latest.total} — ${latest.customer_address}`,
+          body: `${latest.customer_name} ordered $${latest.total}`,
           icon: '/favicon.ico'
         })
       }
@@ -93,6 +91,39 @@ export default function AdminPage() {
 
       const costPerGram = 400 / 112
 
+      // ── LOYALTY UPDATE (once per order, outside item loop) ──
+      const { data: loyaltyRecord } = await supabase
+        .from('loyalty')
+        .select('*')
+        .eq('customer_phone', selectedOrder.customer_phone)
+        .single()
+
+      const orderTotal = selectedOrder.total
+      const isHighSpend = orderTotal >= 50
+      const currentTier = loyaltyRecord?.membership_tier || 'guest'
+      const pointsToAdd = (currentTier === 'member' && isHighSpend) || currentTier === 'house'
+        ? Math.floor(orderTotal) * 2
+        : Math.floor(orderTotal)
+
+      if (loyaltyRecord) {
+        await supabase.from('loyalty').update({
+          purchase_count: (loyaltyRecord.purchase_count || 0) + 1,
+          total_spent: (loyaltyRecord.total_spent || 0) + orderTotal,
+          points: (loyaltyRecord.points || 0) + pointsToAdd
+        }).eq('customer_phone', selectedOrder.customer_phone)
+      } else {
+        await supabase.from('loyalty').insert({
+          customer_phone: selectedOrder.customer_phone,
+          customer_name: selectedOrder.customer_name,
+          purchase_count: 1,
+          total_spent: orderTotal,
+          points: pointsToAdd,
+          membership_tier: 'guest',
+          membership_status: 'active'
+        })
+      }
+
+      // ── ITEM LOOP (sales + inventory) ──
       if (Array.isArray(selectedOrder.items)) {
         for (const item of selectedOrder.items) {
           const { data: product } = await supabase
@@ -130,31 +161,7 @@ export default function AdminPage() {
             status: 'delivered',
             week_id: activeWeek?.id || null
           })
-// Update purchase count and check tier eligibility
-const { data: loyaltyRecord } = await supabase
-  .from('loyalty')
-  .select('*')
-  .eq('customer_phone', selectedOrder.customer_phone)
-  .single()
 
-if (loyaltyRecord) {
-  const newCount = (loyaltyRecord.purchase_count || 0) + 1
-  await supabase.from('loyalty').update({
-    purchase_count: newCount,
-    total_spent: (loyaltyRecord.total_spent || 0) + selectedOrder.total,
-    points: (loyaltyRecord.points || 0) + Math.floor(selectedOrder.total)
-  }).eq('customer_phone', selectedOrder.customer_phone)
-} else {
-  await supabase.from('loyalty').insert({
-    customer_phone: selectedOrder.customer_phone,
-    customer_name: selectedOrder.customer_name,
-    purchase_count: 1,
-    total_spent: selectedOrder.total,
-    points: Math.floor(selectedOrder.total),
-    membership_tier: 'guest',
-    membership_status: 'active'
-  })
-}
           if (isPreRoll) {
             const { data: flowerProducts } = await supabase
               .from('products')
@@ -243,8 +250,6 @@ if (loyaltyRecord) {
 
   return (
     <main className="min-h-screen bg-[#f5f0e8] text-[#1a1a1a]">
-
-      {/* NAV */}
       <nav className="flex items-center justify-between px-6 py-5 border-b border-[#1a1a1a]/10 sticky top-0 bg-[#f5f0e8]/95 backdrop-blur z-40">
         <div>
           <div style={{fontFamily: 'Georgia, serif'}} className="text-xl font-bold tracking-wider">LUCKY DAYZE</div>
@@ -255,19 +260,12 @@ if (loyaltyRecord) {
             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
             <span className="text-[#999] text-xs">Live</span>
           </div>
-          <button onClick={() => loadOrders()} className="border border-[#1a1a1a]/20 text-[#666] text-sm font-bold px-4 py-2 rounded-full hover:border-[#1a1a1a] transition-all">
-            Refresh
-          </button>
-          <a href="/finance" className="bg-[#1a1a1a] text-[#f5f0e8] text-sm font-bold px-5 py-2 rounded-full hover:bg-[#333] transition-all">
-            Finance
-          </a>
-          <a href="/" className="border border-[#1a1a1a]/20 text-[#666] text-sm font-bold px-4 py-2 rounded-full hover:border-[#1a1a1a] transition-all">
-            Store
-          </a>
+          <button onClick={() => loadOrders()} className="border border-[#1a1a1a]/20 text-[#666] text-sm font-bold px-4 py-2 rounded-full hover:border-[#1a1a1a] transition-all">Refresh</button>
+          <a href="/finance" className="bg-[#1a1a1a] text-[#f5f0e8] text-sm font-bold px-5 py-2 rounded-full hover:bg-[#333] transition-all">Finance</a>
+          <a href="/" className="border border-[#1a1a1a]/20 text-[#666] text-sm font-bold px-4 py-2 rounded-full hover:border-[#1a1a1a] transition-all">Store</a>
         </div>
       </nav>
 
-      {/* STATS */}
       <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-4 max-w-2xl mx-auto">
         <div className="bg-white border border-[#e0d9cc] rounded-2xl p-4">
           <div className="text-[#999] text-xs mb-1">Pending Payment</div>
@@ -287,24 +285,15 @@ if (loyaltyRecord) {
         </div>
       </div>
 
-      {/* FILTER TABS */}
       <div className="flex gap-2 px-4 pb-4 overflow-x-auto max-w-2xl mx-auto">
         {['all', 'pending_payment', 'confirmed', 'preparing', 'out_for_delivery', 'delivered'].map(f => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={`flex-shrink-0 px-4 py-2 rounded-full text-xs font-bold transition-all ${
-              filter === f
-                ? 'bg-[#1a1a1a] text-[#f5f0e8]'
-                : 'bg-white border border-[#e0d9cc] text-[#666]'
-            }`}
-          >
+          <button key={f} onClick={() => setFilter(f)}
+            className={`flex-shrink-0 px-4 py-2 rounded-full text-xs font-bold transition-all ${filter === f ? 'bg-[#1a1a1a] text-[#f5f0e8]' : 'bg-white border border-[#e0d9cc] text-[#666]'}`}>
             {f === 'all' ? 'All Orders' : getStatusLabel(f)}
           </button>
         ))}
       </div>
 
-      {/* ORDERS LIST */}
       <div className="px-4 pb-24 max-w-2xl mx-auto">
         {loading ? (
           <div className="text-center text-[#999] py-20">Loading orders...</div>
@@ -316,25 +305,18 @@ if (loyaltyRecord) {
         ) : (
           <div className="flex flex-col gap-3">
             {filtered.map(order => (
-              <div
-                key={order.id}
-                onClick={() => setSelectedOrder(order)}
-                className="bg-white border border-[#e0d9cc] rounded-2xl p-4 cursor-pointer hover:border-[#c9a84c] transition-all"
-              >
+              <div key={order.id} onClick={() => setSelectedOrder(order)}
+                className="bg-white border border-[#e0d9cc] rounded-2xl p-4 cursor-pointer hover:border-[#c9a84c] transition-all">
                 <div className="flex items-start justify-between mb-3">
                   <div>
                     <div style={{fontFamily: 'Georgia, serif'}} className="font-bold text-base text-[#1a1a1a]">{order.customer_name}</div>
                     <div className="text-[#999] text-xs mt-0.5">{formatTime(order.created_at)}</div>
                   </div>
-                  <span className={`text-xs font-bold px-3 py-1 rounded-full ${getStatusStyle(order.status)}`}>
-                    {getStatusLabel(order.status)}
-                  </span>
+                  <span className={`text-xs font-bold px-3 py-1 rounded-full ${getStatusStyle(order.status)}`}>{getStatusLabel(order.status)}</span>
                 </div>
                 <div className="text-[#666] text-sm mb-3">{order.customer_address}</div>
                 <div className="flex items-center justify-between">
-                  <div className="text-[#999] text-xs">
-                    {Array.isArray(order.items) ? order.items.map(i => `${i.emoji} ${i.name} x${i.qty}`).join(', ') : ''}
-                  </div>
+                  <div className="text-[#999] text-xs">{Array.isArray(order.items) ? order.items.map(i => `${i.emoji} ${i.name} x${i.qty}`).join(', ') : ''}</div>
                   <div className="text-[#c9a84c] font-bold">${order.total}</div>
                 </div>
               </div>
@@ -343,7 +325,6 @@ if (loyaltyRecord) {
         )}
       </div>
 
-      {/* ORDER DETAIL MODAL */}
       {selectedOrder && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setSelectedOrder(null)} />
@@ -352,30 +333,21 @@ if (loyaltyRecord) {
               <h2 style={{fontFamily: 'Georgia, serif'}} className="font-bold text-lg">Order Details</h2>
               <button onClick={() => setSelectedOrder(null)} className="text-[#999] text-2xl leading-none hover:text-[#1a1a1a]">×</button>
             </div>
-
             <div className="p-6">
-              {/* CUSTOMER INFO */}
               <div className="bg-white border border-[#e0d9cc] rounded-2xl p-4 mb-4">
                 <div className="text-[#999] text-xs font-bold uppercase tracking-wider mb-3">Customer</div>
                 <div style={{fontFamily: 'Georgia, serif'}} className="font-bold text-lg mb-1 text-[#1a1a1a]">{selectedOrder.customer_name}</div>
-                <a href={`tel:${selectedOrder.customer_phone}`} className="text-[#c9a84c] text-sm mb-1 block font-bold">
-                  📞 {selectedOrder.customer_phone}
-                </a>
+                <a href={`tel:${selectedOrder.customer_phone}`} className="text-[#c9a84c] text-sm mb-1 block font-bold">📞 {selectedOrder.customer_phone}</a>
                 {selectedOrder.customer_address === 'PICKUP' ? (
                   <div className="text-[#666] text-sm">📍 Pickup order — send them location</div>
                 ) : (
-                  <a href={`https://maps.google.com/?q=${encodeURIComponent(selectedOrder.customer_address)}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 text-sm block">
-                    📍 {selectedOrder.customer_address}
-                  </a>
+                  <a href={`https://maps.google.com/?q=${encodeURIComponent(selectedOrder.customer_address)}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 text-sm block">📍 {selectedOrder.customer_address}</a>
                 )}
                 {selectedOrder.order_notes && (
-                  <div className="mt-3 bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl p-3 text-sm text-[#666]">
-                    💬 {selectedOrder.order_notes}
-                  </div>
+                  <div className="mt-3 bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl p-3 text-sm text-[#666]">💬 {selectedOrder.order_notes}</div>
                 )}
               </div>
 
-              {/* ITEMS */}
               <div className="bg-white border border-[#e0d9cc] rounded-2xl p-4 mb-4">
                 <div className="text-[#999] text-xs font-bold uppercase tracking-wider mb-3">Items Ordered</div>
                 {Array.isArray(selectedOrder.items) && selectedOrder.items.map((item, i) => (
@@ -390,34 +362,23 @@ if (loyaltyRecord) {
                 </div>
               </div>
 
-              {/* STATUS UPDATE */}
               <div className="bg-white border border-[#e0d9cc] rounded-2xl p-4 mb-4">
                 <div className="text-[#999] text-xs font-bold uppercase tracking-wider mb-3">Update Status</div>
                 <div className="flex flex-col gap-2">
                   {STATUSES.map(s => (
-                    <button
-                      key={s.value}
-                      onClick={() => updateStatus(selectedOrder.id, s.value)}
-                      className={`w-full py-3 rounded-xl text-sm font-bold transition-all ${
-                        selectedOrder.status === s.value
-                          ? 'bg-[#1a1a1a] text-[#f5f0e8]'
-                          : 'bg-[#f5f0e8] border border-[#e0d9cc] text-[#666] hover:border-[#1a1a1a] hover:text-[#1a1a1a]'
-                      }`}
-                    >
+                    <button key={s.value} onClick={() => updateStatus(selectedOrder.id, s.value)}
+                      className={`w-full py-3 rounded-xl text-sm font-bold transition-all ${selectedOrder.status === s.value ? 'bg-[#1a1a1a] text-[#f5f0e8]' : 'bg-[#f5f0e8] border border-[#e0d9cc] text-[#666] hover:border-[#1a1a1a] hover:text-[#1a1a1a]'}`}>
                       {selectedOrder.status === s.value ? '✓ ' : ''}{s.label}
                     </button>
                   ))}
                 </div>
               </div>
 
-              <div className="text-[#999] text-xs text-center">
-                Order placed {formatTime(selectedOrder.created_at)}
-              </div>
+              <div className="text-[#999] text-xs text-center">Order placed {formatTime(selectedOrder.created_at)}</div>
             </div>
           </div>
         </div>
       )}
-
     </main>
   )
 }
