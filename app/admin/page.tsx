@@ -130,7 +130,31 @@ export default function AdminPage() {
             status: 'delivered',
             week_id: activeWeek?.id || null
           })
+// Update purchase count and check tier eligibility
+const { data: loyaltyRecord } = await supabase
+  .from('loyalty')
+  .select('*')
+  .eq('customer_phone', selectedOrder.customer_phone)
+  .single()
 
+if (loyaltyRecord) {
+  const newCount = (loyaltyRecord.purchase_count || 0) + 1
+  await supabase.from('loyalty').update({
+    purchase_count: newCount,
+    total_spent: (loyaltyRecord.total_spent || 0) + selectedOrder.total,
+    points: (loyaltyRecord.points || 0) + Math.floor(selectedOrder.total)
+  }).eq('customer_phone', selectedOrder.customer_phone)
+} else {
+  await supabase.from('loyalty').insert({
+    customer_phone: selectedOrder.customer_phone,
+    customer_name: selectedOrder.customer_name,
+    purchase_count: 1,
+    total_spent: selectedOrder.total,
+    points: Math.floor(selectedOrder.total),
+    membership_tier: 'guest',
+    membership_status: 'active'
+  })
+}
           if (isPreRoll) {
             const { data: flowerProducts } = await supabase
               .from('products')
