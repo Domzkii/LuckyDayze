@@ -46,30 +46,29 @@ export default function RewardsPage() {
     setShowMemberForm(false)
     setShowHouseForm(false)
   }
+
   async function claimReward(rewardName: string, pointsCost: number, rewardKey: string) {
+    const confirmed = window.confirm(`Use ${pointsCost} points to claim: ${rewardName}?\n\nYour points will be deducted immediately and the reward will be added to your cart.`)
+    if (!confirmed) return
     if ((customer?.points || 0) < pointsCost) return
-    
-    // Deduct points and save claimed reward
+
     await supabase.from('loyalty').update({
       points: (customer.points || 0) - pointsCost,
       claimed_reward: rewardKey
     }).eq('customer_phone', customer.customer_phone)
 
-    // Save to localStorage so store can pick it up
     localStorage.setItem('luckydayze_reward', JSON.stringify({
       name: rewardName,
       key: rewardKey,
       phone: customer.customer_phone
     }))
 
-    // Update local state
     setCustomer((prev: any) => ({
       ...prev,
       points: (prev.points || 0) - pointsCost,
       claimed_reward: rewardKey
     }))
 
-    // Redirect to store
     window.location.href = '/?reward=claimed'
   }
 
@@ -115,7 +114,6 @@ export default function RewardsPage() {
               </button>
             </div>
 
-            {/* TIER OVERVIEW */}
             <h2 style={{fontFamily: 'Georgia, serif'}} className="text-xl font-bold mb-4">Membership Tiers</h2>
             <div className="flex flex-col gap-3">
               <div className="bg-white border border-[#e0d9cc] rounded-2xl p-5">
@@ -129,7 +127,6 @@ export default function RewardsPage() {
                   <span>✓ 100 points = free gram or pre-roll (pickup only)</span>
                 </div>
               </div>
-
               <div className="bg-white border border-[#e0d9cc] rounded-2xl p-5">
                 <div className="flex items-center justify-between mb-2">
                   <span style={{fontFamily: 'Georgia, serif'}} className="font-bold text-lg text-green-700">Member</span>
@@ -143,7 +140,6 @@ export default function RewardsPage() {
                   <span>✓ Unlock House eligibility at 500 points</span>
                 </div>
               </div>
-
               <div className="bg-[#1a1a1a] rounded-2xl p-5">
                 <div className="flex items-center justify-between mb-2">
                   <span style={{fontFamily: 'Georgia, serif'}} className="font-bold text-lg text-[#c9a84c]">The House</span>
@@ -172,13 +168,11 @@ export default function RewardsPage() {
               <span className={`text-xs font-bold px-3 py-1.5 rounded-full ${tierColors[tier]}`}>{tierLabel[tier]}</span>
             </div>
 
-            {/* POINTS CARD */}
             <div className="bg-white border border-[#e0d9cc] rounded-2xl p-5 mb-4">
               <div className="text-xs uppercase tracking-wider text-[#999] mb-2">Your Points</div>
               <div style={{fontFamily: 'Georgia, serif'}} className="text-4xl font-bold text-[#c9a84c] mb-1">{points}</div>
               <p className="text-[#999] text-xs mb-4">{purchaseCount} total purchase{purchaseCount !== 1 ? 's' : ''}</p>
 
-              {/* GUEST REWARDS */}
               {tier === 'guest' && (
                 <div className="flex flex-col gap-2">
                   <div className={`flex justify-between items-center p-3 rounded-xl border ${points >= 100 ? 'border-green-200 bg-green-50' : 'border-[#e0d9cc] bg-[#f5f0e8]'}`}>
@@ -193,7 +187,6 @@ export default function RewardsPage() {
                 </div>
               )}
 
-              {/* MEMBER REWARDS */}
               {tier === 'member' && (
                 <div className="flex flex-col gap-2">
                   <div className={`flex justify-between items-center p-3 rounded-xl border ${points >= 100 ? 'border-green-200 bg-green-50' : 'border-[#e0d9cc] bg-[#f5f0e8]'}`}>
@@ -226,7 +219,6 @@ export default function RewardsPage() {
                 </div>
               )}
 
-              {/* HOUSE REWARDS */}
               {tier === 'house' && (
                 <div className="flex flex-col gap-2">
                   <div className={`flex justify-between items-center p-3 rounded-xl border ${points >= 100 ? 'border-green-200 bg-green-50' : 'border-[#e0d9cc] bg-[#f5f0e8]'}`}>
@@ -251,7 +243,6 @@ export default function RewardsPage() {
               )}
             </div>
 
-            {/* HOUSE PERKS */}
             {tier === 'house' && (
               <div className="bg-[#1a1a1a] rounded-2xl p-5 mb-4">
                 <div className="text-xs uppercase tracking-wider text-[#c9a84c] mb-3">House Perks</div>
@@ -307,7 +298,6 @@ export default function RewardsPage() {
               </div>
             )}
 
-            {/* MEMBER ELIGIBLE BANNER */}
             {isEligibleForMember && !submitted && (
               <div className="bg-green-50 border border-green-200 rounded-2xl p-5 mb-4">
                 <div className="font-bold text-green-700 mb-1">🎉 You're eligible for Member status!</div>
@@ -318,7 +308,6 @@ export default function RewardsPage() {
               </div>
             )}
 
-            {/* HOUSE ELIGIBLE BANNER */}
             {isEligibleForHouse && !submitted && (
               <div className="bg-[#1a1a1a] rounded-2xl p-5 mb-4">
                 <div className="font-bold text-[#c9a84c] mb-1">👑 You're invited to The House</div>
@@ -351,7 +340,6 @@ export default function RewardsPage() {
         )}
       </div>
 
-      {/* MEMBER / HOUSE FORM MODAL */}
       {(showMemberForm || showHouseForm) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-6">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => { setShowMemberForm(false); setShowHouseForm(false) }} />
