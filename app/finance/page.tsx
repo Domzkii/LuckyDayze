@@ -35,13 +35,12 @@ export default function FinancePage() {
   const [newGrams, setNewGrams] = useState(112)
   const [carryoverGrams, setCarryoverGrams] = useState(0)
   const [closingWeek, setClosingWeek] = useState(false)
+  const [productGrams, setProductGrams] = useState<Record<string, number>>({})
   const [newStrains, setNewStrains] = useState<any[]>([])
-const [deletedProducts, setDeletedProducts] = useState<string[]>([])
-const [reupFund, setReupFund] = useState<any>(null)
-const [reupGoal, setReupGoal] = useState(800)
-const [showReupModal, setShowReupModal] = useState(false)
-
-const [productGrams, setProductGrams] = useState<Record<string, number>>({})
+  const [deletedProducts, setDeletedProducts] = useState<string[]>([])
+  const [reupFund, setReupFund] = useState<any>(null)
+  const [reupGoal, setReupGoal] = useState(800)
+  const [showReupModal, setShowReupModal] = useState(false)
 
   const [costPerQP, setCostPerQP] = useState(400)
   const [deliveryCost, setDeliveryCost] = useState(10)
@@ -73,17 +72,10 @@ const [productGrams, setProductGrams] = useState<Record<string, number>>({})
     setActiveWeek(active || null)
     setWeekHistory((weeksData || []).filter((w: any) => w.status === 'closed'))
     if (active) {
-      const { data: payoutsData } = await supabase
-        .from('week_payouts')
-        .select('*')
-        .eq('week_id', active.id)
+      const { data: payoutsData } = await supabase.from('week_payouts').select('*').eq('week_id', active.id)
       setWeekPayouts(payoutsData || [])
     }
-    const { data: reupData } = await supabase
-      .from('reup_fund')
-      .select('*')
-      .eq('status', 'active')
-      .single()
+    const { data: reupData } = await supabase.from('reup_fund').select('*').eq('status', 'active').maybeSingle()
     setReupFund(reupData || null)
     if (reupData) setReupGoal(reupData.goal)
     setLoadingData(false)
@@ -93,46 +85,29 @@ const [productGrams, setProductGrams] = useState<Record<string, number>>({})
     const weekNumber = weekHistory.length + 1
     const startDate = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
     const totalGrams = Object.values(productGrams).reduce((sum: number, g: any) => sum + (Number(g) || 0), 0)
-    
-    // Add any new strains to products table
+
     for (const newStrain of newStrains) {
       if (newStrain.name && newStrain.grams) {
         const { data: inserted } = await supabase.from('products').insert({
-          name: newStrain.name,
-          category: 'Flower',
-          price: 40,
-          thc: '—',
-          strain_type: 'Hybrid',
-          description: 'New strain',
-          emoji: '🌿',
-          in_stock: true,
-          stock_grams: Number(newStrain.grams)
+          name: newStrain.name, category: 'Flower', price: 40, thc: '—',
+          strain_type: 'Hybrid', description: 'New strain', emoji: '🌿',
+          in_stock: true, stock_grams: Number(newStrain.grams)
         }).select().single()
-        if (inserted) {
-          productGrams[inserted.id] = Number(newStrain.grams)
-        }
+        if (inserted) productGrams[inserted.id] = Number(newStrain.grams)
       }
     }
 
-    // Delete removed products
     for (const id of deletedProducts) {
       await supabase.from('products').delete().eq('id', id)
     }
 
-    const { data: newWeek } = await supabase.from('weeks').insert({
-      week_number: weekNumber,
-      start_date: startDate,
-      end_date: '',
-      carried_over_grams: 0,
-      new_grams_added: totalGrams,
-      status: 'active'
+    await supabase.from('weeks').insert({
+      week_number: weekNumber, start_date: startDate, end_date: '',
+      carried_over_grams: carryoverGrams, new_grams_added: totalGrams, status: 'active'
     }).select().single()
 
-    // Update each existing product's stock
     for (const product of products.filter((p: any) => p.category !== 'Pre-Rolls' && !deletedProducts.includes(p.id))) {
-      await supabase.from('products')
-        .update({ stock_grams: Number(productGrams[product.id]) || 0 })
-        .eq('id', product.id)
+      await supabase.from('products').update({ stock_grams: Number(productGrams[product.id]) || 0 }).eq('id', product.id)
     }
 
     setShowNewWeek(false)
@@ -142,7 +117,7 @@ const [productGrams, setProductGrams] = useState<Record<string, number>>({})
     await loadData()
   }
 
- async function closeWeek() {
+  async function closeWeek() {
     if (!activeWeek) return
     setClosingWeek(true)
     const weekSales = sales.filter((s: any) => s.week_id === activeWeek.id)
@@ -156,17 +131,15 @@ const [productGrams, setProductGrams] = useState<Record<string, number>>({})
     let reupContribution = 0
     let teamPayoutProfit = 0
 
-    if (reupFund) {
+    if (reupFund && reupFund.status !== 'completed') {
       const currentBalance = reupFund.current_balance || 0
       const goal = reupFund.goal || 800
       const needed = Math.max(0, goal - currentBalance)
 
       if (totalProfit <= needed) {
-        // All profit goes to Re-Up
         reupContribution = totalProfit
         teamPayoutProfit = 0
       } else {
-        // Re-Up gets filled, surplus goes to team
         reupContribution = needed
         teamPayoutProfit = totalProfit - needed
       }
@@ -178,31 +151,22 @@ const [productGrams, setProductGrams] = useState<Record<string, number>>({})
         current_balance: newBalance,
         status: isGoalMet ? 'completed' : 'active'
       }).eq('id', reupFund.id)
-
     } else {
       teamPayoutProfit = totalProfit
     }
 
     await supabase.from('weeks').update({
-      end_date: endDate,
-      total_revenue: totalRevenue,
-      total_profit: totalProfit,
-      total_delivery_costs: totalDelivery,
-      total_grams_sold: totalGramsSold,
-      status: 'closed'
+      end_date: endDate, total_revenue: totalRevenue, total_profit: totalProfit,
+      total_delivery_costs: totalDelivery, total_grams_sold: totalGramsSold, status: 'closed'
     }).eq('id', activeWeek.id)
 
-    // Calculate payouts from surplus only
     for (const role of ROLES) {
       const grossPayout = (teamPayoutProfit * splits[role.key]) / 100
       const deliveryContribution = (totalDelivery * splits[role.key]) / 100
       const netPayout = grossPayout - deliveryContribution
       await supabase.from('week_payouts').insert({
-        week_id: activeWeek.id,
-        role: role.key,
-        gross_payout: grossPayout,
-        delivery_contribution: deliveryContribution,
-        net_payout: netPayout
+        week_id: activeWeek.id, role: role.key,
+        gross_payout: grossPayout, delivery_contribution: deliveryContribution, net_payout: netPayout
       })
     }
 
@@ -217,27 +181,26 @@ const [productGrams, setProductGrams] = useState<Record<string, number>>({})
 
   const totalSplit = Object.values(splits).reduce((a, b) => a + b, 0)
   const costPerGram = costPerQP / 112
-
-  // Week sales
   const weekSales = activeWeek ? sales.filter((s: any) => s.week_id === activeWeek.id) : []
   const weekRevenue = weekSales.reduce((sum: number, s: any) => sum + (s.revenue || 0), 0)
   const weekProfit = weekSales.reduce((sum: number, s: any) => sum + (s.net_profit || 0), 0)
   const weekDelivery = weekSales.reduce((sum: number, s: any) => sum + (s.delivery_cost || 0), 0)
   const weekGramsSold = weekSales.reduce((sum: number, s: any) => sum + (s.grams_sold || 0), 0)
+  const totalRevenue = sales.reduce((sum: number, s: any) => sum + (s.revenue || 0), 0)
+  const totalProfit = sales.reduce((sum: number, s: any) => sum + (s.net_profit || 0), 0)
 
-  // Projected payouts for current week
+  // Re-Up calculations
+  const reupNeeded = reupFund ? Math.max(0, (reupFund.goal || 800) - (reupFund.current_balance || 0)) : 0
+  const weekSurplus = reupFund && reupFund.status !== 'completed' ? Math.max(0, weekProfit - reupNeeded) : weekProfit
+  const weekToReup = reupFund && reupFund.status !== 'completed' ? Math.min(weekProfit, reupNeeded) : 0
+
   const projectedPayouts: Record<string, any> = {}
   ROLES.forEach(r => {
-    const gross = (weekProfit * splits[r.key]) / 100
+    const gross = (weekSurplus * splits[r.key]) / 100
     const deliveryShare = (weekDelivery * splits[r.key]) / 100
     projectedPayouts[r.key] = { gross, deliveryShare, net: gross - deliveryShare }
   })
 
-  // All time stats
-  const totalRevenue = sales.reduce((sum: number, s: any) => sum + (s.revenue || 0), 0)
-  const totalProfit = sales.reduce((sum: number, s: any) => sum + (s.net_profit || 0), 0)
-
-  // Simulator
   const grossRevenue = salePrice
   const totalDeliveryCost = deliveryCost * numDeliveries
   const inventoryCost = costPerGram * saleGrams
@@ -266,29 +229,13 @@ const [productGrams, setProductGrams] = useState<Record<string, number>>({})
           </div>
           <div className="bg-white border border-[#e0d9cc] rounded-2xl p-6">
             <h2 className="font-bold text-lg mb-6">Enter Password</h2>
-            <input
-              type="password"
-              placeholder="Password"
-              value={password}
+            <input type="password" placeholder="Password" value={password}
               onChange={e => setPassword(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter') {
-                  if (password === 'luckypayze2025') { setAuthenticated(true); setWrongPassword(false) }
-                  else setWrongPassword(true)
-                }
-              }}
-              className="w-full bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl px-4 py-3 text-sm mb-3 outline-none focus:border-[#c9a84c] placeholder-[#bbb]"
-            />
+              onKeyDown={e => { if (e.key === 'Enter') { if (password === 'luckypayze2025') { setAuthenticated(true); setWrongPassword(false) } else setWrongPassword(true) } }}
+              className="w-full bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl px-4 py-3 text-sm mb-3 outline-none focus:border-[#c9a84c] placeholder-[#bbb]" />
             {wrongPassword && <p className="text-red-500 text-xs mb-3">Incorrect password.</p>}
-            <button
-              onClick={() => {
-                if (password === 'luckypayze2025') { setAuthenticated(true); setWrongPassword(false) }
-                else setWrongPassword(true)
-              }}
-              className="w-full bg-[#1a1a1a] text-[#f5f0e8] font-bold py-3 rounded-xl hover:bg-[#333] transition-all"
-            >
-              Login
-            </button>
+            <button onClick={() => { if (password === 'luckypayze2025') { setAuthenticated(true); setWrongPassword(false) } else setWrongPassword(true) }}
+              className="w-full bg-[#1a1a1a] text-[#f5f0e8] font-bold py-3 rounded-xl hover:bg-[#333] transition-all">Login</button>
           </div>
         </div>
       </main>
@@ -305,13 +252,10 @@ const [productGrams, setProductGrams] = useState<Record<string, number>>({})
         <div className="flex gap-2">
           <button onClick={loadData} className="border border-[#1a1a1a]/20 text-[#666] text-sm font-bold px-4 py-2 rounded-full hover:border-[#1a1a1a] transition-all">Refresh</button>
           <a href="/admin" className="bg-[#1a1a1a] text-[#f5f0e8] text-sm font-bold px-5 py-2 rounded-full hover:bg-[#333] transition-all">Admin</a>
-          <a href="/" className="border border-[#1a1a1a]/20 text-[#666] text-sm font-bold px-4 py-2 rounded-full hover:border-[#1a1a1a] transition-all">
-            Store
-          </a>
+          <a href="/" className="border border-[#1a1a1a]/20 text-[#666] text-sm font-bold px-4 py-2 rounded-full hover:border-[#1a1a1a] transition-all">Store</a>
         </div>
       </nav>
 
-      {/* TABS */}
       <div className="flex gap-2 px-6 py-4 border-b border-[#1a1a1a]/10 overflow-x-auto">
         {(['overview', 'week', 'history', 'simulator'] as const).map(t => (
           <button key={t} onClick={() => setTab(t)}
@@ -329,62 +273,33 @@ const [productGrams, setProductGrams] = useState<Record<string, number>>({})
             <div className="bg-[#1a1a1a] text-[#f5f0e8] rounded-2xl p-6 mb-6">
               <div className="text-xs tracking-widest uppercase text-[#c9a84c] mb-4">All Time Stats</div>
               <div className="grid grid-cols-2 gap-4 mb-6">
-                <div>
-                  <div className="text-[#999] text-xs mb-1">Total Revenue</div>
-                  <div style={{fontFamily: 'Georgia, serif'}} className="text-3xl font-bold text-[#c9a84c]">${totalRevenue.toFixed(2)}</div>
-                </div>
-                <div>
-                  <div className="text-[#999] text-xs mb-1">Net Profit</div>
-                  <div style={{fontFamily: 'Georgia, serif'}} className="text-3xl font-bold">${totalProfit.toFixed(2)}</div>
-                </div>
-                <div>
-                  <div className="text-[#999] text-xs mb-1">Weeks Completed</div>
-                  <div className="text-xl font-bold">{weekHistory.length}</div>
-                </div>
-                <div>
-                  <div className="text-[#999] text-xs mb-1">Total Orders</div>
-                  <div className="text-xl font-bold">{[...new Set(sales.map((s: any) => s.order_id))].length}</div>
-                </div>
+                <div><div className="text-[#999] text-xs mb-1">Total Revenue</div><div style={{fontFamily: 'Georgia, serif'}} className="text-3xl font-bold text-[#c9a84c]">${totalRevenue.toFixed(2)}</div></div>
+                <div><div className="text-[#999] text-xs mb-1">Net Profit</div><div style={{fontFamily: 'Georgia, serif'}} className="text-3xl font-bold">${totalProfit.toFixed(2)}</div></div>
+                <div><div className="text-[#999] text-xs mb-1">Weeks Completed</div><div className="text-xl font-bold">{weekHistory.length}</div></div>
+                <div><div className="text-[#999] text-xs mb-1">Total Orders</div><div className="text-xl font-bold">{[...new Set(sales.map((s: any) => s.order_id))].length}</div></div>
               </div>
-
-              {/* ALL TIME PAYOUTS PER ROLE */}
               <div className="border-t border-white/10 pt-5">
                 <div className="text-xs tracking-widest uppercase text-[#c9a84c] mb-4">All Time Payouts by Role</div>
                 {ROLES.map(role => {
-                  const allTimePayouts = weekHistory.reduce((sum: number, week: any) => {
-                    const weekPayout = weekPayouts.find((p: any) => p.week_id === week.id && p.role === role.key)
-                    return sum + (weekPayout?.net_payout || 0)
+                  const allTimeGross = weekHistory.reduce((sum: number, week: any) => {
+                    const wp = weekPayouts.find((p: any) => p.week_id === week.id && p.role === role.key)
+                    return sum + (wp?.gross_payout || 0)
                   }, 0)
                   const allTimeDelivery = weekHistory.reduce((sum: number, week: any) => {
-                    const weekPayout = weekPayouts.find((p: any) => p.week_id === week.id && p.role === role.key)
-                    return sum + (weekPayout?.delivery_contribution || 0)
+                    const wp = weekPayouts.find((p: any) => p.week_id === week.id && p.role === role.key)
+                    return sum + (wp?.delivery_contribution || 0)
                   }, 0)
-                  const allTimeGross = weekHistory.reduce((sum: number, week: any) => {
-                    const weekPayout = weekPayouts.find((p: any) => p.week_id === week.id && p.role === role.key)
-                    return sum + (weekPayout?.gross_payout || 0)
-                  }, 0)
+                  const allTimeNet = allTimeGross - allTimeDelivery
                   return (
                     <div key={role.key} className="mb-4 pb-4 border-b border-white/10 last:border-0 last:mb-0 last:pb-0">
                       <div className="flex items-center justify-between mb-2">
-                        <div>
-                          <span className="font-bold">{role.label}</span>
-                          <span className="text-[#999] text-xs ml-2">{role.desc}</span>
-                        </div>
-                        <span className="text-[#c9a84c] font-bold text-lg">${allTimePayouts.toFixed(2)}</span>
+                        <div><span className="font-bold">{role.label}</span><span className="text-[#999] text-xs ml-2">{role.desc}</span></div>
+                        <span className="text-[#c9a84c] font-bold text-lg">${allTimeNet.toFixed(2)}</span>
                       </div>
                       <div className="flex gap-4 text-xs">
-                        <div className="flex items-center gap-1">
-                          <span className="text-[#999]">Gross:</span>
-                          <span className="font-bold text-[#f5f0e8]/80">${allTimeGross.toFixed(2)}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <span className="text-[#999]">Delivery paid:</span>
-                          <span className="font-bold text-red-400">−${allTimeDelivery.toFixed(2)}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <span className="text-[#999]">Net:</span>
-                          <span className="font-bold text-green-400">${allTimePayouts.toFixed(2)}</span>
-                        </div>
+                        <div className="flex items-center gap-1"><span className="text-[#999]">Gross:</span><span className="font-bold text-[#f5f0e8]/80">${allTimeGross.toFixed(2)}</span></div>
+                        <div className="flex items-center gap-1"><span className="text-[#999]">Delivery:</span><span className="font-bold text-red-400">−${allTimeDelivery.toFixed(2)}</span></div>
+                        <div className="flex items-center gap-1"><span className="text-[#999]">Net:</span><span className="font-bold text-green-400">${allTimeNet.toFixed(2)}</span></div>
                       </div>
                     </div>
                   )
@@ -392,7 +307,6 @@ const [productGrams, setProductGrams] = useState<Record<string, number>>({})
               </div>
             </div>
 
-            {/* INVENTORY */}
             <div className="bg-white border border-[#e0d9cc] rounded-2xl p-6 mb-6">
               <h2 style={{fontFamily: 'Georgia, serif'}} className="text-lg font-bold mb-4">Inventory Status</h2>
               <div className="flex flex-col gap-3">
@@ -403,9 +317,7 @@ const [productGrams, setProductGrams] = useState<Record<string, number>>({})
                     <div key={p.id}>
                       <div className="flex justify-between text-sm mb-1">
                         <span className="font-bold">{p.name}</span>
-                        <span className={`font-bold ${isLow ? 'text-red-500' : 'text-green-600'}`}>
-                          {isLow ? '⚠ Low — ' : '✓ '}{(p.stock_grams || 0).toFixed(1)}g left
-                        </span>
+                        <span className={`font-bold ${isLow ? 'text-red-500' : 'text-green-600'}`}>{isLow ? '⚠ Low — ' : '✓ '}{(p.stock_grams || 0).toFixed(1)}g left</span>
                       </div>
                       <div className="h-2 bg-[#f0ebe0] rounded-full overflow-hidden">
                         <div className={`h-full rounded-full ${isLow ? 'bg-red-400' : 'bg-[#c9a84c]'}`} style={{ width: `${stockPct}%` }} />
@@ -421,7 +333,7 @@ const [productGrams, setProductGrams] = useState<Record<string, number>>({})
         {/* THIS WEEK TAB */}
         {tab === 'week' && (
           <>
-          {/* RE-UP FUND */}
+            {/* RE-UP FUND CARD */}
             {reupFund ? (
               <div className="bg-[#1a1a1a] text-[#f5f0e8] rounded-2xl p-6 mb-6">
                 <div className="flex items-center justify-between mb-4">
@@ -437,47 +349,45 @@ const [productGrams, setProductGrams] = useState<Record<string, number>>({})
                   </div>
                 </div>
                 <div className="h-3 bg-white/10 rounded-full overflow-hidden mb-3">
-                  <div
-                    className="h-full bg-[#c9a84c] rounded-full transition-all"
-                    style={{ width: `${Math.min(100, ((reupFund.current_balance || 0) / reupFund.goal) * 100)}%` }}
-                  />
+                  <div className="h-full bg-[#c9a84c] rounded-full transition-all"
+                    style={{ width: `${Math.min(100, ((reupFund.current_balance || 0) / reupFund.goal) * 100)}%` }} />
                 </div>
-                <div className="flex justify-between text-xs text-[#999]">
+                <div className="flex justify-between text-xs text-[#999] mb-3">
                   <span>${Math.max(0, reupFund.goal - (reupFund.current_balance || 0)).toFixed(0)} still needed</span>
                   <span>{Math.min(100, Math.round(((reupFund.current_balance || 0) / reupFund.goal) * 100))}% funded</span>
                 </div>
-                {reupFund.status === 'completed' && (
-                  <div className="mt-4 pt-4 border-t border-white/10">
-                    <p className="text-[#c9a84c] text-sm font-bold mb-2">🎉 Re-Up goal met! Time to re-up and set a new goal.</p>
-                    <button
-                      onClick={() => setShowReupModal(true)}
-                      className="w-full bg-[#c9a84c] text-[#1a1a1a] font-bold py-2 rounded-xl text-sm hover:bg-[#e8c97a] transition-all"
-                    >
+                {reupFund.status === 'completed' ? (
+                  <div className="border-t border-white/10 pt-4">
+                    <p className="text-[#c9a84c] text-sm font-bold mb-3">🎉 Re-Up goal met! Time to re-up and set a new goal.</p>
+                    <button onClick={() => setShowReupModal(true)}
+                      className="w-full bg-[#c9a84c] text-[#1a1a1a] font-bold py-2 rounded-xl text-sm hover:bg-[#e8c97a] transition-all">
                       Set New Re-Up Goal
                     </button>
                   </div>
+                ) : (
+                  <button onClick={() => setShowReupModal(true)}
+                    className="w-full border border-white/20 text-[#999] font-bold py-2 rounded-xl text-sm hover:border-white/40 transition-all">
+                    Edit Goal
+                  </button>
                 )}
               </div>
             ) : (
               <div className="bg-white border border-[#e0d9cc] rounded-2xl p-5 mb-6">
                 <div className="text-xs uppercase tracking-wider text-[#999] mb-2">Re-Up Fund</div>
-                <p className="text-[#888] text-sm mb-4">Set a Re-Up goal to track how much profit needs to go back into inventory before team payouts begin.</p>
-                <button
-                  onClick={() => setShowReupModal(true)}
-                  className="w-full bg-[#1a1a1a] text-[#f5f0e8] font-bold py-3 rounded-xl hover:bg-[#333] transition-all"
-                >
+                <p className="text-[#888] text-sm mb-4">Set a Re-Up goal. All profit goes here first before team payouts begin.</p>
+                <button onClick={() => setShowReupModal(true)}
+                  className="w-full bg-[#1a1a1a] text-[#f5f0e8] font-bold py-3 rounded-xl hover:bg-[#333] transition-all">
                   Set Re-Up Goal
                 </button>
               </div>
             )}
+
             {!activeWeek ? (
               <div className="bg-white border border-[#e0d9cc] rounded-2xl p-8 text-center mb-6">
                 <div className="text-4xl mb-4">📅</div>
                 <h2 style={{fontFamily: 'Georgia, serif'}} className="text-xl font-bold mb-2">No Active Week</h2>
                 <p className="text-[#999] text-sm mb-6">Start a new week to begin tracking sales and payouts.</p>
-                <button onClick={() => setShowNewWeek(true)} className="bg-[#1a1a1a] text-[#f5f0e8] font-bold px-8 py-3 rounded-full hover:bg-[#333] transition-all">
-                  Start Week 1
-                </button>
+                <button onClick={() => setShowNewWeek(true)} className="bg-[#1a1a1a] text-[#f5f0e8] font-bold px-8 py-3 rounded-full hover:bg-[#333] transition-all">Start Week</button>
               </div>
             ) : (
               <>
@@ -487,9 +397,7 @@ const [productGrams, setProductGrams] = useState<Record<string, number>>({})
                       <div className="text-xs tracking-widest uppercase text-[#c9a84c] mb-1">Week {activeWeek.week_number}</div>
                       <div className="text-sm text-[#999]">Started {activeWeek.start_date}</div>
                     </div>
-                    <button onClick={() => setShowCloseWeek(true)} className="bg-[#c9a84c] text-[#1a1a1a] font-bold px-5 py-2 rounded-full text-sm hover:bg-[#e8c97a] transition-all">
-                      Close Week
-                    </button>
+                    <button onClick={() => setShowCloseWeek(true)} className="bg-[#c9a84c] text-[#1a1a1a] font-bold px-5 py-2 rounded-full text-sm hover:bg-[#e8c97a] transition-all">Close Week</button>
                   </div>
                   <div className="grid grid-cols-2 gap-4 mb-4">
                     <div><div className="text-[#999] text-xs mb-1">Revenue This Week</div><div className="text-2xl font-bold text-[#c9a84c]">${weekRevenue.toFixed(2)}</div></div>
@@ -497,14 +405,23 @@ const [productGrams, setProductGrams] = useState<Record<string, number>>({})
                     <div><div className="text-[#999] text-xs mb-1">Grams Sold</div><div className="text-xl font-bold">{weekGramsSold.toFixed(1)}g</div></div>
                     <div><div className="text-[#999] text-xs mb-1">Delivery Costs</div><div className="text-xl font-bold text-red-400">${weekDelivery.toFixed(2)}</div></div>
                   </div>
+                  {reupFund && reupFund.status !== 'completed' && (
+                    <div className="bg-white/5 rounded-xl p-3 mb-4">
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="text-[#999]">Goes to Re-Up Fund</span>
+                        <span className="text-[#c9a84c] font-bold">${weekToReup.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-[#999]">Available for team</span>
+                        <span className="font-bold">${weekSurplus.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  )}
                   <div className="border-t border-white/10 pt-4">
                     <div className="text-xs text-[#999] uppercase tracking-wider mb-3">Projected Payouts</div>
                     {ROLES.map(role => (
                       <div key={role.key} className="flex justify-between text-sm py-1.5 border-b border-white/5 last:border-0">
-                        <div>
-                          <span className="font-bold">{role.label}</span>
-                          <span className="text-[#999] text-xs ml-2">−${projectedPayouts[role.key]?.deliveryShare.toFixed(2)} delivery</span>
-                        </div>
+                        <div><span className="font-bold">{role.label}</span><span className="text-[#999] text-xs ml-2">−${projectedPayouts[role.key]?.deliveryShare.toFixed(2)} delivery</span></div>
                         <span className="font-bold text-[#c9a84c]">${projectedPayouts[role.key]?.net.toFixed(2)}</span>
                       </div>
                     ))}
@@ -520,14 +437,8 @@ const [productGrams, setProductGrams] = useState<Record<string, number>>({})
                       {weekSales.map((sale: any) => (
                         <div key={sale.id} className="py-3 border-b border-[#e0d9cc] last:border-0">
                           <div className="flex items-center justify-between text-sm mb-2">
-                            <div>
-                              <div className="font-bold">{sale.product_name}</div>
-                              <div className="text-[#999] text-xs">{sale.grams_sold}g · {new Date(sale.created_at).toLocaleDateString()}</div>
-                            </div>
-                            <div className="text-right">
-                              <div className="font-bold">${sale.revenue?.toFixed(2)}</div>
-                              <div className="text-green-600 text-xs">+${sale.net_profit?.toFixed(2)} profit</div>
-                            </div>
+                            <div><div className="font-bold">{sale.product_name}</div><div className="text-[#999] text-xs">{sale.grams_sold}g · {new Date(sale.created_at).toLocaleDateString()}</div></div>
+                            <div className="text-right"><div className="font-bold">${sale.revenue?.toFixed(2)}</div><div className="text-green-600 text-xs">+${sale.net_profit?.toFixed(2)} profit</div></div>
                           </div>
                           {sale.delivery_shares && (
                             <div className="bg-[#f5f0e8] rounded-xl p-3">
@@ -548,7 +459,6 @@ const [productGrams, setProductGrams] = useState<Record<string, number>>({})
                   )}
                 </div>
 
-                {/* PROFIT SPLITS */}
                 <div className="bg-white border border-[#e0d9cc] rounded-2xl p-6 mb-6">
                   <div className="flex items-center justify-between mb-4">
                     <h2 style={{fontFamily: 'Georgia, serif'}} className="text-lg font-bold">Profit Split</h2>
@@ -562,7 +472,9 @@ const [productGrams, setProductGrams] = useState<Record<string, number>>({})
                         <span className="font-bold text-sm">{role.label}</span>
                         <span className="text-[#c9a84c] font-bold">{splits[role.key]}%</span>
                       </div>
-                      <input type="range" min="0" max="70" value={splits[role.key]} onChange={e => setSplits(prev => ({ ...prev, [role.key]: Number(e.target.value) }))} className="w-full accent-[#c9a84c]" />
+                      <input type="range" min="0" max="70" value={splits[role.key]}
+                        onChange={e => setSplits(prev => ({ ...prev, [role.key]: Number(e.target.value) }))}
+                        className="w-full accent-[#c9a84c]" />
                     </div>
                   ))}
                 </div>
@@ -578,7 +490,7 @@ const [productGrams, setProductGrams] = useState<Record<string, number>>({})
             {weekHistory.length === 0 ? (
               <div className="bg-white border border-[#e0d9cc] rounded-2xl p-8 text-center">
                 <div className="text-4xl mb-4">📚</div>
-                <p className="text-[#999] text-sm">No completed weeks yet. Close your first week to see history here.</p>
+                <p className="text-[#999] text-sm">No completed weeks yet.</p>
               </div>
             ) : (
               <div className="flex flex-col gap-4">
@@ -592,22 +504,10 @@ const [productGrams, setProductGrams] = useState<Record<string, number>>({})
                       <span className="bg-green-100 text-green-700 text-xs font-bold px-3 py-1 rounded-full">Closed</span>
                     </div>
                     <div className="grid grid-cols-2 gap-3 mb-4">
-                      <div className="bg-[#f5f0e8] rounded-xl p-3">
-                        <div className="text-xs text-[#999] mb-1">Revenue</div>
-                        <div className="font-bold text-[#c9a84c]">${week.total_revenue?.toFixed(2)}</div>
-                      </div>
-                      <div className="bg-[#f5f0e8] rounded-xl p-3">
-                        <div className="text-xs text-[#999] mb-1">Net Profit</div>
-                        <div className="font-bold">${week.total_profit?.toFixed(2)}</div>
-                      </div>
-                      <div className="bg-[#f5f0e8] rounded-xl p-3">
-                        <div className="text-xs text-[#999] mb-1">Grams Sold</div>
-                        <div className="font-bold">{week.total_grams_sold?.toFixed(1)}g</div>
-                      </div>
-                      <div className="bg-[#f5f0e8] rounded-xl p-3">
-                        <div className="text-xs text-[#999] mb-1">Delivery Costs</div>
-                        <div className="font-bold text-red-500">${week.total_delivery_costs?.toFixed(2)}</div>
-                      </div>
+                      <div className="bg-[#f5f0e8] rounded-xl p-3"><div className="text-xs text-[#999] mb-1">Revenue</div><div className="font-bold text-[#c9a84c]">${week.total_revenue?.toFixed(2)}</div></div>
+                      <div className="bg-[#f5f0e8] rounded-xl p-3"><div className="text-xs text-[#999] mb-1">Net Profit</div><div className="font-bold">${week.total_profit?.toFixed(2)}</div></div>
+                      <div className="bg-[#f5f0e8] rounded-xl p-3"><div className="text-xs text-[#999] mb-1">Grams Sold</div><div className="font-bold">{week.total_grams_sold?.toFixed(1)}g</div></div>
+                      <div className="bg-[#f5f0e8] rounded-xl p-3"><div className="text-xs text-[#999] mb-1">Delivery Costs</div><div className="font-bold text-red-500">${week.total_delivery_costs?.toFixed(2)}</div></div>
                     </div>
                     <WeekPayouts weekId={week.id} />
                   </div>
@@ -623,18 +523,9 @@ const [productGrams, setProductGrams] = useState<Record<string, number>>({})
             <div className="bg-white border border-[#e0d9cc] rounded-2xl p-6 mb-6">
               <h2 style={{fontFamily: 'Georgia, serif'}} className="text-lg font-bold mb-4">Sale Simulator</h2>
               <div className="grid grid-cols-3 gap-4 mb-6">
-                <div>
-                  <label className="text-xs uppercase tracking-wider text-[#999] block mb-2">Grams Sold</label>
-                  <input type="number" value={saleGrams} onChange={e => setSaleGrams(Number(e.target.value))} className="w-full bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl px-3 py-2 text-sm outline-none focus:border-[#c9a84c]" />
-                </div>
-                <div>
-                  <label className="text-xs uppercase tracking-wider text-[#999] block mb-2">Sale Price ($)</label>
-                  <input type="number" value={salePrice} onChange={e => setSalePrice(Number(e.target.value))} className="w-full bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl px-3 py-2 text-sm outline-none focus:border-[#c9a84c]" />
-                </div>
-                <div>
-                  <label className="text-xs uppercase tracking-wider text-[#999] block mb-2">Delivery Cost ($)</label>
-                  <input type="number" value={deliveryCost} onChange={e => setDeliveryCost(Number(e.target.value))} className="w-full bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl px-3 py-2 text-sm outline-none focus:border-[#c9a84c]" />
-                </div>
+                <div><label className="text-xs uppercase tracking-wider text-[#999] block mb-2">Grams Sold</label><input type="number" value={saleGrams} onChange={e => setSaleGrams(Number(e.target.value))} className="w-full bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl px-3 py-2 text-sm outline-none focus:border-[#c9a84c]" /></div>
+                <div><label className="text-xs uppercase tracking-wider text-[#999] block mb-2">Sale Price ($)</label><input type="number" value={salePrice} onChange={e => setSalePrice(Number(e.target.value))} className="w-full bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl px-3 py-2 text-sm outline-none focus:border-[#c9a84c]" /></div>
+                <div><label className="text-xs uppercase tracking-wider text-[#999] block mb-2">Delivery Cost ($)</label><input type="number" value={deliveryCost} onChange={e => setDeliveryCost(Number(e.target.value))} className="w-full bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl px-3 py-2 text-sm outline-none focus:border-[#c9a84c]" /></div>
               </div>
               <div className="bg-[#f5f0e8] rounded-xl p-4 mb-4">
                 <div className="grid grid-cols-2 gap-3 text-sm">
@@ -644,8 +535,7 @@ const [productGrams, setProductGrams] = useState<Record<string, number>>({})
                   <div className="flex justify-between"><span className="text-[#999]">Profit Margin</span><span className="font-bold text-green-600">{profitMargin}%</span></div>
                 </div>
                 <div className="border-t border-[#e0d9cc] mt-3 pt-3 flex justify-between font-bold">
-                  <span>Net Profit</span>
-                  <span className="text-[#c9a84c] text-lg">${netProfit.toFixed(2)}</span>
+                  <span>Net Profit</span><span className="text-[#c9a84c] text-lg">${netProfit.toFixed(2)}</span>
                 </div>
               </div>
               <h3 className="font-bold text-sm mb-3">Individual Payouts</h3>
@@ -688,63 +578,37 @@ const [productGrams, setProductGrams] = useState<Record<string, number>>({})
           <div className="relative w-full max-w-sm bg-[#f5f0e8] border border-[#e0d9cc] rounded-2xl p-6 max-h-[90vh] overflow-y-auto">
             <h2 style={{fontFamily: 'Georgia, serif'}} className="text-xl font-bold mb-2">Start New Week</h2>
             <p className="text-[#999] text-sm mb-6">Set your inventory. Add new strains or remove ones you don't have.</p>
-
-            {/* EXISTING PRODUCTS */}
             <div className="flex flex-col gap-3 mb-4">
               {products.filter((p: any) => p.category !== 'Pre-Rolls' && !deletedProducts.includes(p.id)).map((product: any) => (
                 <div key={product.id}>
                   <div className="flex items-center justify-between mb-1">
                     <label className="text-sm font-bold">{product.emoji} {product.name}</label>
-                    <button
-                      onClick={() => setDeletedProducts(prev => [...prev, product.id])}
-                      className="text-xs text-red-400 hover:text-red-600 font-bold"
-                    >
-                      Remove
-                    </button>
+                    <button onClick={() => setDeletedProducts(prev => [...prev, product.id])} className="text-xs text-red-400 hover:text-red-600 font-bold">Remove</button>
                   </div>
-                  <input
-                    type="number"
-                    placeholder="0"
-                    value={productGrams[product.id] || ''}
+                  <input type="number" placeholder="0" value={productGrams[product.id] || ''}
                     onChange={e => setProductGrams(prev => ({ ...prev, [product.id]: Number(e.target.value) }))}
-                    className="w-full bg-white border border-[#e0d9cc] rounded-xl px-4 py-2 text-sm outline-none focus:border-[#c9a84c]"
-                  />
+                    className="w-full bg-white border border-[#e0d9cc] rounded-xl px-4 py-2 text-sm outline-none focus:border-[#c9a84c]" />
                 </div>
               ))}
             </div>
-
-            {/* NEW STRAINS */}
             {newStrains.map((strain, idx) => (
               <div key={idx} className="mb-3 bg-white border border-[#c9a84c]/30 rounded-xl p-3">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-bold text-[#c9a84c] uppercase tracking-wider">New Strain</span>
                   <button onClick={() => setNewStrains(prev => prev.filter((_, i) => i !== idx))} className="text-xs text-red-400 hover:text-red-600 font-bold">Remove</button>
                 </div>
-                <input
-                  type="text"
-                  placeholder="Strain name"
-                  value={strain.name}
+                <input type="text" placeholder="Strain name" value={strain.name}
                   onChange={e => setNewStrains(prev => prev.map((s, i) => i === idx ? { ...s, name: e.target.value } : s))}
-                  className="w-full bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl px-3 py-2 text-sm mb-2 outline-none focus:border-[#c9a84c]"
-                />
-                <input
-                  type="number"
-                  placeholder="Grams"
-                  value={strain.grams}
+                  className="w-full bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl px-3 py-2 text-sm mb-2 outline-none focus:border-[#c9a84c]" />
+                <input type="number" placeholder="Grams" value={strain.grams}
                   onChange={e => setNewStrains(prev => prev.map((s, i) => i === idx ? { ...s, grams: e.target.value } : s))}
-                  className="w-full bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl px-3 py-2 text-sm outline-none focus:border-[#c9a84c]"
-                />
+                  className="w-full bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl px-3 py-2 text-sm outline-none focus:border-[#c9a84c]" />
               </div>
             ))}
-
-            <button
-              onClick={() => setNewStrains(prev => [...prev, { name: '', grams: '' }])}
-              className="w-full border border-dashed border-[#c9a84c] text-[#c9a84c] font-bold py-2 rounded-xl text-sm hover:bg-[#c9a84c]/5 transition-all mb-4"
-            >
+            <button onClick={() => setNewStrains(prev => [...prev, { name: '', grams: '' }])}
+              className="w-full border border-dashed border-[#c9a84c] text-[#c9a84c] font-bold py-2 rounded-xl text-sm hover:bg-[#c9a84c]/5 transition-all mb-4">
               + Add New Strain
             </button>
-
-            {/* BREAKDOWN */}
             <div className="bg-white border border-[#e0d9cc] rounded-xl p-4 mb-4">
               <div className="text-xs uppercase tracking-wider text-[#999] mb-3">Inventory Breakdown</div>
               {products.filter((p: any) => p.category !== 'Pre-Rolls' && !deletedProducts.includes(p.id)).map((product: any) => {
@@ -779,10 +643,7 @@ const [productGrams, setProductGrams] = useState<Record<string, number>>({})
                 </span>
               </div>
             </div>
-
-            <button onClick={startNewWeek} className="w-full bg-[#1a1a1a] text-[#f5f0e8] font-bold py-3 rounded-xl hover:bg-[#333] transition-all">
-              Start Week
-            </button>
+            <button onClick={startNewWeek} className="w-full bg-[#1a1a1a] text-[#f5f0e8] font-bold py-3 rounded-xl hover:bg-[#333] transition-all">Start Week</button>
           </div>
         </div>
       )}
@@ -793,68 +654,81 @@ const [productGrams, setProductGrams] = useState<Record<string, number>>({})
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowCloseWeek(false)} />
           <div className="relative w-full max-w-sm bg-[#f5f0e8] border border-[#e0d9cc] rounded-2xl p-6">
             <h2 style={{fontFamily: 'Georgia, serif'}} className="text-xl font-bold mb-2">Close Week {activeWeek?.week_number}?</h2>
-            <p className="text-[#999] text-sm mb-6">This will finalize all payouts and log the week permanently. You can then start a new week.</p>
+            <p className="text-[#999] text-sm mb-6">This will finalize all payouts and log the week permanently.</p>
             <div className="bg-white border border-[#e0d9cc] rounded-xl p-4 mb-6">
               {reupFund && reupFund.status !== 'completed' && (
                 <>
                   <div className="text-xs uppercase tracking-wider text-[#999] mb-3">Re-Up Fund First</div>
-                  {(() => {
-                    const needed = Math.max(0, (reupFund.goal || 800) - (reupFund.current_balance || 0))
-                    const contribution = Math.min(weekProfit, needed)
-                    const surplus = Math.max(0, weekProfit - needed)
-                    return (
-                      <>
-                        <div className="flex justify-between text-sm py-1.5 border-b border-[#e0d9cc]">
-                          <span className="text-[#999]">Goes to Re-Up Fund</span>
-                          <span className="font-bold text-[#c9a84c]">${contribution.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between text-sm py-1.5 border-b border-[#e0d9cc]">
-                          <span className="text-[#999]">Available for team</span>
-                          <span className="font-bold">${surplus.toFixed(2)}</span>
-                        </div>
-                        {surplus === 0 && (
-                          <p className="text-xs text-amber-600 mt-2">All profit goes to Re-Up this week. ${(needed - contribution).toFixed(0)} still needed to reach goal.</p>
-                        )}
-                      </>
-                    )
-                  })()}
-                  <div className="text-xs uppercase tracking-wider text-[#999] mb-3 mt-4">Team Payouts</div>
+                  <div className="flex justify-between text-sm py-1.5 border-b border-[#e0d9cc]">
+                    <span className="text-[#999]">Goes to Re-Up Fund</span>
+                    <span className="font-bold text-[#c9a84c]">${weekToReup.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm py-1.5 border-b border-[#e0d9cc] mb-3">
+                    <span className="text-[#999]">Available for team</span>
+                    <span className="font-bold">${weekSurplus.toFixed(2)}</span>
+                  </div>
+                  {weekSurplus === 0 && (
+                    <p className="text-xs text-amber-600 mb-3">All profit goes to Re-Up this week. ${reupNeeded.toFixed(0)} still needed to reach goal.</p>
+                  )}
+                  <div className="text-xs uppercase tracking-wider text-[#999] mb-3">Team Payouts</div>
                 </>
               )}
-              {ROLES.map(role => {
-                const needed = reupFund ? Math.max(0, (reupFund.goal || 800) - (reupFund.current_balance || 0)) : 0
-                const surplus = reupFund ? Math.max(0, weekProfit - needed) : weekProfit
-                const grossPayout = (surplus * splits[role.key]) / 100
-                const deliveryShare = (weekDelivery * splits[role.key]) / 100
-                const netPayout = grossPayout - deliveryShare
-                return (
-                  <div key={role.key} className="flex justify-between text-sm py-1.5 border-b border-[#e0d9cc] last:border-0">
-                    <span className="font-bold">{role.label}</span>
-                    <span className="font-bold text-[#c9a84c]">${netPayout.toFixed(2)}</span>
-                  </div>
-                )
-              })}
+              {ROLES.map(role => (
+                <div key={role.key} className="flex justify-between text-sm py-1.5 border-b border-[#e0d9cc] last:border-0">
+                  <span className="font-bold">{role.label}</span>
+                  <span className="font-bold text-[#c9a84c]">${projectedPayouts[role.key]?.net.toFixed(2)}</span>
+                </div>
+              ))}
               <div className="flex justify-between text-sm pt-2 mt-2 font-bold">
                 <span>Total Paid Out</span>
-                <span>${(() => {
-                  const needed = reupFund ? Math.max(0, (reupFund.goal || 800) - (reupFund.current_balance || 0)) : 0
-                  const surplus = reupFund ? Math.max(0, weekProfit - needed) : weekProfit
-                  return Object.keys(splits).reduce((sum, role) => {
-                    const gross = (surplus * splits[role]) / 100
-                    const delivery = (weekDelivery * splits[role]) / 100
-                    return sum + gross - delivery
-                  }, 0).toFixed(2)
-                })()}</span>
+                <span>${Object.values(projectedPayouts).reduce((sum: number, p: any) => sum + p.net, 0).toFixed(2)}</span>
               </div>
             </div>
             <div className="flex gap-3">
-              <button onClick={() => setShowCloseWeek(false)} className="flex-1 border border-[#1a1a1a]/20 text-[#666] font-bold py-3 rounded-xl hover:border-[#1a1a1a] transition-all">
-                Cancel
-              </button>
+              <button onClick={() => setShowCloseWeek(false)} className="flex-1 border border-[#1a1a1a]/20 text-[#666] font-bold py-3 rounded-xl hover:border-[#1a1a1a] transition-all">Cancel</button>
               <button onClick={closeWeek} disabled={closingWeek} className="flex-1 bg-[#1a1a1a] text-[#f5f0e8] font-bold py-3 rounded-xl hover:bg-[#333] transition-all disabled:opacity-50">
                 {closingWeek ? 'Closing...' : 'Close & Pay Out'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* RE-UP GOAL MODAL */}
+      {showReupModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-6">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowReupModal(false)} />
+          <div className="relative w-full max-w-sm bg-[#f5f0e8] border border-[#e0d9cc] rounded-2xl p-6">
+            <h2 style={{fontFamily: 'Georgia, serif'}} className="text-xl font-bold mb-2">Set Re-Up Goal</h2>
+            <p className="text-[#999] text-sm mb-6">All weekly profit goes to this fund first. Team payouts only happen once the goal is met.</p>
+            <div className="mb-4">
+              <label className="text-xs uppercase tracking-wider text-[#999] block mb-2">Re-Up Goal ($)</label>
+              <input type="number" value={reupGoal} onChange={e => setReupGoal(Number(e.target.value))}
+                className="w-full bg-white border border-[#e0d9cc] rounded-xl px-4 py-3 text-sm outline-none focus:border-[#c9a84c]" />
+              <p className="text-xs text-[#999] mt-1">Starting with 2 QPs = $800 recommended</p>
+            </div>
+            <div className="bg-white border border-[#e0d9cc] rounded-xl p-4 mb-6">
+              <div className="flex justify-between text-sm mb-1"><span className="text-[#999]">Goal</span><span className="font-bold">${reupGoal}</span></div>
+              <div className="flex justify-between text-sm mb-1"><span className="text-[#999]">Cost per QP</span><span className="font-bold">$400</span></div>
+              <div className="flex justify-between text-sm font-bold border-t border-[#e0d9cc] pt-2 mt-2">
+                <span>QPs this covers</span>
+                <span className="text-[#c9a84c]">{(reupGoal / 400).toFixed(1)} QPs</span>
+              </div>
+            </div>
+            <button
+              onClick={async () => {
+                if (reupFund) {
+                  await supabase.from('reup_fund').update({ goal: reupGoal, current_balance: 0, status: 'active' }).eq('id', reupFund.id)
+                } else {
+                  await supabase.from('reup_fund').insert({ goal: reupGoal, current_balance: 0, status: 'active', week_id: activeWeek?.id || null })
+                }
+                setShowReupModal(false)
+                await loadData()
+              }}
+              className="w-full bg-[#1a1a1a] text-[#f5f0e8] font-bold py-3 rounded-xl hover:bg-[#333] transition-all"
+            >
+              Set Goal
+            </button>
           </div>
         </div>
       )}
@@ -873,10 +747,7 @@ function WeekPayouts({ weekId }: { weekId: string }) {
       <div className="text-xs uppercase tracking-wider text-[#999] mb-3">Final Payouts</div>
       {payouts.map((p: any) => (
         <div key={p.id} className="flex justify-between text-sm py-1.5 border-b border-[#e0d9cc] last:border-0">
-          <div>
-            <span className="font-bold capitalize">{p.role}</span>
-            <span className="text-[#999] text-xs ml-2">−${p.delivery_contribution?.toFixed(2)} delivery</span>
-          </div>
+          <div><span className="font-bold capitalize">{p.role}</span><span className="text-[#999] text-xs ml-2">−${p.delivery_contribution?.toFixed(2)} delivery</span></div>
           <span className="font-bold text-[#c9a84c]">${p.net_payout?.toFixed(2)}</span>
         </div>
       ))}
