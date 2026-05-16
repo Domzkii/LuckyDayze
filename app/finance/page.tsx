@@ -32,7 +32,6 @@ export default function FinancePage() {
   const [tab, setTab] = useState<'overview' | 'week' | 'history' | 'simulator'>('overview')
   const [showCloseWeek, setShowCloseWeek] = useState(false)
   const [showNewWeek, setShowNewWeek] = useState(false)
-  const [newGrams, setNewGrams] = useState(112)
   const [carryoverGrams, setCarryoverGrams] = useState(0)
   const [closingWeek, setClosingWeek] = useState(false)
   const [productGrams, setProductGrams] = useState<Record<string, number>>({})
@@ -40,7 +39,6 @@ export default function FinancePage() {
   const [deletedProducts, setDeletedProducts] = useState<string[]>([])
   const [reupFund, setReupFund] = useState<any>(null)
   const [reupGoal, setReupGoal] = useState(800)
-  const [showReupModal, setShowReupModal] = useState(false)
 
   const [costPerQP, setCostPerQP] = useState(400)
   const [deliveryCost, setDeliveryCost] = useState(10)
@@ -101,13 +99,24 @@ export default function FinancePage() {
       await supabase.from('products').delete().eq('id', id)
     }
 
-    await supabase.from('weeks').insert({
+    const { data: newWeek } = await supabase.from('weeks').insert({
       week_number: weekNumber, start_date: startDate, end_date: '',
       carried_over_grams: carryoverGrams, new_grams_added: totalGrams, status: 'active'
     }).select().single()
 
     for (const product of products.filter((p: any) => p.category !== 'Pre-Rolls' && !deletedProducts.includes(p.id))) {
       await supabase.from('products').update({ stock_grams: Number(productGrams[product.id]) || 0 }).eq('id', product.id)
+    }
+
+    // Set up Re-Up fund for this week
+    if (reupFund) {
+      await supabase.from('reup_fund').update({
+        goal: reupGoal, current_balance: 0, status: 'active', week_id: newWeek?.id || null
+      }).eq('id', reupFund.id)
+    } else {
+      await supabase.from('reup_fund').insert({
+        goal: reupGoal, current_balance: 0, status: 'active', week_id: newWeek?.id || null
+      })
     }
 
     setShowNewWeek(false)
@@ -127,7 +136,6 @@ export default function FinancePage() {
     const totalGramsSold = weekSales.reduce((sum: number, s: any) => sum + (s.grams_sold || 0), 0)
     const endDate = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 
-    // Re-Up Fund logic
     let reupContribution = 0
     let teamPayoutProfit = 0
 
@@ -135,7 +143,6 @@ export default function FinancePage() {
       const currentBalance = reupFund.current_balance || 0
       const goal = reupFund.goal || 800
       const needed = Math.max(0, goal - currentBalance)
-
       if (totalProfit <= needed) {
         reupContribution = totalProfit
         teamPayoutProfit = 0
@@ -143,13 +150,10 @@ export default function FinancePage() {
         reupContribution = needed
         teamPayoutProfit = totalProfit - needed
       }
-
       const newBalance = currentBalance + reupContribution
-      const isGoalMet = newBalance >= goal
-
       await supabase.from('reup_fund').update({
         current_balance: newBalance,
-        status: isGoalMet ? 'completed' : 'active'
+        status: newBalance >= goal ? 'completed' : 'active'
       }).eq('id', reupFund.id)
     } else {
       teamPayoutProfit = totalProfit
@@ -163,16 +167,15 @@ export default function FinancePage() {
     for (const role of ROLES) {
       const grossPayout = (teamPayoutProfit * splits[role.key]) / 100
       const deliveryContribution = (totalDelivery * splits[role.key]) / 100
-      const netPayout = grossPayout - deliveryContribution
       await supabase.from('week_payouts').insert({
         week_id: activeWeek.id, role: role.key,
-        gross_payout: grossPayout, delivery_contribution: deliveryContribution, net_payout: netPayout
+        gross_payout: grossPayout, delivery_contribution: deliveryContribution,
+        net_payout: grossPayout - deliveryContribution
       })
     }
 
     const totalStartGrams = (activeWeek.new_grams_added || 0) + (activeWeek.carried_over_grams || 0)
-    const leftoverGrams = Math.max(0, totalStartGrams - totalGramsSold)
-    setCarryoverGrams(leftoverGrams)
+    setCarryoverGrams(Math.max(0, totalStartGrams - totalGramsSold))
     setClosingWeek(false)
     setShowCloseWeek(false)
     setShowNewWeek(true)
@@ -189,7 +192,6 @@ export default function FinancePage() {
   const totalRevenue = sales.reduce((sum: number, s: any) => sum + (s.revenue || 0), 0)
   const totalProfit = sales.reduce((sum: number, s: any) => sum + (s.net_profit || 0), 0)
 
-  // Re-Up calculations
   const reupNeeded = reupFund ? Math.max(0, (reupFund.goal || 800) - (reupFund.current_balance || 0)) : 0
   const weekSurplus = reupFund && reupFund.status !== 'completed' ? Math.max(0, weekProfit - reupNeeded) : weekProfit
   const weekToReup = reupFund && reupFund.status !== 'completed' ? Math.min(weekProfit, reupNeeded) : 0
@@ -214,9 +216,7 @@ export default function FinancePage() {
     const cost = costPerGram * pp.grams
     const profit = price - cost - deliveryCost
     const margin = price > 0 ? ((profit / price) * 100).toFixed(1) : '0'
-    const unitsFromQP = Math.floor(112 / pp.grams)
-    const totalProfitFromQP = profit * unitsFromQP
-    return { ...pp, price, cost, profit, margin, unitsFromQP, totalProfitFromQP }
+    return { ...pp, price, cost, profit, margin, unitsFromQP: Math.floor(112 / pp.grams), totalProfitFromQP: profit * Math.floor(112 / pp.grams) }
   })
 
   if (!authenticated) {
@@ -267,7 +267,6 @@ export default function FinancePage() {
 
       <div className="max-w-2xl mx-auto px-6 py-8">
 
-        {/* OVERVIEW TAB */}
         {tab === 'overview' && (
           <>
             <div className="bg-[#1a1a1a] text-[#f5f0e8] rounded-2xl p-6 mb-6">
@@ -297,16 +296,15 @@ export default function FinancePage() {
                         <span className="text-[#c9a84c] font-bold text-lg">${allTimeNet.toFixed(2)}</span>
                       </div>
                       <div className="flex gap-4 text-xs">
-                        <div className="flex items-center gap-1"><span className="text-[#999]">Gross:</span><span className="font-bold text-[#f5f0e8]/80">${allTimeGross.toFixed(2)}</span></div>
-                        <div className="flex items-center gap-1"><span className="text-[#999]">Delivery:</span><span className="font-bold text-red-400">−${allTimeDelivery.toFixed(2)}</span></div>
-                        <div className="flex items-center gap-1"><span className="text-[#999]">Net:</span><span className="font-bold text-green-400">${allTimeNet.toFixed(2)}</span></div>
+                        <span className="text-[#999]">Gross: <span className="text-[#f5f0e8]/80 font-bold">${allTimeGross.toFixed(2)}</span></span>
+                        <span className="text-[#999]">Delivery: <span className="text-red-400 font-bold">−${allTimeDelivery.toFixed(2)}</span></span>
+                        <span className="text-[#999]">Net: <span className="text-green-400 font-bold">${allTimeNet.toFixed(2)}</span></span>
                       </div>
                     </div>
                   )
                 })}
               </div>
             </div>
-
             <div className="bg-white border border-[#e0d9cc] rounded-2xl p-6 mb-6">
               <h2 style={{fontFamily: 'Georgia, serif'}} className="text-lg font-bold mb-4">Inventory Status</h2>
               <div className="flex flex-col gap-3">
@@ -330,18 +328,14 @@ export default function FinancePage() {
           </>
         )}
 
-        {/* THIS WEEK TAB */}
         {tab === 'week' && (
           <>
-            {/* RE-UP FUND CARD */}
-            {reupFund ? (
+            {reupFund && (
               <div className="bg-[#1a1a1a] text-[#f5f0e8] rounded-2xl p-6 mb-6">
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <div className="text-xs tracking-widest uppercase text-[#c9a84c] mb-1">Re-Up Fund</div>
-                    <div style={{fontFamily: 'Georgia, serif'}} className="text-lg font-bold">
-                      {reupFund.status === 'completed' ? '🎉 Goal Reached!' : 'Building Fund...'}
-                    </div>
+                    <div style={{fontFamily: 'Georgia, serif'}} className="text-lg font-bold">{reupFund.status === 'completed' ? '🎉 Goal Reached!' : 'Building Fund...'}</div>
                   </div>
                   <div className="text-right">
                     <div className="text-[#c9a84c] text-2xl font-bold">${(reupFund.current_balance || 0).toFixed(0)}</div>
@@ -352,33 +346,15 @@ export default function FinancePage() {
                   <div className="h-full bg-[#c9a84c] rounded-full transition-all"
                     style={{ width: `${Math.min(100, ((reupFund.current_balance || 0) / reupFund.goal) * 100)}%` }} />
                 </div>
-                <div className="flex justify-between text-xs text-[#999] mb-3">
+                <div className="flex justify-between text-xs text-[#999]">
                   <span>${Math.max(0, reupFund.goal - (reupFund.current_balance || 0)).toFixed(0)} still needed</span>
                   <span>{Math.min(100, Math.round(((reupFund.current_balance || 0) / reupFund.goal) * 100))}% funded</span>
                 </div>
-                {reupFund.status === 'completed' ? (
-                  <div className="border-t border-white/10 pt-4">
-                    <p className="text-[#c9a84c] text-sm font-bold mb-3">🎉 Re-Up goal met! Time to re-up and set a new goal.</p>
-                    <button onClick={() => setShowReupModal(true)}
-                      className="w-full bg-[#c9a84c] text-[#1a1a1a] font-bold py-2 rounded-xl text-sm hover:bg-[#e8c97a] transition-all">
-                      Set New Re-Up Goal
-                    </button>
+                {reupFund.status === 'completed' && (
+                  <div className="mt-3 pt-3 border-t border-white/10">
+                    <p className="text-[#c9a84c] text-sm font-bold">🎉 Re-Up goal met! Start a new week to set a new goal.</p>
                   </div>
-                ) : (
-                  <button onClick={() => setShowReupModal(true)}
-                    className="w-full border border-white/20 text-[#999] font-bold py-2 rounded-xl text-sm hover:border-white/40 transition-all">
-                    Edit Goal
-                  </button>
                 )}
-              </div>
-            ) : (
-              <div className="bg-white border border-[#e0d9cc] rounded-2xl p-5 mb-6">
-                <div className="text-xs uppercase tracking-wider text-[#999] mb-2">Re-Up Fund</div>
-                <p className="text-[#888] text-sm mb-4">Set a Re-Up goal. All profit goes here first before team payouts begin.</p>
-                <button onClick={() => setShowReupModal(true)}
-                  className="w-full bg-[#1a1a1a] text-[#f5f0e8] font-bold py-3 rounded-xl hover:bg-[#333] transition-all">
-                  Set Re-Up Goal
-                </button>
               </div>
             )}
 
@@ -463,7 +439,7 @@ export default function FinancePage() {
                   <div className="flex items-center justify-between mb-4">
                     <h2 style={{fontFamily: 'Georgia, serif'}} className="text-lg font-bold">Profit Split</h2>
                     <span className={`text-sm font-bold px-3 py-1 rounded-full ${totalSplit === 100 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
-                      {totalSplit}% {totalSplit === 100 ? '✓' : totalSplit > 100 ? '— over' : '— under'}
+                      {totalSplit}% {totalSplit === 100 ? '✓' : '— adjust'}
                     </span>
                   </div>
                   {ROLES.map(role => (
@@ -483,7 +459,6 @@ export default function FinancePage() {
           </>
         )}
 
-        {/* HISTORY TAB */}
         {tab === 'history' && (
           <>
             <h2 style={{fontFamily: 'Georgia, serif'}} className="text-2xl font-bold mb-6">Week History</h2>
@@ -517,7 +492,6 @@ export default function FinancePage() {
           </>
         )}
 
-        {/* SIMULATOR TAB */}
         {tab === 'simulator' && (
           <>
             <div className="bg-white border border-[#e0d9cc] rounded-2xl p-6 mb-6">
@@ -548,7 +522,6 @@ export default function FinancePage() {
                 ))}
               </div>
             </div>
-
             <div className="bg-white border border-[#e0d9cc] rounded-2xl p-6 mb-6">
               <h2 style={{fontFamily: 'Georgia, serif'}} className="text-lg font-bold mb-4">Price Point Analysis</h2>
               <div className="flex flex-col gap-3">
@@ -577,7 +550,26 @@ export default function FinancePage() {
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowNewWeek(false)} />
           <div className="relative w-full max-w-sm bg-[#f5f0e8] border border-[#e0d9cc] rounded-2xl p-6 max-h-[90vh] overflow-y-auto">
             <h2 style={{fontFamily: 'Georgia, serif'}} className="text-xl font-bold mb-2">Start New Week</h2>
-            <p className="text-[#999] text-sm mb-6">Set your inventory. Add new strains or remove ones you don't have.</p>
+            <p className="text-[#999] text-sm mb-5">Set your inventory and Re-Up goal for this week.</p>
+
+            {/* RE-UP GOAL INPUT */}
+            <div className="bg-[#1a1a1a] text-[#f5f0e8] rounded-2xl p-4 mb-5">
+              <div className="text-xs tracking-widest uppercase text-[#c9a84c] mb-2">Re-Up Goal</div>
+              <p className="text-[#999] text-xs mb-3">All profit goes here first. Team gets paid once goal is met.</p>
+              <input
+                type="number"
+                value={reupGoal}
+                onChange={e => setReupGoal(Number(e.target.value))}
+                className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-2 text-sm outline-none focus:border-[#c9a84c] text-[#f5f0e8] placeholder-[#999] mb-2"
+                placeholder="800"
+              />
+              <div className="flex justify-between text-xs text-[#999]">
+                <span>2 QPs = $800 recommended</span>
+                <span className="text-[#c9a84c] font-bold">{(reupGoal / 400).toFixed(1)} QPs</span>
+              </div>
+            </div>
+
+            {/* EXISTING PRODUCTS */}
             <div className="flex flex-col gap-3 mb-4">
               {products.filter((p: any) => p.category !== 'Pre-Rolls' && !deletedProducts.includes(p.id)).map((product: any) => (
                 <div key={product.id}>
@@ -591,6 +583,7 @@ export default function FinancePage() {
                 </div>
               ))}
             </div>
+
             {newStrains.map((strain, idx) => (
               <div key={idx} className="mb-3 bg-white border border-[#c9a84c]/30 rounded-xl p-3">
                 <div className="flex items-center justify-between mb-2">
@@ -605,10 +598,13 @@ export default function FinancePage() {
                   className="w-full bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl px-3 py-2 text-sm outline-none focus:border-[#c9a84c]" />
               </div>
             ))}
+
             <button onClick={() => setNewStrains(prev => [...prev, { name: '', grams: '' }])}
               className="w-full border border-dashed border-[#c9a84c] text-[#c9a84c] font-bold py-2 rounded-xl text-sm hover:bg-[#c9a84c]/5 transition-all mb-4">
               + Add New Strain
             </button>
+
+            {/* BREAKDOWN */}
             <div className="bg-white border border-[#e0d9cc] rounded-xl p-4 mb-4">
               <div className="text-xs uppercase tracking-wider text-[#999] mb-3">Inventory Breakdown</div>
               {products.filter((p: any) => p.category !== 'Pre-Rolls' && !deletedProducts.includes(p.id)).map((product: any) => {
@@ -643,6 +639,7 @@ export default function FinancePage() {
                 </span>
               </div>
             </div>
+
             <button onClick={startNewWeek} className="w-full bg-[#1a1a1a] text-[#f5f0e8] font-bold py-3 rounded-xl hover:bg-[#333] transition-all">Start Week</button>
           </div>
         </div>
@@ -668,7 +665,7 @@ export default function FinancePage() {
                     <span className="font-bold">${weekSurplus.toFixed(2)}</span>
                   </div>
                   {weekSurplus === 0 && (
-                    <p className="text-xs text-amber-600 mb-3">All profit goes to Re-Up this week. ${reupNeeded.toFixed(0)} still needed to reach goal.</p>
+                    <p className="text-xs text-amber-600 mb-3">All profit goes to Re-Up this week. ${reupNeeded.toFixed(0)} still needed.</p>
                   )}
                   <div className="text-xs uppercase tracking-wider text-[#999] mb-3">Team Payouts</div>
                 </>
@@ -690,45 +687,6 @@ export default function FinancePage() {
                 {closingWeek ? 'Closing...' : 'Close & Pay Out'}
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* RE-UP GOAL MODAL */}
-      {showReupModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-6">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowReupModal(false)} />
-          <div className="relative w-full max-w-sm bg-[#f5f0e8] border border-[#e0d9cc] rounded-2xl p-6">
-            <h2 style={{fontFamily: 'Georgia, serif'}} className="text-xl font-bold mb-2">Set Re-Up Goal</h2>
-            <p className="text-[#999] text-sm mb-6">All weekly profit goes to this fund first. Team payouts only happen once the goal is met.</p>
-            <div className="mb-4">
-              <label className="text-xs uppercase tracking-wider text-[#999] block mb-2">Re-Up Goal ($)</label>
-              <input type="number" value={reupGoal} onChange={e => setReupGoal(Number(e.target.value))}
-                className="w-full bg-white border border-[#e0d9cc] rounded-xl px-4 py-3 text-sm outline-none focus:border-[#c9a84c]" />
-              <p className="text-xs text-[#999] mt-1">Starting with 2 QPs = $800 recommended</p>
-            </div>
-            <div className="bg-white border border-[#e0d9cc] rounded-xl p-4 mb-6">
-              <div className="flex justify-between text-sm mb-1"><span className="text-[#999]">Goal</span><span className="font-bold">${reupGoal}</span></div>
-              <div className="flex justify-between text-sm mb-1"><span className="text-[#999]">Cost per QP</span><span className="font-bold">$400</span></div>
-              <div className="flex justify-between text-sm font-bold border-t border-[#e0d9cc] pt-2 mt-2">
-                <span>QPs this covers</span>
-                <span className="text-[#c9a84c]">{(reupGoal / 400).toFixed(1)} QPs</span>
-              </div>
-            </div>
-            <button
-              onClick={async () => {
-                if (reupFund) {
-                  await supabase.from('reup_fund').update({ goal: reupGoal, current_balance: 0, status: 'active' }).eq('id', reupFund.id)
-                } else {
-                  await supabase.from('reup_fund').insert({ goal: reupGoal, current_balance: 0, status: 'active', week_id: activeWeek?.id || null })
-                }
-                setShowReupModal(false)
-                await loadData()
-              }}
-              className="w-full bg-[#1a1a1a] text-[#f5f0e8] font-bold py-3 rounded-xl hover:bg-[#333] transition-all"
-            >
-              Set Goal
-            </button>
           </div>
         </div>
       )}
