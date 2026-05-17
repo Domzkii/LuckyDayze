@@ -393,10 +393,15 @@ const miniPreRolls = cart.filter((i: any) => i.category === 'Pre-Rolls' && !i.is
                     </div>
                   )}
 
-                  <div className="flex items-center justify-between">
-                    <span className="text-[#1a1a1a] font-bold text-lg">
-                      ${isFlower ? selectedPrice * selected.qty : product.price}
-                    </span>
+                  <div className="flex items-center justify-between mt-2">
+                    <div>
+                      <span className="text-[#1a1a1a] font-bold text-base">
+                        ${isFlower ? selectedPrice * selected.qty : product.price}
+                      </span>
+                      {isFlower && selected.qty > 1 && (
+                        <span className="text-[#999] text-xs ml-1">(${selectedPrice}/ea)</span>
+                      )}
+                    </div>
                     <button
                       onClick={() => {
                         if (isFlower) {
@@ -404,7 +409,6 @@ const miniPreRolls = cart.filter((i: any) => i.category === 'Pre-Rolls' && !i.is
                             alert(`Only ${maxQty} available at this weight`)
                             return
                           }
-                          const gramsTotal = parseFloat(selected.weight) * selected.qty
                           addToCart({
                             ...product,
                             price: selectedPrice,
@@ -417,9 +421,9 @@ const miniPreRolls = cart.filter((i: any) => i.category === 'Pre-Rolls' && !i.is
                           addToCart(product)
                         }
                       }}
-                      className="bg-[#1a1a1a] text-[#f5f0e8] font-bold px-4 py-2 rounded-full text-sm hover:bg-[#c9a84c] hover:text-[#1a1a1a] transition-all"
+                      className="bg-[#1a1a1a] text-[#f5f0e8] font-bold px-3 py-1.5 rounded-full text-xs hover:bg-[#c9a84c] hover:text-[#1a1a1a] transition-all whitespace-nowrap"
                     >
-                      Add to Cart
+                      + Add
                     </button>
                   </div>
                 </div>
