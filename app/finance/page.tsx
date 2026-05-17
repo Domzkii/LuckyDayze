@@ -184,7 +184,7 @@ export default function FinancePage() {
 
   const totalSplit = Object.values(splits).reduce((a, b) => a + b, 0)
   const costPerGram = costPerQP / 112
-  const weekSales = activeWeek ? sales.filter((s: any) => s.week_id === activeWeek.id) : []
+  const weekSales = activeWeek ? sales.filter((s: any) => String(s.week_id) === String(activeWeek.id)) : []
   const weekRevenue = weekSales.reduce((sum: number, s: any) => sum + (s.revenue || 0), 0)
   const weekProfit = weekSales.reduce((sum: number, s: any) => sum + (s.net_profit || 0), 0)
   const weekDelivery = weekSales.reduce((sum: number, s: any) => sum + (s.delivery_cost || 0), 0)
