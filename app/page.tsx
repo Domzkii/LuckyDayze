@@ -212,6 +212,7 @@ export default function Home() {
         </div>
         <div className="flex items-center gap-3">
           <button onClick={toggle} className="text-lg" aria-label="Toggle dark mode">{dark ? '☀️' : '🌙'}</button>
+          <a href="/track" className="text-sm font-semibold text-[#666] hover:text-[#1a1a1a] transition-all hidden sm:block tracking-wide">Track</a>
           <a href="/rewards" className="text-sm font-semibold text-[#c9a84c] hover:text-[#a07830] transition-all hidden sm:block tracking-wide">Rewards</a>
           <button onClick={() => setCartOpen(true)}
             className="bg-[#1a1a1a] text-[#f5f0e8] text-sm font-bold px-5 py-2 rounded-full relative hover:bg-[#333] transition-all">
