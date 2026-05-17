@@ -284,19 +284,21 @@ export default function AdminPage() {
     <main className="min-h-screen bg-[#f5f0e8] text-[#1a1a1a]">
 
       {/* NAV */}
-      <nav className="flex items-center justify-between px-6 py-5 border-b border-[#1a1a1a]/10 sticky top-0 bg-[#f5f0e8]/95 backdrop-blur z-40">
-        <div>
-          <div style={{fontFamily: 'Georgia, serif'}} className="text-xl font-bold tracking-wider">LUCKY DAYZE</div>
-          <div className="text-xs tracking-widest uppercase text-[#999]">Admin Panel</div>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-            <span className="text-[#999] text-xs">Live</span>
+      <nav className="border-b border-[#1a1a1a]/10 sticky top-0 bg-[#f5f0e8]/95 backdrop-blur z-40">
+        <div className="flex items-center justify-between px-4 py-3">
+          <div>
+            <div style={{fontFamily: 'Georgia, serif'}} className="text-lg font-bold tracking-wider">LUCKY DAYZE</div>
+            <div className="text-xs tracking-widest uppercase text-[#999]">Admin Panel</div>
           </div>
-          <button onClick={() => loadOrders()} className="border border-[#1a1a1a]/20 text-[#666] text-sm font-bold px-4 py-2 rounded-full hover:border-[#1a1a1a] transition-all">Refresh</button>
-          <a href="/finance" className="bg-[#1a1a1a] text-[#f5f0e8] text-sm font-bold px-5 py-2 rounded-full hover:bg-[#333] transition-all">Finance</a>
-          <a href="/" className="border border-[#1a1a1a]/20 text-[#666] text-sm font-bold px-4 py-2 rounded-full hover:border-[#1a1a1a] transition-all">Store</a>
+          <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1">
+              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+              <span className="text-[#999] text-xs hidden sm:block">Live</span>
+            </div>
+            <button onClick={() => loadOrders()} className="border border-[#1a1a1a]/20 text-[#666] text-xs font-bold px-3 py-1.5 rounded-full hover:border-[#1a1a1a] transition-all">Refresh</button>
+            <a href="/finance" className="bg-[#1a1a1a] text-[#f5f0e8] text-xs font-bold px-3 py-1.5 rounded-full hover:bg-[#333] transition-all">Finance</a>
+            <a href="/" className="border border-[#1a1a1a]/20 text-[#666] text-xs font-bold px-3 py-1.5 rounded-full hover:border-[#1a1a1a] transition-all">Store</a>
+          </div>
         </div>
       </nav>
 
