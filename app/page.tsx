@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from './supabase'
+import { useTheme } from './theme'
 
 const WEIGHT_LABELS: Record<string, string> = {
   '3.5': '1/8', '7': '1/4', '14': '1/2', '28': '1oz'
 }
 
 export default function Home() {
+  const { theme, toggle } = useTheme()
   const [products, setProducts] = useState<any[]>([])
   const [cart, setCart] = useState<any[]>([])
   const [cartOpen, setCartOpen] = useState(false)
@@ -34,17 +36,15 @@ export default function Home() {
     if (rewardRaw) {
       try {
         const reward = JSON.parse(rewardRaw)
-        const rewardItem = {
+        setCart([{
           id: 'reward_' + reward.key,
           name: reward.name,
-          price: 0,
-          qty: 1,
+          price: 0, qty: 1,
           emoji: '🎁',
           category: reward.key === 'free_eighth' ? 'Flower' : 'Pre-Rolls',
           isReward: true,
           rewardPhone: reward.phone
-        }
-        setCart([rewardItem])
+        }])
         setCartOpen(true)
         localStorage.removeItem('luckydayze_reward')
       } catch (e) {}
@@ -54,42 +54,26 @@ export default function Home() {
   function applyPreRollPricing(cart: any[]) {
     const regularPreRolls = cart.filter((i: any) => i.category === 'Pre-Rolls' && !i.isReward && (i.originalPrice || i.price) >= 15)
     const miniPreRolls = cart.filter((i: any) => i.category === 'Pre-Rolls' && !i.isReward && (i.originalPrice || i.price) < 15)
-
     const totalRegular = regularPreRolls.reduce((sum: number, i: any) => sum + i.qty, 0)
     const totalMini = miniPreRolls.reduce((sum: number, i: any) => sum + i.qty, 0)
-
-    const regularPairs = Math.floor(totalRegular / 2)
-    const regularSingles = totalRegular % 2
-    const totalRegularCost = (regularPairs * 25) + (regularSingles * 15)
-
-    const miniPairs = Math.floor(totalMini / 2)
-    const miniSingles = totalMini % 2
-    const totalMiniCost = (miniPairs * 15) + (miniSingles * 10)
+    const totalRegularCost = (Math.floor(totalRegular / 2) * 25) + (totalRegular % 2 * 15)
+    const totalMiniCost = (Math.floor(totalMini / 2) * 15) + (totalMini % 2 * 10)
 
     return cart.map((i: any) => {
       if (i.category !== 'Pre-Rolls' || i.isReward) return i
       const isMini = (i.originalPrice || i.price) < 15
-
-      if (isMini) {
-        const totalQty = miniPreRolls.reduce((sum: number, p: any) => sum + p.qty, 0)
-        if (totalQty === 0) return i
-        const isFirst = miniPreRolls[0]?.id === i.id
-        if (isFirst) {
-          const otherCost = miniPreRolls.filter((p: any) => p.id !== i.id).reduce((sum: number, p: any) => sum + Math.floor((p.qty / totalQty) * totalMiniCost), 0)
-          return { ...i, price: (totalMiniCost - otherCost) / i.qty, promo: totalMini >= 2 ? '2 for $15' : null }
-        } else {
-          return { ...i, price: Math.floor((i.qty / totalQty) * totalMiniCost) / i.qty, promo: totalMini >= 2 ? '2 for $15' : null }
-        }
+      const group = isMini ? miniPreRolls : regularPreRolls
+      const totalCost = isMini ? totalMiniCost : totalRegularCost
+      const totalQty = group.reduce((sum: number, p: any) => sum + p.qty, 0)
+      const totalCount = isMini ? totalMini : totalRegular
+      if (totalQty === 0) return i
+      const isFirst = group[0]?.id === i.id
+      const promo = totalCount >= 2 ? (isMini ? '2 for $15' : '2 for $25') : null
+      if (isFirst) {
+        const otherCost = group.filter((p: any) => p.id !== i.id).reduce((sum: number, p: any) => sum + Math.floor((p.qty / totalQty) * totalCost), 0)
+        return { ...i, price: (totalCost - otherCost) / i.qty, promo }
       } else {
-        const totalQty = regularPreRolls.reduce((sum: number, p: any) => sum + p.qty, 0)
-        if (totalQty === 0) return i
-        const isFirst = regularPreRolls[0]?.id === i.id
-        if (isFirst) {
-          const otherCost = regularPreRolls.filter((p: any) => p.id !== i.id).reduce((sum: number, p: any) => sum + Math.floor((p.qty / totalQty) * totalRegularCost), 0)
-          return { ...i, price: (totalRegularCost - otherCost) / i.qty, promo: totalRegular >= 2 ? '2 for $25' : null }
-        } else {
-          return { ...i, price: Math.floor((i.qty / totalQty) * totalRegularCost) / i.qty, promo: totalRegular >= 2 ? '2 for $25' : null }
-        }
+        return { ...i, price: Math.floor((i.qty / totalQty) * totalCost) / i.qty, promo }
       }
     })
   }
@@ -98,21 +82,15 @@ export default function Home() {
     setCart((prev: any[]) => {
       const qty = product.qty_override || 1
       const existing = prev.find((i: any) => i.id === product.id && i.name === product.name)
-      let newCart
-      if (existing) {
-        newCart = prev.map((i: any) => i.id === product.id && i.name === product.name ? { ...i, qty: i.qty + qty } : i)
-      } else {
-        newCart = [...prev, { ...product, qty, originalPrice: product.price }]
-      }
+      const newCart = existing
+        ? prev.map((i: any) => i.id === product.id && i.name === product.name ? { ...i, qty: i.qty + qty } : i)
+        : [...prev, { ...product, qty, originalPrice: product.price }]
       return applyPreRollPricing(newCart)
     })
   }
 
   function removeFromCart(id: any, itemName?: string) {
-    setCart((prev: any[]) => {
-      const newCart = prev.filter((i: any) => !(i.id === id && i.name === itemName))
-      return applyPreRollPricing(newCart)
-    })
+    setCart((prev: any[]) => applyPreRollPricing(prev.filter((i: any) => !(i.id === id && i.name === itemName))))
   }
 
   function changeQty(id: any, delta: any, itemName?: string) {
@@ -131,95 +109,80 @@ export default function Home() {
   const cartCount = cart.reduce((sum: number, i: any) => sum + i.qty, 0)
 
   async function placeOrder() {
-    if (!name || !phone) {
-      alert('Please fill in your name and phone number.')
-      return
-    }
-    if (deliveryMethod === 'delivery' && !address) {
-      alert('Please fill in your delivery address.')
-      return
-    }
-    if (deliveryMethod === 'delivery' && total < 25) {
-      alert('Minimum order for delivery is $25. Add more items or select pickup!')
-      return
-    }
+    if (!name || !phone) { alert('Please fill in your name and phone number.'); return }
+    if (deliveryMethod === 'delivery' && !address) { alert('Please fill in your delivery address.'); return }
+    if (deliveryMethod === 'delivery' && total < 25) { alert('Minimum order for delivery is $25. Add more items or select pickup!'); return }
     setLoading(true)
-    const orderItems = cart.map((i: any) => ({
-      id: i.id,
-      name: i.name,
-      price: i.price,
-      qty: i.qty,
-      emoji: i.emoji,
-      category: i.category,
-      grams: i.grams
-    }))
+    const orderItems = cart.map((i: any) => ({ id: i.id, name: i.name, price: i.price, qty: i.qty, emoji: i.emoji, category: i.category, grams: i.grams }))
     const { error } = await supabase.from('orders').insert({
-      customer_name: name,
-      customer_phone: phone,
+      customer_name: name, customer_phone: phone,
       customer_address: deliveryMethod === 'delivery' ? address : 'PICKUP',
-      order_notes: notes,
-      items: orderItems,
-      total: total,
-      status: 'pending_payment'
+      order_notes: notes, items: orderItems, total, status: 'pending_payment'
     })
     setLoading(false)
     if (error) { alert('Something went wrong: ' + error.message); return }
     setFinalTotal(total)
-    fetch('/api/notify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ customerName: name, customerPhone: phone, customerAddress: address, total, items: orderItems })
-    })
+    fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ customerName: name, customerPhone: phone, customerAddress: address, total, items: orderItems }) })
     setCart([])
     setCheckoutOpen(false)
     setOrderPlaced(true)
   }
 
+  const dark = theme === 'dark'
+
   if (!ageVerified) {
     return (
-      <main className="min-h-screen bg-[#f5f0e8] text-[#1a1a1a] flex flex-col items-center justify-center px-6 text-center">
+      <main className={`min-h-screen flex flex-col items-center justify-center px-6 text-center transition-colors ${dark ? 'bg-[#0f0f0f] text-[#f5f0e8]' : 'bg-[#f5f0e8] text-[#1a1a1a]'}`}>
         <div className="text-5xl mb-4">🌿</div>
-        <div style={{fontFamily: 'Georgia, serif'}} className="text-4xl font-bold text-[#1a1a1a] mb-1">LUCKY DAYZE</div>
-        <div className="text-xs tracking-widest uppercase text-[#666] mb-12">New York Cannabis House</div>
+        <div style={{fontFamily: 'Georgia, serif'}} className="text-4xl font-bold mb-1">LUCKY DAYZE</div>
+        <div className="text-xs tracking-widest uppercase text-[#999] mb-12">New York Cannabis House</div>
         <h1 className="text-2xl font-bold mb-3">Are you 21 or older?</h1>
-        <p className="text-[#666] text-sm mb-10 max-w-xs">You must be of legal age to purchase cannabis. Please confirm your age to continue.</p>
+        <p className="text-sm mb-10 max-w-xs opacity-60">You must be of legal age to purchase cannabis.</p>
         <div className="flex gap-4">
           <button onClick={() => setAgeVerified(true)} className="bg-[#1a1a1a] text-[#f5f0e8] font-bold px-10 py-4 rounded-full text-lg hover:bg-[#333] transition-all">Yes, I'm 21+</button>
-          <button onClick={() => alert('You must be 21 or older to enter.')} className="border border-[#1a1a1a]/30 text-[#666] px-10 py-4 rounded-full text-lg hover:border-[#1a1a1a] transition-all">No</button>
+          <button onClick={() => alert('You must be 21 or older to enter.')} className={`border font-bold px-10 py-4 rounded-full text-lg transition-all ${dark ? 'border-white/20 text-white/50' : 'border-[#1a1a1a]/30 text-[#666]'}`}>No</button>
         </div>
-        <p className="text-[#999] text-xs mt-10 max-w-xs">By entering you confirm you are of legal age to purchase cannabis in your state.</p>
+        <p className="text-xs mt-10 max-w-xs opacity-40">By entering you confirm you are of legal age to purchase cannabis in your state.</p>
       </main>
     )
   }
 
   if (orderPlaced) {
     return (
-      <main className="min-h-screen bg-[#f5f0e8] text-[#1a1a1a] flex flex-col items-center justify-center px-6 text-center">
+      <main className={`min-h-screen flex flex-col items-center justify-center px-6 text-center transition-colors ${dark ? 'bg-[#0f0f0f] text-[#f5f0e8]' : 'bg-[#f5f0e8] text-[#1a1a1a]'}`}>
         <div className="text-6xl mb-6">🌿</div>
         <h1 className="text-3xl font-bold mb-3">Order Received!</h1>
-        <p className="text-[#666] text-lg mb-2">Thanks, {name}!</p>
-        <p className="text-[#888] text-sm mb-8 max-w-sm">We are confirming your Cash App payment now. You will get a call or text at {phone} once your order is on the way.</p>
-        <div className="bg-white border border-[#e0d9cc] rounded-2xl p-6 mb-8 max-w-sm w-full">
-          <p className="text-[#888] text-sm mb-1">Delivering to</p>
-          <p className="font-bold text-[#1a1a1a]">{address || 'Pickup'}</p>
-          <div className="border-t border-[#e0d9cc] mt-4 pt-4">
-            <p className="text-[#888] text-sm mb-1">Amount sent</p>
+        <p className="text-lg mb-2 opacity-70">Thanks, {name}!</p>
+        <p className="text-sm mb-8 max-w-sm opacity-50">We are confirming your Cash App payment now. You will get a call or text at {phone} once your order is on the way.</p>
+        <div className={`border rounded-2xl p-6 mb-8 max-w-sm w-full ${dark ? 'bg-[#1a1a1a] border-[#333]' : 'bg-white border-[#e0d9cc]'}`}>
+          <p className="text-sm mb-1 opacity-50">Delivering to</p>
+          <p className="font-bold">{address || 'Pickup'}</p>
+          <div className={`border-t mt-4 pt-4 ${dark ? 'border-[#333]' : 'border-[#e0d9cc]'}`}>
+            <p className="text-sm mb-1 opacity-50">Amount sent</p>
             <p className="text-[#c9a84c] text-2xl font-bold">${finalTotal.toFixed(2)}</p>
           </div>
         </div>
         <button onClick={() => { setOrderPlaced(false); setName(''); setPhone(''); setAddress(''); setNotes('') }}
-          className="bg-[#1a1a1a] text-[#f5f0e8] font-bold px-8 py-3 rounded-full hover:bg-[#333] transition-all">
-          Back to Menu
-        </button>
+          className="bg-[#1a1a1a] text-[#f5f0e8] font-bold px-8 py-3 rounded-full hover:bg-[#333] transition-all">Back to Menu</button>
       </main>
     )
   }
 
+  const bg = dark ? 'bg-[#0f0f0f]' : 'bg-[#f5f0e8]'
+  const bg2 = dark ? 'bg-[#1a1a1a]' : 'bg-white'
+  const bg3 = dark ? 'bg-[#222]' : 'bg-[#f0ebe0]'
+  const text = dark ? 'text-[#f5f0e8]' : 'text-[#1a1a1a]'
+  const text2 = dark ? 'text-[#aaa]' : 'text-[#666]'
+  const text3 = dark ? 'text-[#777]' : 'text-[#999]'
+  const border = dark ? 'border-[#333]' : 'border-[#e0d9cc]'
+  const borderHover = dark ? 'hover:border-[#555]' : 'hover:border-[#c9a84c]'
+  const input = dark ? 'bg-[#222] border-[#444] text-[#f5f0e8] placeholder-[#555]' : 'bg-[#f5f0e8] border-[#e0d9cc] text-[#1a1a1a] placeholder-[#bbb]'
+
   return (
-    <main className="min-h-screen bg-[#f5f0e8] text-[#1a1a1a]">
+    <main className={`min-h-screen ${bg} ${text} transition-colors`}>
 
       {/* NAV */}
-      <nav className="flex items-center justify-between px-6 py-5 border-b border-[#1a1a1a]/10 sticky top-0 bg-[#f5f0e8]/95 backdrop-blur z-40">
+      <nav className={`flex items-center justify-between px-6 py-5 border-b ${border} sticky top-0 ${dark ? 'bg-[#0f0f0f]/95' : 'bg-[#f5f0e8]/95'} backdrop-blur z-40`}>
         <div>
           <div
             onClick={() => {
@@ -231,30 +194,31 @@ export default function Home() {
               if (w._tapTimes.length >= 7) { w._tapTimes = []; window.location.href = '/secret' }
             }}
             style={{fontFamily: 'Georgia, serif'}}
-            className="text-xl font-bold tracking-wider text-[#1a1a1a] cursor-default select-none"
+            className="text-xl font-bold tracking-wider cursor-default select-none"
           >LUCKY DAYZE</div>
-          <div className="text-xs tracking-widest uppercase text-[#999]">New York Cannabis House</div>
+          <div className={`text-xs tracking-widest uppercase ${text3}`}>New York Cannabis House</div>
         </div>
-        <a href="/rewards" className="text-sm font-semibold text-[#c9a84c] hover:text-[#a07830] transition-all hidden sm:block tracking-wide">Rewards</a>
-        <button onClick={() => setCartOpen(true)}
-          className="bg-[#1a1a1a] text-[#f5f0e8] text-sm font-bold px-5 py-2 rounded-full relative hover:bg-[#333] transition-all">
-          Cart
-          {cartCount > 0 && (
-            <span className="absolute -top-2 -right-2 bg-[#c9a84c] text-[#1a1a1a] text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">{cartCount}</span>
-          )}
-        </button>
+        <div className="flex items-center gap-3">
+          <button onClick={toggle} className="text-lg" aria-label="Toggle dark mode">{dark ? '☀️' : '🌙'}</button>
+          <a href="/rewards" className="text-sm font-semibold text-[#c9a84c] hover:text-[#a07830] transition-all hidden sm:block tracking-wide">Rewards</a>
+          <button onClick={() => setCartOpen(true)}
+            className="bg-[#1a1a1a] text-[#f5f0e8] text-sm font-bold px-5 py-2 rounded-full relative hover:bg-[#333] transition-all">
+            Cart
+            {cartCount > 0 && <span className="absolute -top-2 -right-2 bg-[#c9a84c] text-[#1a1a1a] text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">{cartCount}</span>}
+          </button>
+        </div>
       </nav>
 
       {/* HERO */}
-      <section className="px-6 py-16 max-w-2xl border-b border-[#1a1a1a]/10">
+      <section className={`px-6 py-16 max-w-2xl border-b ${border}`}>
         <p className="text-xs font-bold tracking-widest uppercase text-[#c9a84c] mb-4">Fast Delivery · NYC</p>
-        <h1 style={{fontFamily: 'Georgia, serif'}} className="text-5xl font-bold leading-tight mb-4 text-[#1a1a1a]">
+        <h1 style={{fontFamily: 'Georgia, serif'}} className="text-5xl font-bold leading-tight mb-4">
           Premium Cannabis<br /><span className="italic text-[#c9a84c]">Delivered Fast.</span>
         </h1>
-        <p className="text-[#666] text-lg mb-8 max-w-md">Flower, pre-rolls and more — delivered to your door in under 45 minutes.</p>
+        <p className={`text-lg mb-8 max-w-md ${text2}`}>Flower, pre-rolls and more — delivered to your door in under 45 minutes.</p>
         <div className="flex gap-4 flex-wrap">
           <button onClick={() => setCartOpen(true)} className="bg-[#1a1a1a] text-[#f5f0e8] font-bold px-8 py-3 rounded-full hover:bg-[#333] transition-all">View Cart</button>
-          <a href="/rewards" className="border border-[#1a1a1a]/30 text-[#1a1a1a] font-bold px-8 py-3 rounded-full hover:border-[#1a1a1a] transition-all">Rewards</a>
+          <a href="/rewards" className={`border font-bold px-8 py-3 rounded-full transition-all ${dark ? 'border-white/20 text-[#f5f0e8] hover:border-white/40' : 'border-[#1a1a1a]/30 text-[#1a1a1a] hover:border-[#1a1a1a]'}`}>Rewards</a>
         </div>
       </section>
 
@@ -270,9 +234,9 @@ export default function Home() {
 
       {/* PRODUCTS */}
       <section className="px-6 py-12 pb-16">
-        <div className="flex items-baseline justify-between mb-8 max-w-2xl">
+        <div className={`flex items-baseline justify-between mb-8 max-w-2xl`}>
           <h2 style={{fontFamily: 'Georgia, serif'}} className="text-2xl font-bold">The Menu</h2>
-          <span className="text-xs tracking-widest uppercase text-[#999]">{products.length} products</span>
+          <span className={`text-xs tracking-widest uppercase ${text3}`}>{products.length} products</span>
         </div>
         <div className="grid grid-cols-2 gap-4 max-w-2xl">
           {products.map((product: any) => {
@@ -284,52 +248,53 @@ export default function Home() {
             const maxQty = isFlower ? Math.floor((product.stock_grams || 0) / parseFloat(selected.weight)) : 99
 
             return (
-              <div key={product.id} className="bg-white border border-[#e0d9cc] rounded-2xl overflow-hidden hover:border-[#c9a84c] transition-all group flex flex-col">
-                <div className="h-28 bg-[#f0ebe0] flex items-center justify-center text-4xl group-hover:bg-[#e8e0d0] transition-all">
+              <div key={product.id} className={`${bg2} border ${border} rounded-2xl overflow-hidden ${borderHover} transition-all group flex flex-col`}>
+                <div className={`h-28 ${bg3} flex items-center justify-center text-4xl group-hover:opacity-90 transition-all`}>
                   {product.emoji}
                 </div>
                 <div className="p-3 flex flex-col flex-1">
                   <div className="flex items-start justify-between gap-1 mb-1">
-                    <p style={{fontFamily: 'Georgia, serif'}} className="font-bold text-sm text-[#1a1a1a] leading-tight">{product.name}</p>
+                    <p style={{fontFamily: 'Georgia, serif'}} className="font-bold text-sm leading-tight">{product.name}</p>
                     <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 ${
                       product.strain_type === 'Sativa' ? 'bg-amber-100 text-amber-700' :
                       product.strain_type === 'Indica' ? 'bg-purple-100 text-purple-700' :
                       'bg-green-100 text-green-700'
                     }`}>{product.strain_type}</span>
                   </div>
-                  <p className="text-[#999] text-xs mb-1">{product.category} · {product.thc}</p>
+                  <p className={`text-xs mb-1 ${text3}`}>{product.category} · {product.thc}</p>
+                  {isLowStock && <p className="text-amber-500 text-xs font-bold mb-1">⚠ Low Stock</p>}
+                  {product.category === 'Pre-Rolls' && product.price < 15 && <p className="text-green-500 text-xs font-bold mb-1">🎉 2 for $15</p>}
+                  {product.category === 'Pre-Rolls' && product.price >= 15 && <p className="text-green-500 text-xs font-bold mb-1">🎉 2 for $25</p>}
 
-                  {isLowStock && <p className="text-amber-600 text-xs font-bold mb-1">⚠ Low Stock</p>}
-                  {product.category === 'Pre-Rolls' && product.price < 15 && <p className="text-green-600 text-xs font-bold mb-1">🎉 2 for $15</p>}
-                  {product.category === 'Pre-Rolls' && product.price >= 15 && <p className="text-green-600 text-xs font-bold mb-1">🎉 2 for $25</p>}
-
-                  {/* FLOWER WEIGHT SELECTOR */}
                   {isFlower && Object.keys(weightPrices).length > 0 && (
                     <div className="mb-2 mt-1">
                       <div className="grid grid-cols-4 gap-1 mb-2">
                         {Object.keys(weightPrices).map(w => (
                           <button key={w}
                             onClick={() => setSelectedWeights(prev => ({ ...prev, [product.id]: { weight: w, qty: 1 } }))}
-                            className={`py-1 rounded-lg text-xs font-bold transition-all ${selected.weight === w ? 'bg-[#1a1a1a] text-[#f5f0e8]' : 'bg-[#f5f0e8] border border-[#e0d9cc] text-[#666]'}`}>
+                            className={`py-1 rounded-lg text-xs font-bold transition-all ${selected.weight === w
+                              ? 'bg-[#1a1a1a] text-[#f5f0e8]'
+                              : dark ? 'bg-[#333] border border-[#444] text-[#aaa]' : 'bg-[#f5f0e8] border border-[#e0d9cc] text-[#666]'
+                            }`}>
                             {WEIGHT_LABELS[w] || w + 'g'}
                           </button>
                         ))}
                       </div>
                       <div className="flex items-center gap-2">
                         <button onClick={() => setSelectedWeights(prev => ({ ...prev, [product.id]: { weight: selected.weight, qty: Math.max(1, (prev[product.id]?.qty || 1) - 1) } }))}
-                          className="w-6 h-6 rounded-full border border-[#1a1a1a]/20 text-[#666] text-xs flex items-center justify-center hover:border-[#1a1a1a]">−</button>
+                          className={`w-6 h-6 rounded-full border text-xs flex items-center justify-center transition-all ${dark ? 'border-white/20 text-[#aaa] hover:border-white/40' : 'border-[#1a1a1a]/20 text-[#666] hover:border-[#1a1a1a]'}`}>−</button>
                         <span className="text-xs font-bold w-4 text-center">{selected.qty}</span>
                         <button onClick={() => {
                           if ((selectedWeights[product.id]?.qty || 1) >= maxQty) { alert(`Only ${maxQty} available`); return }
                           setSelectedWeights(prev => ({ ...prev, [product.id]: { weight: selected.weight, qty: (prev[product.id]?.qty || 1) + 1 } }))
-                        }} className="w-6 h-6 rounded-full border border-[#1a1a1a]/20 text-[#666] text-xs flex items-center justify-center hover:border-[#1a1a1a]">+</button>
-                        <span className="text-xs text-[#999]">{parseFloat(selected.weight) * selected.qty}g</span>
+                        }} className={`w-6 h-6 rounded-full border text-xs flex items-center justify-center transition-all ${dark ? 'border-white/20 text-[#aaa] hover:border-white/40' : 'border-[#1a1a1a]/20 text-[#666] hover:border-[#1a1a1a]'}`}>+</button>
+                        <span className={`text-xs ${text3}`}>{parseFloat(selected.weight) * selected.qty}g</span>
                       </div>
                     </div>
                   )}
 
                   <div className="flex items-center justify-between mt-auto pt-2">
-                    <span className="text-[#1a1a1a] font-bold text-sm">${isFlower ? selectedPrice * selected.qty : product.price}</span>
+                    <span className="font-bold text-sm">${isFlower ? selectedPrice * selected.qty : product.price}</span>
                     <button
                       onClick={() => {
                         if (isFlower) {
@@ -354,13 +319,13 @@ export default function Home() {
       {cartOpen && (
         <div className="fixed inset-0 z-50 flex">
           <div className="flex-1 bg-black/40 backdrop-blur-sm" onClick={() => setCartOpen(false)} />
-          <div className="w-full max-w-sm bg-[#f5f0e8] border-l border-[#e0d9cc] flex flex-col h-full overflow-y-auto">
-            <div className="flex items-center justify-between px-6 py-5 border-b border-[#e0d9cc]">
+          <div className={`w-full max-w-sm ${bg} border-l ${border} flex flex-col h-full overflow-y-auto`}>
+            <div className={`flex items-center justify-between px-6 py-5 border-b ${border}`}>
               <h2 style={{fontFamily: 'Georgia, serif'}} className="text-lg font-bold">Your Cart</h2>
-              <button onClick={() => setCartOpen(false)} className="text-[#999] text-2xl leading-none hover:text-[#1a1a1a]">×</button>
+              <button onClick={() => setCartOpen(false)} className={`text-2xl leading-none ${text3}`}>×</button>
             </div>
             {cart.length === 0 ? (
-              <div className="flex-1 flex flex-col items-center justify-center gap-3 text-[#999]">
+              <div className={`flex-1 flex flex-col items-center justify-center gap-3 ${text3}`}>
                 <span className="text-5xl">🛒</span>
                 <p>Your cart is empty</p>
               </div>
@@ -369,17 +334,17 @@ export default function Home() {
                 <div className="flex-1 px-6 py-4 flex flex-col gap-4">
                   {cart.map((item: any) => (
                     <div key={item.id + item.name} className="flex gap-3 items-start">
-                      <div className="w-12 h-12 bg-[#e8e0d0] rounded-xl flex items-center justify-center text-2xl flex-shrink-0">{item.emoji}</div>
+                      <div className={`w-12 h-12 ${bg3} rounded-xl flex items-center justify-center text-2xl flex-shrink-0`}>{item.emoji}</div>
                       <div className="flex-1">
-                        <p className="font-bold text-sm text-[#1a1a1a]">{item.name}</p>
+                        <p className="font-bold text-sm">{item.name}</p>
                         {item.promo && <span className="text-xs bg-green-100 text-green-700 font-bold px-2 py-0.5 rounded-full">{item.promo} 🎉</span>}
-                        <p className="text-[#999] text-xs">{item.category}</p>
+                        <p className={`text-xs ${text3}`}>{item.category}</p>
                         <div className="flex items-center gap-3 mt-2">
                           {!item.isReward ? (
                             <>
-                              <button onClick={() => changeQty(item.id, -1, item.name)} className="w-6 h-6 rounded-full border border-[#1a1a1a]/20 text-[#666] text-sm flex items-center justify-center hover:border-[#1a1a1a] hover:text-[#1a1a1a]">−</button>
+                              <button onClick={() => changeQty(item.id, -1, item.name)} className={`w-6 h-6 rounded-full border text-sm flex items-center justify-center transition-all ${dark ? 'border-white/20 text-[#aaa]' : 'border-[#1a1a1a]/20 text-[#666] hover:border-[#1a1a1a]'}`}>−</button>
                               <span className="text-sm font-bold">{item.qty}</span>
-                              <button onClick={() => changeQty(item.id, 1, item.name)} className="w-6 h-6 rounded-full border border-[#1a1a1a]/20 text-[#666] text-sm flex items-center justify-center hover:border-[#1a1a1a] hover:text-[#1a1a1a]">+</button>
+                              <button onClick={() => changeQty(item.id, 1, item.name)} className={`w-6 h-6 rounded-full border text-sm flex items-center justify-center transition-all ${dark ? 'border-white/20 text-[#aaa]' : 'border-[#1a1a1a]/20 text-[#666] hover:border-[#1a1a1a]'}`}>+</button>
                             </>
                           ) : (
                             <span className="text-xs bg-green-100 text-green-700 font-bold px-3 py-1 rounded-full">🎁 Free Reward</span>
@@ -387,16 +352,16 @@ export default function Home() {
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="text-[#1a1a1a] font-bold">${Math.round(item.price * item.qty)}</p>
-                        <button onClick={() => removeFromCart(item.id, item.name)} className="text-[#bbb] text-xs mt-1 hover:text-red-500">remove</button>
+                        <p className="font-bold">${Math.round(item.price * item.qty)}</p>
+                        <button onClick={() => removeFromCart(item.id, item.name)} className="text-xs mt-1 text-red-400 hover:text-red-500">remove</button>
                       </div>
                     </div>
                   ))}
                 </div>
-                <div className="px-6 py-5 border-t border-[#e0d9cc]">
+                <div className={`px-6 py-5 border-t ${border}`}>
                   <div className="flex justify-between mb-4">
-                    <span className="text-[#666]">Total</span>
-                    <span className="text-[#1a1a1a] font-bold text-xl">${total.toFixed(2)}</span>
+                    <span className={text2}>Total</span>
+                    <span className="font-bold text-xl">${total.toFixed(2)}</span>
                   </div>
                   <button onClick={() => { setCartOpen(false); setCheckoutOpen(true) }}
                     className="w-full bg-[#1a1a1a] text-[#f5f0e8] font-bold py-4 rounded-2xl text-lg hover:bg-[#333] transition-all">
@@ -411,84 +376,76 @@ export default function Home() {
 
       {/* CHECKOUT */}
       {checkoutOpen && (
-        <div className="fixed inset-0 z-50 bg-[#f5f0e8] overflow-y-auto">
+        <div className={`fixed inset-0 z-50 ${bg} overflow-y-auto`}>
           <div className="max-w-md mx-auto px-6 py-8">
-            <button onClick={() => { setCheckoutOpen(false); setCartOpen(true) }} className="text-[#999] text-sm mb-6 flex items-center gap-2 hover:text-[#1a1a1a]">← Back to cart</button>
-            <h1 style={{fontFamily: 'Georgia, serif'}} className="text-2xl font-bold mb-2 text-[#1a1a1a]">Checkout</h1>
-            <p className="text-[#888] text-sm mb-6">Fill in your info and send payment</p>
+            <button onClick={() => { setCheckoutOpen(false); setCartOpen(true) }} className={`text-sm mb-6 flex items-center gap-2 ${text2}`}>← Back to cart</button>
+            <h1 style={{fontFamily: 'Georgia, serif'}} className="text-2xl font-bold mb-2">Checkout</h1>
+            <p className={`text-sm mb-6 ${text2}`}>Fill in your info and send payment</p>
 
-            <div className="bg-white border border-[#e0d9cc] rounded-2xl p-5 mb-6">
-              <h3 className="font-bold mb-4 text-[#1a1a1a]">How would you like to receive your order?</h3>
+            <div className={`${bg2} border ${border} rounded-2xl p-5 mb-6`}>
+              <h3 className="font-bold mb-4">How would you like to receive your order?</h3>
               <div className="flex flex-col gap-3">
-                <div onClick={() => setDeliveryMethod('delivery')}
-                  className={`flex items-center gap-4 p-4 rounded-xl border cursor-pointer transition-all ${deliveryMethod === 'delivery' ? 'border-[#c9a84c] bg-[#c9a84c]/5' : 'border-[#e0d9cc]'}`}>
-                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${deliveryMethod === 'delivery' ? 'border-[#c9a84c]' : 'border-[#ccc]'}`}>
-                    {deliveryMethod === 'delivery' && <div className="w-2.5 h-2.5 rounded-full bg-[#c9a84c]" />}
+                {['delivery', 'pickup'].map(method => (
+                  <div key={method} onClick={() => setDeliveryMethod(method as any)}
+                    className={`flex items-center gap-4 p-4 rounded-xl border cursor-pointer transition-all ${deliveryMethod === method ? 'border-[#c9a84c] bg-[#c9a84c]/5' : border}`}>
+                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${deliveryMethod === method ? 'border-[#c9a84c]' : 'border-[#888]'}`}>
+                      {deliveryMethod === method && <div className="w-2.5 h-2.5 rounded-full bg-[#c9a84c]" />}
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-bold text-sm">{method === 'delivery' ? '🚗 Delivery' : '📍 Pickup'}</div>
+                      <div className={`text-xs ${text3}`}>{method === 'delivery' ? 'We come to you · $25 minimum order' : 'No minimum · We\'ll send you a location in one of the 5 boroughs'}</div>
+                    </div>
+                    {method === 'delivery' && total > 0 && total < 25 && deliveryMethod === 'delivery' && <div className="text-xs text-red-500 font-bold">Add ${(25 - total).toFixed(2)} more</div>}
+                    {method === 'delivery' && total >= 25 && deliveryMethod === 'delivery' && <div className="text-xs text-green-500 font-bold">✓ Eligible</div>}
                   </div>
-                  <div className="flex-1">
-                    <div className="font-bold text-sm text-[#1a1a1a]">🚗 Delivery</div>
-                    <div className="text-xs text-[#999]">We come to you · $25 minimum order</div>
-                  </div>
-                  {total > 0 && total < 25 && deliveryMethod === 'delivery' && <div className="text-xs text-red-500 font-bold">Add ${(25 - total).toFixed(2)} more</div>}
-                  {total >= 25 && deliveryMethod === 'delivery' && <div className="text-xs text-green-600 font-bold">✓ Eligible</div>}
-                </div>
-                <div onClick={() => setDeliveryMethod('pickup')}
-                  className={`flex items-center gap-4 p-4 rounded-xl border cursor-pointer transition-all ${deliveryMethod === 'pickup' ? 'border-[#c9a84c] bg-[#c9a84c]/5' : 'border-[#e0d9cc]'}`}>
-                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${deliveryMethod === 'pickup' ? 'border-[#c9a84c]' : 'border-[#ccc]'}`}>
-                    {deliveryMethod === 'pickup' && <div className="w-2.5 h-2.5 rounded-full bg-[#c9a84c]" />}
-                  </div>
-                  <div className="flex-1">
-                    <div className="font-bold text-sm text-[#1a1a1a]">📍 Pickup</div>
-                    <div className="text-xs text-[#999]">No minimum · We'll send you a location in one of the 5 boroughs</div>
-                  </div>
-                </div>
+                ))}
               </div>
             </div>
 
-            <div className="bg-white border border-[#e0d9cc] rounded-2xl p-5 mb-6">
-              <h3 className="font-bold mb-4 text-[#1a1a1a]">Order Summary</h3>
+            <div className={`${bg2} border ${border} rounded-2xl p-5 mb-6`}>
+              <h3 className="font-bold mb-4">Order Summary</h3>
               {cart.map((item: any) => (
                 <div key={item.id + item.name} className="flex justify-between text-sm mb-2">
-                  <span className="text-[#666]">{item.name} × {item.qty} {item.promo ? '🎉' : ''}</span>
-                  <span className="font-semibold text-[#1a1a1a]">${Math.round(item.price * item.qty)}</span>
+                  <span className={text2}>{item.name} × {item.qty} {item.promo ? '🎉' : ''}</span>
+                  <span className="font-semibold">${Math.round(item.price * item.qty)}</span>
                 </div>
               ))}
-              <div className="border-t border-[#e0d9cc] mt-3 pt-3 flex justify-between font-bold">
+              <div className={`border-t ${border} mt-3 pt-3 flex justify-between font-bold`}>
                 <span>Total</span>
                 <span className="text-[#c9a84c] text-lg">${total.toFixed(2)}</span>
               </div>
             </div>
 
-            <div className="bg-white border border-[#e0d9cc] rounded-2xl p-5 mb-6">
-              <h3 className="font-bold mb-4 text-[#1a1a1a]">Delivery Info</h3>
-              <input type="text" placeholder="Your full name *" value={name} onChange={e => setName(e.target.value)} className="w-full bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl px-4 py-3 text-sm mb-3 outline-none focus:border-[#c9a84c] placeholder-[#bbb] text-[#1a1a1a]" />
-              <input type="tel" placeholder="Phone number *" value={phone} onChange={e => setPhone(e.target.value)} className="w-full bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl px-4 py-3 text-sm mb-3 outline-none focus:border-[#c9a84c] placeholder-[#bbb] text-[#1a1a1a]" />
+            <div className={`${bg2} border ${border} rounded-2xl p-5 mb-6`}>
+              <h3 className="font-bold mb-4">Delivery Info</h3>
+              <input type="text" placeholder="Your full name *" value={name} onChange={e => setName(e.target.value)} className={`w-full border rounded-xl px-4 py-3 text-sm mb-3 outline-none focus:border-[#c9a84c] ${input}`} />
+              <input type="tel" placeholder="Phone number *" value={phone} onChange={e => setPhone(e.target.value)} className={`w-full border rounded-xl px-4 py-3 text-sm mb-3 outline-none focus:border-[#c9a84c] ${input}`} />
               {deliveryMethod === 'delivery' && (
-                <input type="text" placeholder="Delivery address *" value={address} onChange={e => setAddress(e.target.value)} className="w-full bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl px-4 py-3 text-sm mb-3 outline-none focus:border-[#c9a84c] placeholder-[#bbb] text-[#1a1a1a]" />
+                <input type="text" placeholder="Delivery address *" value={address} onChange={e => setAddress(e.target.value)} className={`w-full border rounded-xl px-4 py-3 text-sm mb-3 outline-none focus:border-[#c9a84c] ${input}`} />
               )}
               {deliveryMethod === 'pickup' && (
-                <div className="bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl px-4 py-3 text-sm mb-3 text-[#888]">📍 After your order is confirmed we will text you a pickup location in one of the 5 boroughs.</div>
+                <div className={`border rounded-xl px-4 py-3 text-sm mb-3 ${text3} ${dark ? 'bg-[#222] border-[#444]' : 'bg-[#f5f0e8] border-[#e0d9cc]'}`}>📍 After your order is confirmed we will text you a pickup location in one of the 5 boroughs.</div>
               )}
-              <textarea placeholder="Order notes (optional)" value={notes} onChange={e => setNotes(e.target.value)} rows={2} className="w-full bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl px-4 py-3 text-sm outline-none focus:border-[#c9a84c] placeholder-[#bbb] text-[#1a1a1a] resize-none" />
+              <textarea placeholder="Order notes (optional)" value={notes} onChange={e => setNotes(e.target.value)} rows={2} className={`w-full border rounded-xl px-4 py-3 text-sm outline-none focus:border-[#c9a84c] resize-none ${input}`} />
             </div>
 
-            <div className="bg-white border border-[#e0d9cc] rounded-2xl p-5 mb-6">
-              <h3 className="font-bold mb-2 text-[#1a1a1a]">Send Payment</h3>
-              <p className="text-[#888] text-sm mb-5">Send <span className="text-[#c9a84c] font-bold">${total.toFixed(2)}</span> to our Cash App then tap confirm.</p>
-              <div className="bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl p-6 text-center mb-4">
+            <div className={`${bg2} border ${border} rounded-2xl p-5 mb-6`}>
+              <h3 className="font-bold mb-2">Send Payment</h3>
+              <p className={`text-sm mb-5 ${text2}`}>Send <span className="text-[#c9a84c] font-bold">${total.toFixed(2)}</span> to our Cash App then tap confirm.</p>
+              <div className={`border rounded-xl p-6 text-center mb-4 ${dark ? 'bg-[#222] border-[#444]' : 'bg-[#f5f0e8] border-[#e0d9cc]'}`}>
                 <div className="text-5xl mb-3">💚</div>
-                <p style={{fontFamily: 'Georgia, serif'}} className="font-bold text-lg mb-1 text-[#1a1a1a]">Cash App</p>
-                <p className="text-[#999] text-sm mb-3">Tap to open Cash App and send payment:</p>
+                <p style={{fontFamily: 'Georgia, serif'}} className="font-bold text-lg mb-1">Cash App</p>
+                <p className={`text-sm mb-3 ${text3}`}>Tap to open Cash App and send payment:</p>
                 <a href="https://cash.app/$Luckydayz3" target="_blank" rel="noopener noreferrer" className="text-[#c9a84c] text-3xl font-bold underline underline-offset-4 hover:text-[#a07830] transition-all">{'$Luckydayz3'}</a>
               </div>
-              <p className="text-[#bbb] text-xs text-center">Screenshot your payment confirmation — you may be asked to verify</p>
+              <p className={`text-xs text-center ${text3}`}>Screenshot your payment confirmation — you may be asked to verify</p>
             </div>
 
             <button onClick={placeOrder} disabled={loading}
               className="w-full bg-[#1a1a1a] text-[#f5f0e8] font-bold py-4 rounded-2xl text-lg hover:bg-[#333] transition-all disabled:opacity-50">
               {loading ? 'Placing Order...' : "I've Sent Payment ✓"}
             </button>
-            <p className="text-[#bbb] text-xs text-center mt-4">Your order will be confirmed once payment is verified. Average delivery 30–45 min.</p>
+            <p className={`text-xs text-center mt-4 ${text3}`}>Your order will be confirmed once payment is verified. Average delivery 30–45 min.</p>
           </div>
         </div>
       )}
