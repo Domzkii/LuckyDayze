@@ -170,6 +170,10 @@ export default function Home() {
             <p className="text-[#c9a84c] text-2xl font-bold">${finalTotal.toFixed(2)}</p>
           </div>
         </div>
+        <a href="/track"
+          className="bg-[#c9a84c] text-[#1a1a1a] font-bold px-8 py-3 rounded-full hover:bg-[#e8c97a] transition-all mb-3 block text-center">
+          Track My Order →
+        </a>
         <button onClick={() => { setOrderPlaced(false); setName(''); setPhone(''); setAddress(''); setNotes('') }}
           className="bg-[#1a1a1a] text-[#f5f0e8] font-bold px-8 py-3 rounded-full hover:bg-[#333] transition-all">Back to Menu</button>
       </main>
