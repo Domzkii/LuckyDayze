@@ -48,35 +48,51 @@ export default function Home() {
   }, [])
 
   function applyPreRollPricing(cart: any[]) {
-    const totalPreRolls = cart
-      .filter((i: any) => i.category === 'Pre-Rolls' && !i.isReward)
-      .reduce((sum: number, i: any) => sum + i.qty, 0)
+    const regularPreRolls = cart.filter((i: any) => i.category === 'Pre-Rolls' && !i.isReward && (i.originalPrice || i.price) >= 15)
+const miniPreRolls = cart.filter((i: any) => i.category === 'Pre-Rolls' && !i.isReward && (i.originalPrice || i.price) < 15)
 
-    const pairs = Math.floor(totalPreRolls / 2)
-    const singles = totalPreRolls % 2
-    const totalPreRollCost = (pairs * 15) + (singles * 10)
+    const totalRegular = regularPreRolls.reduce((sum: number, i: any) => sum + i.qty, 0)
+    const totalMini = miniPreRolls.reduce((sum: number, i: any) => sum + i.qty, 0)
 
-    const preRollItems = cart.filter((i: any) => i.category === 'Pre-Rolls' && !i.isReward)
-    const totalQty = preRollItems.reduce((sum: number, i: any) => sum + i.qty, 0)
+    // Regular pre-rolls: 1=$15, 2=$25
+    const regularPairs = Math.floor(totalRegular / 2)
+    const regularSingles = totalRegular % 2
+    const totalRegularCost = (regularPairs * 25) + (regularSingles * 15)
 
-    // Distribute cost cleanly — give remainder to first item
-    let remaining = totalPreRollCost
-    let firstPreRoll = true
+    // Mini pre-rolls: 1=$10, 2=$15
+    const miniPairs = Math.floor(totalMini / 2)
+    const miniSingles = totalMini % 2
+    const totalMiniCost = (miniPairs * 15) + (miniSingles * 10)
 
     return cart.map((i: any) => {
       if (i.category !== 'Pre-Rolls' || i.isReward) return i
-      const promo = totalPreRolls >= 2 ? '2 for $15' : null
-      if (firstPreRoll) {
-        firstPreRoll = false
-        const otherPreRolls = preRollItems
-          .filter((p: any) => p.id !== i.id)
-          .reduce((sum: number, p: any) => sum + Math.floor((p.qty / totalQty) * totalPreRollCost), 0)
-        const thisShare = totalPreRollCost - otherPreRolls
-        remaining -= thisShare
-        return { ...i, price: thisShare / i.qty, promo }
+
+      const isMini = i.name.toLowerCase().includes('mini')
+
+      if (isMini) {
+        const totalQty = miniPreRolls.reduce((sum: number, p: any) => sum + p.qty, 0)
+        if (totalQty === 0) return i
+        const isFirst = miniPreRolls[0]?.id === i.id
+        if (isFirst) {
+          const otherCost = miniPreRolls.filter((p: any) => p.id !== i.id).reduce((sum: number, p: any) => sum + Math.floor((p.qty / totalQty) * totalMiniCost), 0)
+          const thisShare = totalMiniCost - otherCost
+          return { ...i, price: thisShare / i.qty, promo: totalMini >= 2 ? '2 for $15' : null }
+        } else {
+          const share = Math.floor((i.qty / totalQty) * totalMiniCost)
+          return { ...i, price: share / i.qty, promo: totalMini >= 2 ? '2 for $15' : null }
+        }
       } else {
-        const share = Math.floor((i.qty / totalQty) * totalPreRollCost)
-        return { ...i, price: share / i.qty, promo }
+        const totalQty = regularPreRolls.reduce((sum: number, p: any) => sum + p.qty, 0)
+        if (totalQty === 0) return i
+        const isFirst = regularPreRolls[0]?.id === i.id
+        if (isFirst) {
+          const otherCost = regularPreRolls.filter((p: any) => p.id !== i.id).reduce((sum: number, p: any) => sum + Math.floor((p.qty / totalQty) * totalRegularCost), 0)
+          const thisShare = totalRegularCost - otherCost
+          return { ...i, price: thisShare / i.qty, promo: totalRegular >= 2 ? '2 for $25' : null }
+        } else {
+          const share = Math.floor((i.qty / totalQty) * totalRegularCost)
+          return { ...i, price: share / i.qty, promo: totalRegular >= 2 ? '2 for $25' : null }
+        }
       }
     })
   }
@@ -320,8 +336,11 @@ export default function Home() {
                   </span>
                 </div>
                 <p className="text-[#999] text-xs mb-1">{product.category} · {product.thc} THC</p>
-                {product.category === 'Pre-Rolls' && (
+                {product.category === 'Pre-Rolls' && product.price < 15 && (
                   <p className="text-green-600 text-xs font-bold mb-1">🎉 2 for $15</p>
+                )}
+{product.category === 'Pre-Rolls' && product.price >= 15 && (
+                  <p className="text-green-600 text-xs font-bold mb-1">🎉 2 for $25</p>
                 )}
                 <p className="text-[#888] text-xs mb-3 line-clamp-2">{product.description}</p>
                 <div className="flex items-center justify-between">
