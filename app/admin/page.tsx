@@ -90,7 +90,6 @@ export default function AdminPage() {
     await supabase.from('membership_requests').update({
       status: approve ? 'approved' : 'declined'
     }).eq('id', requestId)
-
     if (approve) {
       const paidUntil = tier === 'house'
         ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
@@ -102,9 +101,7 @@ export default function AdminPage() {
         ...(paidUntil ? { house_paid_until: paidUntil } : {})
       }).eq('customer_phone', customerPhone)
     } else {
-      await supabase.from('loyalty').update({
-        membership_requested: null
-      }).eq('customer_phone', customerPhone)
+      await supabase.from('loyalty').update({ membership_requested: null }).eq('customer_phone', customerPhone)
     }
     loadRequests()
   }
@@ -118,19 +115,13 @@ export default function AdminPage() {
       await supabase.from('orders').update({ status }).eq('id', orderId)
 
       const { data: activeWeek } = await supabase
-        .from('weeks')
-        .select('id')
-        .eq('status', 'active')
-        .single()
+        .from('weeks').select('id').eq('status', 'active').single()
 
       const costPerGram = 400 / 112
 
-      // LOYALTY — once per order, outside item loop
+      // LOYALTY — once per order
       const { data: loyaltyRecord } = await supabase
-        .from('loyalty')
-        .select('*')
-        .eq('customer_phone', selectedOrder.customer_phone)
-        .single()
+        .from('loyalty').select('*').eq('customer_phone', selectedOrder.customer_phone).single()
 
       const orderTotal = selectedOrder.total
       const currentTier = loyaltyRecord?.membership_tier || 'guest'
@@ -140,11 +131,25 @@ export default function AdminPage() {
         : Math.floor(orderTotal)
 
       if (loyaltyRecord) {
+        const isFirstPurchase = (loyaltyRecord.purchase_count || 0) === 0
+
         await supabase.from('loyalty').update({
           purchase_count: (loyaltyRecord.purchase_count || 0) + 1,
           total_spent: (loyaltyRecord.total_spent || 0) + orderTotal,
           points: (loyaltyRecord.points || 0) + pointsToAdd
         }).eq('customer_phone', selectedOrder.customer_phone)
+
+        // Award referrer 50 points on first purchase
+        if (isFirstPurchase && loyaltyRecord.referred_by) {
+          const { data: referrer } = await supabase
+            .from('loyalty').select('*').eq('referral_code', loyaltyRecord.referred_by).single()
+          if (referrer) {
+            await supabase.from('loyalty').update({
+              points: (referrer.points || 0) + 50,
+              referral_count: (referrer.referral_count || 0) + 1
+            }).eq('referral_code', loyaltyRecord.referred_by)
+          }
+        }
       } else {
         await supabase.from('loyalty').insert({
           customer_phone: selectedOrder.customer_phone,
@@ -153,7 +158,8 @@ export default function AdminPage() {
           total_spent: orderTotal,
           points: pointsToAdd,
           membership_tier: 'guest',
-          membership_status: 'active'
+          membership_status: 'active',
+          referral_code: Math.random().toString(36).substring(2, 8).toUpperCase()
         })
       }
 
@@ -161,10 +167,7 @@ export default function AdminPage() {
       if (Array.isArray(selectedOrder.items)) {
         for (const item of selectedOrder.items) {
           const { data: product } = await supabase
-            .from('products')
-            .select('grams, stock_grams')
-            .eq('name', item.name)
-            .single()
+            .from('products').select('grams, stock_grams').eq('name', item.name).single()
 
           const isPreRoll = item.category === 'Pre-Rolls'
           const grams = isPreRoll ? 1 : (product?.grams || 3.5)
@@ -196,11 +199,8 @@ export default function AdminPage() {
 
           if (isPreRoll) {
             const { data: flowerProducts } = await supabase
-              .from('products')
-              .select('id, stock_grams')
-              .eq('category', 'Flower')
-              .order('stock_grams', { ascending: false })
-              .limit(1)
+              .from('products').select('id, stock_grams').eq('category', 'Flower')
+              .order('stock_grams', { ascending: false }).limit(1)
             if (flowerProducts && flowerProducts.length > 0) {
               const newStock = Math.max(0, (flowerProducts[0].stock_grams || 0) - gramsSold)
               await supabase.from('products').update({ stock_grams: newStock }).eq('id', flowerProducts[0].id)
@@ -229,8 +229,7 @@ export default function AdminPage() {
 
   function formatTime(ts: string) {
     return new Date(ts).toLocaleString('en-US', {
-      month: 'short', day: 'numeric',
-      hour: 'numeric', minute: '2-digit', hour12: true
+      month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true
     })
   }
 
@@ -251,29 +250,13 @@ export default function AdminPage() {
           </div>
           <div className="bg-white border border-[#e0d9cc] rounded-2xl p-6">
             <h2 className="font-bold text-lg mb-6">Enter Password</h2>
-            <input
-              type="password"
-              placeholder="Password"
-              value={password}
+            <input type="password" placeholder="Password" value={password}
               onChange={e => setPassword(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter') {
-                  if (password === 'luckydayze2025') { setAuthenticated(true); setWrongPassword(false) }
-                  else setWrongPassword(true)
-                }
-              }}
-              className="w-full bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl px-4 py-3 text-sm mb-3 outline-none focus:border-[#c9a84c] placeholder-[#bbb]"
-            />
+              onKeyDown={e => { if (e.key === 'Enter') { if (password === 'luckydayze2025') { setAuthenticated(true); setWrongPassword(false) } else setWrongPassword(true) } }}
+              className="w-full bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl px-4 py-3 text-sm mb-3 outline-none focus:border-[#c9a84c] placeholder-[#bbb]" />
             {wrongPassword && <p className="text-red-500 text-xs mb-3">Incorrect password.</p>}
-            <button
-              onClick={() => {
-                if (password === 'luckydayze2025') { setAuthenticated(true); setWrongPassword(false) }
-                else setWrongPassword(true)
-              }}
-              className="w-full bg-[#1a1a1a] text-[#f5f0e8] font-bold py-3 rounded-xl hover:bg-[#333] transition-all"
-            >
-              Login
-            </button>
+            <button onClick={() => { if (password === 'luckydayze2025') { setAuthenticated(true); setWrongPassword(false) } else setWrongPassword(true) }}
+              className="w-full bg-[#1a1a1a] text-[#f5f0e8] font-bold py-3 rounded-xl hover:bg-[#333] transition-all">Login</button>
           </div>
         </div>
       </main>
@@ -282,8 +265,6 @@ export default function AdminPage() {
 
   return (
     <main className="min-h-screen bg-[#f5f0e8] text-[#1a1a1a]">
-
-      {/* NAV */}
       <nav className="border-b border-[#1a1a1a]/10 sticky top-0 bg-[#f5f0e8]/95 backdrop-blur z-40">
         <div className="flex items-center justify-between px-4 py-3">
           <div>
@@ -302,7 +283,6 @@ export default function AdminPage() {
         </div>
       </nav>
 
-      {/* TABS */}
       <div className="flex gap-2 px-4 py-4 border-b border-[#1a1a1a]/10 max-w-2xl mx-auto">
         <button onClick={() => setActiveTab('orders')}
           className={`px-5 py-2 rounded-full text-sm font-bold transition-all ${activeTab === 'orders' ? 'bg-[#1a1a1a] text-[#f5f0e8]' : 'border border-[#1a1a1a]/20 text-[#666]'}`}>
@@ -312,14 +292,11 @@ export default function AdminPage() {
           className={`px-5 py-2 rounded-full text-sm font-bold transition-all relative ${activeTab === 'members' ? 'bg-[#1a1a1a] text-[#f5f0e8]' : 'border border-[#1a1a1a]/20 text-[#666]'}`}>
           Membership
           {pendingRequests > 0 && (
-            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold w-4 h-4 rounded-full flex items-center justify-center">
-              {pendingRequests}
-            </span>
+            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold w-4 h-4 rounded-full flex items-center justify-center">{pendingRequests}</span>
           )}
         </button>
       </div>
 
-      {/* ORDERS TAB */}
       {activeTab === 'orders' && (
         <>
           <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-4 max-w-2xl mx-auto">
@@ -383,7 +360,6 @@ export default function AdminPage() {
         </>
       )}
 
-      {/* MEMBERSHIP TAB */}
       {activeTab === 'members' && (
         <div className="px-4 pb-24 max-w-2xl mx-auto pt-6">
           <h2 style={{fontFamily: 'Georgia, serif'}} className="text-xl font-bold mb-4">Membership Requests</h2>
@@ -401,36 +377,22 @@ export default function AdminPage() {
                       <div style={{fontFamily: 'Georgia, serif'}} className="font-bold text-base">{req.customer_name}</div>
                       <div className="text-[#999] text-xs">{req.customer_phone}</div>
                     </div>
-                    <span className={`text-xs font-bold px-3 py-1 rounded-full ${
-                      req.status === 'pending' ? 'bg-amber-100 text-amber-700' :
-                      req.status === 'approved' ? 'bg-green-100 text-green-700' :
-                      'bg-red-100 text-red-600'
-                    }`}>
+                    <span className={`text-xs font-bold px-3 py-1 rounded-full ${req.status === 'pending' ? 'bg-amber-100 text-amber-700' : req.status === 'approved' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
                       {req.status === 'pending' ? 'Pending' : req.status === 'approved' ? 'Approved ✓' : 'Declined'}
                     </span>
                   </div>
                   <div className="flex flex-col gap-1 text-sm text-[#666] mb-4">
                     <span>📧 {req.customer_email || '—'}</span>
                     <span>🎂 {req.customer_birthday || '—'}</span>
-                    <span>🏷️ Requesting: <span className={`font-bold ${req.requested_tier === 'house' ? 'text-[#c9a84c]' : 'text-green-700'}`}>
-                      {req.requested_tier === 'house' ? 'The House' : 'Member'}
-                    </span></span>
+                    <span>🏷️ Requesting: <span className={`font-bold ${req.requested_tier === 'house' ? 'text-[#c9a84c]' : 'text-green-700'}`}>{req.requested_tier === 'house' ? 'The House' : 'Member'}</span></span>
                     <span className="text-xs text-[#999]">Submitted {new Date(req.created_at).toLocaleDateString()}</span>
                   </div>
                   {req.status === 'pending' && (
                     <div className="flex gap-2">
-                      <button
-                        onClick={() => handleMembership(req.id, req.customer_phone, req.requested_tier, true)}
-                        className="flex-1 bg-[#1a1a1a] text-[#f5f0e8] font-bold py-2 rounded-xl text-sm hover:bg-[#333] transition-all"
-                      >
-                        ✓ Approve
-                      </button>
-                      <button
-                        onClick={() => handleMembership(req.id, req.customer_phone, req.requested_tier, false)}
-                        className="flex-1 border border-red-200 text-red-500 font-bold py-2 rounded-xl text-sm hover:bg-red-50 transition-all"
-                      >
-                        ✗ Decline
-                      </button>
+                      <button onClick={() => handleMembership(req.id, req.customer_phone, req.requested_tier, true)}
+                        className="flex-1 bg-[#1a1a1a] text-[#f5f0e8] font-bold py-2 rounded-xl text-sm hover:bg-[#333] transition-all">✓ Approve</button>
+                      <button onClick={() => handleMembership(req.id, req.customer_phone, req.requested_tier, false)}
+                        className="flex-1 border border-red-200 text-red-500 font-bold py-2 rounded-xl text-sm hover:bg-red-50 transition-all">✗ Decline</button>
                     </div>
                   )}
                 </div>
@@ -440,7 +402,6 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* ORDER DETAIL MODAL */}
       {selectedOrder && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setSelectedOrder(null)} />
@@ -463,7 +424,6 @@ export default function AdminPage() {
                   <div className="mt-3 bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl p-3 text-sm text-[#666]">💬 {selectedOrder.order_notes}</div>
                 )}
               </div>
-
               <div className="bg-white border border-[#e0d9cc] rounded-2xl p-4 mb-4">
                 <div className="text-[#999] text-xs font-bold uppercase tracking-wider mb-3">Items Ordered</div>
                 {Array.isArray(selectedOrder.items) && selectedOrder.items.map((item, i) => (
@@ -477,7 +437,6 @@ export default function AdminPage() {
                   <span className="text-[#c9a84c]">${selectedOrder.total}</span>
                 </div>
               </div>
-
               <div className="bg-white border border-[#e0d9cc] rounded-2xl p-4 mb-4">
                 <div className="text-[#999] text-xs font-bold uppercase tracking-wider mb-3">Update Status</div>
                 <div className="flex flex-col gap-2">
@@ -489,7 +448,6 @@ export default function AdminPage() {
                   ))}
                 </div>
               </div>
-
               <div className="text-[#999] text-xs text-center">Order placed {formatTime(selectedOrder.created_at)}</div>
             </div>
           </div>

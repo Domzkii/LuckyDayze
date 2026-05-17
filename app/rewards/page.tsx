@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { supabase } from '../supabase'
 
 export default function RewardsPage() {
+  
   const [phone, setPhone] = useState('')
   const [customer, setCustomer] = useState<any>(null)
   const [loading, setLoading] = useState(false)
@@ -12,6 +13,10 @@ export default function RewardsPage() {
   const [showHouseForm, setShowHouseForm] = useState(false)
   const [memberForm, setMemberForm] = useState({ name: '', email: '', birthday: '' })
   const [submitted, setSubmitted] = useState(false)
+  const [referralChoice, setReferralChoice] = useState<'grabba' | 'vegan' | null>(null)
+  const [referralCode, setReferralCode] = useState('')
+  const [referralApplied, setReferralApplied] = useState(false)
+  const [referralError, setReferralError] = useState('')
 
   async function lookup() {
     if (!phone) return
@@ -70,6 +75,56 @@ export default function RewardsPage() {
     }))
 
     window.location.href = '/?reward=claimed'
+  }
+  async function applyReferralCode() {
+    if (!referralCode) return
+    setReferralError('')
+
+    // Check if this customer already has a referred_by
+    if (customer?.referred_by) {
+      setReferralError('You have already used a referral code.')
+      return
+    }
+
+    // Check if this is their first order
+    if ((customer?.purchase_count || 0) > 0) {
+      setReferralError('Referral codes can only be used before your first order.')
+      return
+    }
+
+    // Find the referrer
+    const { data: referrer } = await supabase
+      .from('loyalty')
+      .select('*')
+      .eq('referral_code', referralCode.toUpperCase())
+      .single()
+
+    if (!referrer) {
+      setReferralError('Invalid referral code. Please check and try again.')
+      return
+    }
+
+    if (referrer.customer_phone === customer.customer_phone) {
+      setReferralError('You cannot use your own referral code.')
+      return
+    }
+
+    // Save referral to customer
+    await supabase.from('loyalty').update({
+      referred_by: referralCode.toUpperCase(),
+      points: (customer.points || 0) + 25
+    }).eq('customer_phone', customer.customer_phone)
+
+    // Save reward choice to localStorage for store
+    if (referralChoice) {
+      localStorage.setItem('luckydayze_referral_reward', JSON.stringify({
+        type: referralChoice === 'grabba' ? 'Mini Grabba Pre-Roll' : 'Mini Pre-Roll',
+        key: 'referral_preroll'
+      }))
+    }
+
+    setReferralApplied(true)
+    setCustomer((prev: any) => ({ ...prev, referred_by: referralCode.toUpperCase(), points: (prev.points || 0) + 25 }))
   }
 
   const purchaseCount = customer?.purchase_count || 0
@@ -333,6 +388,87 @@ export default function RewardsPage() {
 
             <div className="text-center mt-4">
               <button onClick={() => { setCustomer(null); setPhone(''); setSubmitted(false) }} className="text-[#999] text-sm hover:text-[#1a1a1a]">
+                {/* REFERRAL SECTION */}
+            <div className="bg-white border border-[#e0d9cc] rounded-2xl p-5 mb-4">
+              <div className="text-xs uppercase tracking-wider text-[#999] mb-3">Your Referral Code</div>
+              <div className="bg-[#f5f0e8] rounded-xl p-4 text-center mb-3">
+                <div style={{fontFamily: 'Georgia, serif'}} className="text-2xl font-bold text-[#c9a84c] tracking-widest mb-1">
+                  {customer.referral_code || '——'}
+                </div>
+                <p className="text-xs text-[#999]">Share this code with friends</p>
+              </div>
+              <p className="text-xs text-[#666] mb-3">When a friend uses your code they get <span className="font-bold">+25 bonus points</span> and a <span className="font-bold">free mini pre-roll</span>. You get <span className="font-bold">+50 points</span> when they place their first order.</p>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(`Hey! Use my LuckyDayze referral code ${customer.referral_code} at lucky-dayze.vercel.app/rewards to get bonus points and a free mini pre-roll on your first order! 🌿`)
+                  alert('Referral message copied to clipboard!')
+                }}
+                className="w-full border border-[#c9a84c] text-[#c9a84c] font-bold py-2 rounded-xl text-sm hover:bg-[#c9a84c]/5 transition-all"
+              >
+                📋 Copy Referral Message
+              </button>
+              {customer.referral_count > 0 && (
+                <p className="text-xs text-green-600 font-bold text-center mt-2">🎉 {customer.referral_count} successful referral{customer.referral_count !== 1 ? 's' : ''}!</p>
+              )}
+            </div>
+
+            {/* USE A REFERRAL CODE */}
+            {!customer.referred_by && (customer.purchase_count || 0) === 0 && (
+              <div className="bg-white border border-[#e0d9cc] rounded-2xl p-5 mb-4">
+                <div className="text-xs uppercase tracking-wider text-[#999] mb-3">Have a Referral Code?</div>
+                {!referralApplied ? (
+                  <>
+                    <p className="text-xs text-[#666] mb-3">Enter a friend's code to get <span className="font-bold">+25 bonus points</span> and a <span className="font-bold">free mini pre-roll</span> on your first order!</p>
+                    <div className="flex flex-col gap-2 mb-3">
+                      <div
+                        onClick={() => setReferralChoice('grabba')}
+                        className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${referralChoice === 'grabba' ? 'border-[#c9a84c] bg-[#c9a84c]/5' : 'border-[#e0d9cc]'}`}>
+                        <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${referralChoice === 'grabba' ? 'border-[#c9a84c]' : 'border-[#ccc]'}`}>
+                          {referralChoice === 'grabba' && <div className="w-2 h-2 rounded-full bg-[#c9a84c]" />}
+                        </div>
+                        <span className="text-sm font-bold">😮‍💨 Mini Grabba Pre-Roll</span>
+                      </div>
+                      <div
+                        onClick={() => setReferralChoice('vegan')}
+                        className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${referralChoice === 'vegan' ? 'border-[#c9a84c] bg-[#c9a84c]/5' : 'border-[#e0d9cc]'}`}>
+                        <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${referralChoice === 'vegan' ? 'border-[#c9a84c]' : 'border-[#ccc]'}`}>
+                          {referralChoice === 'vegan' && <div className="w-2 h-2 rounded-full bg-[#c9a84c]" />}
+                        </div>
+                        <span className="text-sm font-bold">🥹 Mini Pre-Roll (Vegan)</span>
+                      </div>
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="Enter referral code"
+                      value={referralCode}
+                      onChange={e => setReferralCode(e.target.value.toUpperCase())}
+                      className="w-full bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl px-4 py-3 text-sm mb-2 outline-none focus:border-[#c9a84c] placeholder-[#bbb] font-mono tracking-widest"
+                    />
+                    {referralError && <p className="text-red-500 text-xs mb-2">{referralError}</p>}
+                    <button
+                      onClick={applyReferralCode}
+                      disabled={!referralChoice || !referralCode}
+                      className="w-full bg-[#1a1a1a] text-[#f5f0e8] font-bold py-3 rounded-xl hover:bg-[#333] transition-all disabled:opacity-50"
+                    >
+                      Apply Code
+                    </button>
+                  </>
+                ) : (
+                  <div className="text-center py-2">
+                    <div className="text-3xl mb-2">🎉</div>
+                    <p className="font-bold text-green-700 mb-1">Referral applied!</p>
+                    <p className="text-xs text-[#888]">+25 points added. Your free mini pre-roll will be added to your first order automatically.</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {customer.referred_by && (
+              <div className="bg-green-50 border border-green-200 rounded-2xl p-4 mb-4">
+                <p className="text-green-700 text-sm font-bold">✓ Referral code applied — {customer.referred_by}</p>
+                <p className="text-green-600 text-xs mt-1">Your free mini pre-roll will be added to your first order!</p>
+              </div>
+            )}
                 ← Look up different number
               </button>
             </div>
