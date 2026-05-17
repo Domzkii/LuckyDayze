@@ -9,6 +9,7 @@ const WEIGHT_LABELS: Record<string, string> = {
 }
 
 export default function Home() {
+  const [showInstallPrompt, setShowInstallPrompt] = useState(false)
   const { theme, toggle } = useTheme()
   const [products, setProducts] = useState<any[]>([])
   const [cart, setCart] = useState<any[]>([])
@@ -31,7 +32,14 @@ export default function Home() {
       setProducts(data || [])
     }
     loadProducts()
-
+// Show install prompt for mobile users who haven't installed
+    const isIOS = /iphone|ipad|ipod/.test(navigator.userAgent.toLowerCase())
+    const isAndroid = /android/.test(navigator.userAgent.toLowerCase())
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+    const hasSeenPrompt = localStorage.getItem('ld_install_prompt')
+    if ((isIOS || isAndroid) && !isStandalone && !hasSeenPrompt) {
+      setTimeout(() => setShowInstallPrompt(true), 3000)
+    }
     const rewardRaw = localStorage.getItem('luckydayze_reward')
     if (rewardRaw) {
       try {
@@ -446,6 +454,34 @@ export default function Home() {
               {loading ? 'Placing Order...' : "I've Sent Payment ✓"}
             </button>
             <p className={`text-xs text-center mt-4 ${text3}`}>Your order will be confirmed once payment is verified. Average delivery 30–45 min.</p>
+          </div>
+        </div>
+      )}
+      {/* INSTALL PROMPT */}
+      {showInstallPrompt && (
+        <div className={`fixed bottom-0 left-0 right-0 z-50 p-4 ${dark ? 'bg-[#1a1a1a] border-t border-[#333]' : 'bg-white border-t border-[#e0d9cc]'}`}>
+          <div className="max-w-md mx-auto">
+            <div className="flex items-start justify-between mb-2">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">📲</span>
+                <div>
+                  <p className="font-bold text-sm">Add LuckyDayze to your Home Screen</p>
+                  <p className={`text-xs ${text3}`}>Order faster — works like a real app!</p>
+                </div>
+              </div>
+              <button onClick={() => { setShowInstallPrompt(false); localStorage.setItem('ld_install_prompt', 'seen') }}
+                className={`text-xl leading-none ${text3}`}>×</button>
+            </div>
+            <div className={`rounded-xl p-3 text-xs ${dark ? 'bg-[#222]' : 'bg-[#f5f0e8]'} ${text2}`}>
+              <p className="font-bold mb-1">iPhone / iPad:</p>
+              <p>Tap the <span className="font-bold">Share</span> button (□↑) at the bottom of Safari → tap <span className="font-bold">Add to Home Screen</span></p>
+              <p className="font-bold mt-2 mb-1">Android:</p>
+              <p>Tap the <span className="font-bold">menu (⋮)</span> in Chrome → tap <span className="font-bold">Add to Home Screen</span></p>
+            </div>
+            <button onClick={() => { setShowInstallPrompt(false); localStorage.setItem('ld_install_prompt', 'seen') }}
+              className="w-full mt-3 bg-[#1a1a1a] text-[#f5f0e8] font-bold py-2.5 rounded-xl text-sm hover:bg-[#333] transition-all">
+              Got it!
+            </button>
           </div>
         </div>
       )}
