@@ -130,6 +130,35 @@ export default function Home() {
     setLoading(false)
     if (error) { alert('Something went wrong: ' + error.message); return }
     setFinalTotal(total)
+    // Create or update loyalty profile on order placement
+    const cleanPhone = phone.replace(/\D/g, '')
+    const { data: existingLoyalty } = await supabase
+      .from('loyalty')
+      .select('*')
+      .eq('customer_phone', cleanPhone)
+      .maybeSingle()
+
+    if (!existingLoyalty) {
+      // Check for referral reward in localStorage
+      const referralRaw = localStorage.getItem('luckydayze_referral_reward')
+      const referralData = referralRaw ? JSON.parse(referralRaw) : null
+
+      // New customer — create profile with 25 welcome points
+      await supabase.from('loyalty').insert({
+        customer_phone: cleanPhone,
+        customer_name: name,
+        purchase_count: 0,
+        total_spent: 0,
+        points: 25,
+        membership_tier: 'guest',
+        membership_status: 'active',
+        referral_code: Math.random().toString(36).substring(2, 8).toUpperCase()
+      })
+
+      if (referralData) {
+        localStorage.removeItem('luckydayze_referral_reward')
+      }
+    }
     fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ customerName: name, customerPhone: phone, customerAddress: address, total, items: orderItems }) })
     setCart([])
     setCheckoutOpen(false)

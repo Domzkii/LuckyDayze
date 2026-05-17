@@ -24,14 +24,15 @@ export default function TrackPage() {
   async function lookupByPhone() {
     if (!phone) return
     setSearching(true)
+    setNotFound(false)
+    const cleanPhone = phone.replace(/\D/g, '')
     const { data } = await supabase
       .from('orders')
       .select('*')
-      .eq('customer_phone', phone.replace(/\D/g, ''))
-      .neq('status', 'cancelled')
+      .eq('customer_phone', cleanPhone)
       .order('created_at', { ascending: false })
       .limit(1)
-      .single()
+      .maybeSingle()
     setSearching(false)
     if (data) setOrder(data)
     else setNotFound(true)
