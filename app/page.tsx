@@ -17,6 +17,7 @@ export default function Home() {
   const [finalTotal, setFinalTotal] = useState(0)
   const [ageVerified, setAgeVerified] = useState(false)
   const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'pickup'>('delivery')
+  const [selectedWeights, setSelectedWeights] = useState<Record<string, {weight: string, qty: number}>>({})
 
   useEffect(() => {
     async function loadProducts() {
@@ -100,11 +101,12 @@ const miniPreRolls = cart.filter((i: any) => i.category === 'Pre-Rolls' && !i.is
   function addToCart(product: any) {
     setCart((prev: any[]) => {
       let newCart
-      const existing = prev.find((i: any) => i.id === product.id)
+      const qty = product.qty_override || 1
+      const existing = prev.find((i: any) => i.id === product.id && i.name === product.name)
       if (existing) {
-        newCart = prev.map((i: any) => i.id === product.id ? { ...i, qty: i.qty + 1 } : i)
+        newCart = prev.map((i: any) => i.id === product.id && i.name === product.name ? { ...i, qty: i.qty + qty } : i)
       } else {
-        newCart = [...prev, { ...product, qty: 1, originalPrice: product.price }]
+        newCart = [...prev, { ...product, qty, originalPrice: product.price }]
       }
       return applyPreRollPricing(newCart)
     })
@@ -316,45 +318,114 @@ const miniPreRolls = cart.filter((i: any) => i.category === 'Pre-Rolls' && !i.is
           <span className="text-xs tracking-widest uppercase text-[#999]">{products.length} products</span>
         </div>
         <div className="grid grid-cols-2 gap-4 max-w-2xl">
-          {products.map((product: any) => (
-            <div
-              key={product.id}
-              className="bg-white border border-[#e0d9cc] rounded-2xl overflow-hidden hover:border-[#c9a84c] transition-all group"
-            >
-              <div className="h-32 bg-[#f0ebe0] flex items-center justify-center text-5xl group-hover:bg-[#e8e0d0] transition-all">
-                {product.emoji}
-              </div>
-              <div className="p-4">
-                <div className="flex items-start justify-between gap-2 mb-1">
-                  <p style={{fontFamily: 'Georgia, serif'}} className="font-bold text-[#1a1a1a] leading-tight">{product.name}</p>
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-semibold flex-shrink-0 ${
-                    product.strain_type === 'Sativa' ? 'bg-amber-100 text-amber-700' :
-                    product.strain_type === 'Indica' ? 'bg-purple-100 text-purple-700' :
-                    'bg-green-100 text-green-700'
-                  }`}>
-                    {product.strain_type}
-                  </span>
+          {products.map((product: any) => {
+            const isFlower = product.category === 'Flower'
+            const weightPrices = product.weight_prices || {}
+            const selected = selectedWeights[product.id] || { weight: '3.5', qty: 1 }
+            const selectedPrice = isFlower ? (weightPrices[selected.weight] || product.price) : product.price
+            const weightLabels: Record<string, string> = {
+              '3.5': '1/8', '7': '1/4', '14': '1/2', '28': '1oz'
+            }
+            const isLowStock = isFlower && (product.stock_grams || 0) < 14
+            const maxQty = isFlower ? Math.floor((product.stock_grams || 0) / parseFloat(selected.weight)) : 99
+
+            return (
+              <div key={product.id} className="bg-white border border-[#e0d9cc] rounded-2xl overflow-hidden hover:border-[#c9a84c] transition-all group">
+                <div className="h-32 bg-[#f0ebe0] flex items-center justify-center text-5xl group-hover:bg-[#e8e0d0] transition-all">
+                  {product.emoji}
                 </div>
-                <p className="text-[#999] text-xs mb-1">{product.category} · {product.thc} THC</p>
-                {product.category === 'Pre-Rolls' && product.price < 15 && (
-                  <p className="text-green-600 text-xs font-bold mb-1">🎉 2 for $15</p>
-                )}
-{product.category === 'Pre-Rolls' && product.price >= 15 && (
-                  <p className="text-green-600 text-xs font-bold mb-1">🎉 2 for $25</p>
-                )}
-                <p className="text-[#888] text-xs mb-3 line-clamp-2">{product.description}</p>
-                <div className="flex items-center justify-between">
-                  <span className="text-[#1a1a1a] font-bold text-lg">${product.price}</span>
-                  <button
-                    onClick={() => addToCart(product)}
-                    className="bg-[#1a1a1a] text-[#f5f0e8] font-bold w-8 h-8 rounded-full text-lg hover:bg-[#c9a84c] hover:text-[#1a1a1a] transition-all"
-                  >
-                    +
-                  </button>
+                <div className="p-4">
+                  <div className="flex items-start justify-between gap-2 mb-1">
+                    <p style={{fontFamily: 'Georgia, serif'}} className="font-bold text-[#1a1a1a] leading-tight">{product.name}</p>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-semibold flex-shrink-0 ${
+                      product.strain_type === 'Sativa' ? 'bg-amber-100 text-amber-700' :
+                      product.strain_type === 'Indica' ? 'bg-purple-100 text-purple-700' :
+                      'bg-green-100 text-green-700'
+                    }`}>{product.strain_type}</span>
+                  </div>
+                  <p className="text-[#999] text-xs mb-1">{product.category} · {product.thc} THC</p>
+
+                  {isLowStock && (
+                    <p className="text-amber-600 text-xs font-bold mb-1">⚠ Low Stock</p>
+                  )}
+
+                  {product.category === 'Pre-Rolls' && product.price < 15 && (
+                    <p className="text-green-600 text-xs font-bold mb-1">🎉 2 for $15</p>
+                  )}
+                  {product.category === 'Pre-Rolls' && product.price >= 15 && (
+                    <p className="text-green-600 text-xs font-bold mb-1">🎉 2 for $25</p>
+                  )}
+
+                  <p className="text-[#888] text-xs mb-3 line-clamp-2">{product.description}</p>
+
+                  {/* FLOWER WEIGHT SELECTOR */}
+                  {isFlower && (
+                    <div className="mb-3">
+                      <div className="grid grid-cols-4 gap-1 mb-2">
+                        {Object.keys(weightPrices).map(w => (
+                          <button
+                            key={w}
+                            onClick={() => setSelectedWeights(prev => ({ ...prev, [product.id]: { weight: w, qty: prev[product.id]?.qty || 1 } }))}
+                            className={`py-1 rounded-lg text-xs font-bold transition-all ${selected.weight === w ? 'bg-[#1a1a1a] text-[#f5f0e8]' : 'bg-[#f5f0e8] border border-[#e0d9cc] text-[#666]'}`}
+                          >
+                            {weightLabels[w] || w + 'g'}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setSelectedWeights(prev => ({ ...prev, [product.id]: { weight: selected.weight, qty: Math.max(1, (prev[product.id]?.qty || 1) - 1) } }))}
+                          className="w-7 h-7 rounded-full border border-[#1a1a1a]/20 text-[#666] text-sm flex items-center justify-center hover:border-[#1a1a1a]"
+                        >−</button>
+                        <span className="text-sm font-bold">{selected.qty}</span>
+                        <button
+                          onClick={() => {
+                            if (selected.qty >= maxQty) {
+                              alert(`Only ${maxQty} available at this weight`)
+                              return
+                            }
+                            setSelectedWeights(prev => ({ ...prev, [product.id]: { weight: selected.weight, qty: (prev[product.id]?.qty || 1) + 1 } }))
+                          }}
+                          className="w-7 h-7 rounded-full border border-[#1a1a1a]/20 text-[#666] text-sm flex items-center justify-center hover:border-[#1a1a1a]"
+                        >+</button>
+                        <span className="text-xs text-[#999] ml-1">{parseFloat(selected.weight) * selected.qty}g total</span>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-[#1a1a1a] font-bold text-lg">
+                      ${isFlower ? selectedPrice * selected.qty : product.price}
+                    </span>
+                    <button
+                      onClick={() => {
+                        if (isFlower) {
+                          if (selected.qty > maxQty) {
+                            alert(`Only ${maxQty} available at this weight`)
+                            return
+                          }
+                          const gramsTotal = parseFloat(selected.weight) * selected.qty
+                          addToCart({
+                            ...product,
+                            price: selectedPrice,
+                            name: `${product.name} (${weightLabels[selected.weight] || selected.weight + 'g'})`,
+                            grams: parseFloat(selected.weight),
+                            qty_override: selected.qty
+                          })
+                          setSelectedWeights(prev => ({ ...prev, [product.id]: { weight: selected.weight, qty: 1 } }))
+                        } else {
+                          addToCart(product)
+                        }
+                      }}
+                      className="bg-[#1a1a1a] text-[#f5f0e8] font-bold px-4 py-2 rounded-full text-sm hover:bg-[#c9a84c] hover:text-[#1a1a1a] transition-all"
+                    >
+                      Add to Cart
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </section>
 
@@ -377,7 +448,7 @@ const miniPreRolls = cart.filter((i: any) => i.category === 'Pre-Rolls' && !i.is
               <>
                 <div className="flex-1 px-6 py-4 flex flex-col gap-4">
                   {cart.map((item: any) => (
-                    <div key={item.id} className="flex gap-3 items-start">
+                    <div key={item.id + item.name} className="flex gap-3 items-start">
                       <div className="w-12 h-12 bg-[#e8e0d0] rounded-xl flex items-center justify-center text-2xl flex-shrink-0">
                         {item.emoji}
                       </div>
@@ -476,7 +547,7 @@ const miniPreRolls = cart.filter((i: any) => i.category === 'Pre-Rolls' && !i.is
             <div className="bg-white border border-[#e0d9cc] rounded-2xl p-5 mb-6">
               <h3 className="font-bold mb-4 text-[#1a1a1a]">Order Summary</h3>
               {cart.map((item: any) => (
-                <div key={item.id} className="flex justify-between text-sm mb-2">
+                <div key={item.id + item.name} className="flex justify-between text-sm mb-2">
                   <span className="text-[#666]">{item.name} × {item.qty} {item.promo ? '🎉' : ''}</span>
                   <span className="font-semibold text-[#1a1a1a]">${Math.round(item.price * item.qty)}</span>
                 </div>
