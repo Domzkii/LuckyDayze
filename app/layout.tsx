@@ -25,7 +25,7 @@ export const metadata: Metadata = {
     title: "LuckyDayze",
   },
   icons: {
-    apple: "/icon-192.png",
+    apple: "/logo-192.png",
   },
 };
 
