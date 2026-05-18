@@ -111,6 +111,7 @@ export default function RewardsPage() {
           <div className="text-xs tracking-widest uppercase text-[#999]">Lucky Rewards</div>
         </div>
         <a href="/" className="border border-[#1a1a1a]/20 text-[#666] text-sm font-bold px-4 py-2 rounded-full hover:border-[#1a1a1a] transition-all">Store</a>
+        <a href="/house" className="bg-[#1a1a1a] text-[#c9a84c] text-sm font-bold px-4 py-2 rounded-full hover:bg-[#333] transition-all">👑 The House</a>
       </nav>
 
       <div className="max-w-md mx-auto px-6 py-10">
