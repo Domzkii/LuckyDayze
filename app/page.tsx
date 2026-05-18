@@ -9,7 +9,6 @@ const WEIGHT_LABELS: Record<string, string> = {
 }
 
 export default function Home() {
-  const [showInstallPrompt, setShowInstallPrompt] = useState(false)
   const { theme, toggle } = useTheme()
   const [products, setProducts] = useState<any[]>([])
   const [cart, setCart] = useState<any[]>([])
@@ -25,6 +24,13 @@ export default function Home() {
   const [ageVerified, setAgeVerified] = useState(false)
   const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'pickup'>('delivery')
   const [selectedWeights, setSelectedWeights] = useState<Record<string, {weight: string, qty: number}>>({})
+  const [showInstallPrompt, setShowInstallPrompt] = useState(false)
+  // Referral state
+  const [checkoutReferral, setCheckoutReferral] = useState('')
+  const [checkoutReferralChoice, setCheckoutReferralChoice] = useState<'grabba' | 'vegan' | 'later' | null>(null)
+  const [checkoutReferralValid, setCheckoutReferralValid] = useState(false)
+  const [checkoutReferralError, setCheckoutReferralError] = useState('')
+  const [checkoutReferralChecked, setCheckoutReferralChecked] = useState(false)
 
   useEffect(() => {
     async function loadProducts() {
@@ -32,7 +38,8 @@ export default function Home() {
       setProducts(data || [])
     }
     loadProducts()
-// Show install prompt for mobile users who haven't installed
+
+    // Install prompt
     const isIOS = /iphone|ipad|ipod/.test(navigator.userAgent.toLowerCase())
     const isAndroid = /android/.test(navigator.userAgent.toLowerCase())
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches
@@ -40,6 +47,8 @@ export default function Home() {
     if ((isIOS || isAndroid) && !isStandalone && !hasSeenPrompt) {
       setTimeout(() => setShowInstallPrompt(true), 3000)
     }
+
+    // Claimed reward from rewards page
     const rewardRaw = localStorage.getItem('luckydayze_reward')
     if (rewardRaw) {
       try {
@@ -59,6 +68,7 @@ export default function Home() {
     }
   }, [])
 
+  // ── PRE-ROLL PRICING ──────────────────────────────────────────
   function applyPreRollPricing(cart: any[]) {
     const regularPreRolls = cart.filter((i: any) => i.category === 'Pre-Rolls' && !i.isReward && (i.originalPrice || i.price) >= 15)
     const miniPreRolls = cart.filter((i: any) => i.category === 'Pre-Rolls' && !i.isReward && (i.originalPrice || i.price) < 15)
@@ -86,6 +96,7 @@ export default function Home() {
     })
   }
 
+  // ── CART FUNCTIONS ────────────────────────────────────────────
   function addToCart(product: any) {
     setCart((prev: any[]) => {
       const qty = product.qty_override || 1
@@ -116,21 +127,54 @@ export default function Home() {
   const total = cart.reduce((sum: number, i: any) => sum + i.price * i.qty, 0)
   const cartCount = cart.reduce((sum: number, i: any) => sum + i.qty, 0)
 
+  // ── REFERRAL CODE CHECK ───────────────────────────────────────
+  async function checkReferralCode() {
+    if (!checkoutReferral) return
+    setCheckoutReferralError('')
+    const { data: referrer } = await supabase
+      .from('loyalty')
+      .select('referral_code, customer_phone')
+      .eq('referral_code', checkoutReferral.toUpperCase())
+      .maybeSingle()
+    if (!referrer) {
+      setCheckoutReferralError('Invalid code. Please check and try again.')
+      setCheckoutReferralValid(false)
+    } else if (referrer.customer_phone === phone.replace(/\D/g, '')) {
+      setCheckoutReferralError('You cannot use your own referral code.')
+      setCheckoutReferralValid(false)
+    } else {
+      setCheckoutReferralValid(true)
+      setCheckoutReferralChecked(true)
+    }
+  }
+
+  // ── PLACE ORDER ───────────────────────────────────────────────
   async function placeOrder() {
     if (!name || !phone) { alert('Please fill in your name and phone number.'); return }
     if (deliveryMethod === 'delivery' && !address) { alert('Please fill in your delivery address.'); return }
     if (deliveryMethod === 'delivery' && total < 25) { alert('Minimum order for delivery is $25. Add more items or select pickup!'); return }
+
     setLoading(true)
-    const orderItems = cart.map((i: any) => ({ id: i.id, name: i.name, price: i.price, qty: i.qty, emoji: i.emoji, category: i.category, grams: i.grams }))
+    const orderItems = cart.map((i: any) => ({
+      id: i.id, name: i.name, price: i.price, qty: i.qty,
+      emoji: i.emoji, category: i.category, grams: i.grams
+    }))
+
+    // Insert order
     const { error } = await supabase.from('orders').insert({
-      customer_name: name, customer_phone: phone,
+      customer_name: name,
+      customer_phone: phone,
       customer_address: deliveryMethod === 'delivery' ? address : 'PICKUP',
-      order_notes: notes, items: orderItems, total, status: 'pending_payment'
+      order_notes: notes,
+      items: orderItems,
+      total,
+      status: 'pending_payment',
+      referral_code: checkoutReferralValid ? checkoutReferral.toUpperCase() : null
     })
-    setLoading(false)
-    if (error) { alert('Something went wrong: ' + error.message); return }
-    setFinalTotal(total)
-    // Create or update loyalty profile on order placement
+
+    if (error) { setLoading(false); alert('Something went wrong: ' + error.message); return }
+
+    // Create loyalty profile for new customers
     const cleanPhone = phone.replace(/\D/g, '')
     const { data: existingLoyalty } = await supabase
       .from('loyalty')
@@ -139,40 +183,59 @@ export default function Home() {
       .maybeSingle()
 
     if (!existingLoyalty) {
-      // Check for referral reward in localStorage
-      const referralRaw = localStorage.getItem('luckydayze_referral_reward')
-      const referralData = referralRaw ? JSON.parse(referralRaw) : null
-
-      // New customer — create profile with 25 welcome points
+      const bonusPoints = checkoutReferralValid ? 50 : 25
       await supabase.from('loyalty').insert({
         customer_phone: cleanPhone,
         customer_name: name,
         purchase_count: 0,
         total_spent: 0,
-        points: 25,
+        points: bonusPoints,
         membership_tier: 'guest',
         membership_status: 'active',
-        referral_code: Math.random().toString(36).substring(2, 8).toUpperCase()
+        referral_code: Math.random().toString(36).substring(2, 8).toUpperCase(),
+        referred_by: checkoutReferralValid ? checkoutReferral.toUpperCase() : null
       })
 
-      if (referralData) {
-        localStorage.removeItem('luckydayze_referral_reward')
+      // Save referral mini pre-roll choice to localStorage
+      if (checkoutReferralValid && checkoutReferralChoice && checkoutReferralChoice !== 'later') {
+        localStorage.setItem('luckydayze_referral_reward', JSON.stringify({
+          name: checkoutReferralChoice === 'grabba' ? 'Mini Grabba Pre-Roll' : 'Mini Pre-Roll',
+          key: 'referral_preroll'
+        }))
       }
     }
-    fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ customerName: name, customerPhone: phone, customerAddress: address, total, items: orderItems }) })
+
+    setLoading(false)
+    setFinalTotal(total)
+    fetch('/api/notify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ customerName: name, customerPhone: phone, customerAddress: address, total, items: orderItems })
+    })
     setCart([])
     setCheckoutOpen(false)
     setOrderPlaced(true)
   }
 
+  // ── THEME HELPERS ─────────────────────────────────────────────
   const dark = theme === 'dark'
+  const bg = dark ? 'bg-[#0f0f0f]' : 'bg-[#f5f0e8]'
+  const bg2 = dark ? 'bg-[#1a1a1a]' : 'bg-white'
+  const bg3 = dark ? 'bg-[#222]' : 'bg-[#f0ebe0]'
+  const text = dark ? 'text-[#f5f0e8]' : 'text-[#1a1a1a]'
+  const text2 = dark ? 'text-[#aaa]' : 'text-[#666]'
+  const text3 = dark ? 'text-[#777]' : 'text-[#999]'
+  const border = dark ? 'border-[#333]' : 'border-[#e0d9cc]'
+  const borderHover = dark ? 'hover:border-[#555]' : 'hover:border-[#c9a84c]'
+  const input = dark ? 'bg-[#222] border-[#444] text-[#f5f0e8] placeholder-[#555]' : 'bg-[#f5f0e8] border-[#e0d9cc] text-[#1a1a1a] placeholder-[#bbb]'
 
+  // ── AGE GATE ──────────────────────────────────────────────────
   if (!ageVerified) {
     return (
       <main className={`min-h-screen flex flex-col items-center justify-center px-6 text-center transition-colors ${dark ? 'bg-[#0f0f0f] text-[#f5f0e8]' : 'bg-[#f5f0e8] text-[#1a1a1a]'}`}>
         <div className="text-5xl mb-4">🌿</div>
         <div style={{fontFamily: 'Georgia, serif'}} className="text-4xl font-bold mb-1">LUCKY DAYZE</div>
-        <div className="text-xs tracking-widest uppercase text-[#999] mb-12">New York Cannabis House</div>
+        <div className={`text-xs tracking-widest uppercase mb-12 ${text3}`}>New York Cannabis House</div>
         <h1 className="text-2xl font-bold mb-3">Are you 21 or older?</h1>
         <p className="text-sm mb-10 max-w-xs opacity-60">You must be of legal age to purchase cannabis.</p>
         <div className="flex gap-4">
@@ -184,6 +247,7 @@ export default function Home() {
     )
   }
 
+  // ── ORDER PLACED ──────────────────────────────────────────────
   if (orderPlaced) {
     return (
       <main className={`min-h-screen flex flex-col items-center justify-center px-6 text-center transition-colors ${dark ? 'bg-[#0f0f0f] text-[#f5f0e8]' : 'bg-[#f5f0e8] text-[#1a1a1a]'}`}>
@@ -199,26 +263,15 @@ export default function Home() {
             <p className="text-[#c9a84c] text-2xl font-bold">${finalTotal.toFixed(2)}</p>
           </div>
         </div>
-        <a href="/track"
-          className="bg-[#c9a84c] text-[#1a1a1a] font-bold px-8 py-3 rounded-full hover:bg-[#e8c97a] transition-all mb-3 block text-center">
-          Track My Order →
-        </a>
-        <button onClick={() => { setOrderPlaced(false); setName(''); setPhone(''); setAddress(''); setNotes('') }}
+        {/* ── TRACK & BACK BUTTONS ── */}
+        <a href="/track" className="bg-[#c9a84c] text-[#1a1a1a] font-bold px-8 py-3 rounded-full hover:bg-[#e8c97a] transition-all mb-3 block text-center">Track My Order →</a>
+        <button onClick={() => { setOrderPlaced(false); setName(''); setPhone(''); setAddress(''); setNotes(''); setCheckoutReferral(''); setCheckoutReferralValid(false); setCheckoutReferralChecked(false); setCheckoutReferralChoice(null) }}
           className="bg-[#1a1a1a] text-[#f5f0e8] font-bold px-8 py-3 rounded-full hover:bg-[#333] transition-all">Back to Menu</button>
       </main>
     )
   }
 
-  const bg = dark ? 'bg-[#0f0f0f]' : 'bg-[#f5f0e8]'
-  const bg2 = dark ? 'bg-[#1a1a1a]' : 'bg-white'
-  const bg3 = dark ? 'bg-[#222]' : 'bg-[#f0ebe0]'
-  const text = dark ? 'text-[#f5f0e8]' : 'text-[#1a1a1a]'
-  const text2 = dark ? 'text-[#aaa]' : 'text-[#666]'
-  const text3 = dark ? 'text-[#777]' : 'text-[#999]'
-  const border = dark ? 'border-[#333]' : 'border-[#e0d9cc]'
-  const borderHover = dark ? 'hover:border-[#555]' : 'hover:border-[#c9a84c]'
-  const input = dark ? 'bg-[#222] border-[#444] text-[#f5f0e8] placeholder-[#555]' : 'bg-[#f5f0e8] border-[#e0d9cc] text-[#1a1a1a] placeholder-[#bbb]'
-
+  // ── MAIN STORE ────────────────────────────────────────────────
   return (
     <main className={`min-h-screen ${bg} ${text} transition-colors`}>
 
@@ -241,10 +294,9 @@ export default function Home() {
         </div>
         <div className="flex items-center gap-3">
           <button onClick={toggle} className="text-lg" aria-label="Toggle dark mode">{dark ? '☀️' : '🌙'}</button>
-          <a href="/track" className="text-sm font-semibold text-[#666] hover:text-[#1a1a1a] transition-all tracking-wide">Track</a>
+          <a href="/track" className={`text-sm font-semibold transition-all tracking-wide ${text2}`}>Track</a>
           <a href="/rewards" className="text-sm font-semibold text-[#c9a84c] hover:text-[#a07830] transition-all tracking-wide">Rewards</a>
-          <button onClick={() => setCartOpen(true)}
-            className="bg-[#1a1a1a] text-[#f5f0e8] text-sm font-bold px-5 py-2 rounded-full relative hover:bg-[#333] transition-all">
+          <button onClick={() => setCartOpen(true)} className="bg-[#1a1a1a] text-[#f5f0e8] text-sm font-bold px-5 py-2 rounded-full relative hover:bg-[#333] transition-all">
             Cart
             {cartCount > 0 && <span className="absolute -top-2 -right-2 bg-[#c9a84c] text-[#1a1a1a] text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">{cartCount}</span>}
           </button>
@@ -276,7 +328,7 @@ export default function Home() {
 
       {/* PRODUCTS */}
       <section className="px-6 py-12 pb-16">
-        <div className={`flex items-baseline justify-between mb-8 max-w-2xl`}>
+        <div className="flex items-baseline justify-between mb-8 max-w-2xl">
           <h2 style={{fontFamily: 'Georgia, serif'}} className="text-2xl font-bold">The Menu</h2>
           <span className={`text-xs tracking-widest uppercase ${text3}`}>{products.length} products</span>
         </div>
@@ -308,6 +360,7 @@ export default function Home() {
                   {product.category === 'Pre-Rolls' && product.price < 15 && <p className="text-green-500 text-xs font-bold mb-1">🎉 2 for $15</p>}
                   {product.category === 'Pre-Rolls' && product.price >= 15 && <p className="text-green-500 text-xs font-bold mb-1">🎉 2 for $25</p>}
 
+                  {/* FLOWER WEIGHT SELECTOR */}
                   {isFlower && Object.keys(weightPrices).length > 0 && (
                     <div className="mb-2 mt-1">
                       <div className="grid grid-cols-4 gap-1 mb-2">
@@ -424,6 +477,7 @@ export default function Home() {
             <h1 style={{fontFamily: 'Georgia, serif'}} className="text-2xl font-bold mb-2">Checkout</h1>
             <p className={`text-sm mb-6 ${text2}`}>Fill in your info and send payment</p>
 
+            {/* DELIVERY METHOD */}
             <div className={`${bg2} border ${border} rounded-2xl p-5 mb-6`}>
               <h3 className="font-bold mb-4">How would you like to receive your order?</h3>
               <div className="flex flex-col gap-3">
@@ -444,6 +498,7 @@ export default function Home() {
               </div>
             </div>
 
+            {/* ORDER SUMMARY */}
             <div className={`${bg2} border ${border} rounded-2xl p-5 mb-6`}>
               <h3 className="font-bold mb-4">Order Summary</h3>
               {cart.map((item: any) => (
@@ -458,9 +513,12 @@ export default function Home() {
               </div>
             </div>
 
+            {/* DELIVERY INFO */}
             <div className={`${bg2} border ${border} rounded-2xl p-5 mb-6`}>
-              <h3 className="font-bold mb-4">Delivery Info</h3>
+              <h3 className="font-bold mb-4">Your Info</h3>
+              {/* ── PASTE AFTER: name input ── */}
               <input type="text" placeholder="Your full name *" value={name} onChange={e => setName(e.target.value)} className={`w-full border rounded-xl px-4 py-3 text-sm mb-3 outline-none focus:border-[#c9a84c] ${input}`} />
+              {/* ── PASTE AFTER: phone input ── */}
               <input type="tel" placeholder="Phone number *" value={phone} onChange={e => setPhone(e.target.value)} className={`w-full border rounded-xl px-4 py-3 text-sm mb-3 outline-none focus:border-[#c9a84c] ${input}`} />
               {deliveryMethod === 'delivery' && (
                 <input type="text" placeholder="Delivery address *" value={address} onChange={e => setAddress(e.target.value)} className={`w-full border rounded-xl px-4 py-3 text-sm mb-3 outline-none focus:border-[#c9a84c] ${input}`} />
@@ -468,9 +526,45 @@ export default function Home() {
               {deliveryMethod === 'pickup' && (
                 <div className={`border rounded-xl px-4 py-3 text-sm mb-3 ${text3} ${dark ? 'bg-[#222] border-[#444]' : 'bg-[#f5f0e8] border-[#e0d9cc]'}`}>📍 After your order is confirmed we will text you a pickup location in one of the 5 boroughs.</div>
               )}
+              {/* ── PASTE AFTER: notes textarea ── */}
               <textarea placeholder="Order notes (optional)" value={notes} onChange={e => setNotes(e.target.value)} rows={2} className={`w-full border rounded-xl px-4 py-3 text-sm outline-none focus:border-[#c9a84c] resize-none ${input}`} />
+
+              {/* REFERRAL CODE */}
+              {!checkoutReferralChecked && (
+                <div className="mt-3">
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Referral code (optional)"
+                      value={checkoutReferral}
+                      onChange={e => { setCheckoutReferral(e.target.value.toUpperCase()); setCheckoutReferralValid(false); setCheckoutReferralError('') }}
+                      className={`flex-1 border rounded-xl px-4 py-3 text-sm outline-none font-mono tracking-widest ${input}`}
+                    />
+                    <button onClick={checkReferralCode} disabled={!checkoutReferral}
+                      className="bg-[#1a1a1a] text-[#f5f0e8] font-bold px-4 py-3 rounded-xl text-sm hover:bg-[#333] transition-all disabled:opacity-50">
+                      Apply
+                    </button>
+                  </div>
+                  {checkoutReferralError && <p className="text-red-500 text-xs mt-1">{checkoutReferralError}</p>}
+                </div>
+              )}
+
+              {checkoutReferralValid && (
+                <div className="mt-3 bg-green-50 border border-green-200 rounded-xl p-3">
+                  <p className="text-green-700 text-xs font-bold mb-2">✓ Code applied! +50 bonus points on signup. Choose your free mini pre-roll:</p>
+                  <div className="flex gap-2">
+                    {(['grabba', 'vegan', 'later'] as const).map(choice => (
+                      <button key={choice} onClick={() => setCheckoutReferralChoice(choice)}
+                        className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-all ${checkoutReferralChoice === choice ? 'bg-[#1a1a1a] text-[#f5f0e8] border-[#1a1a1a]' : 'border-[#e0d9cc] text-[#666]'}`}>
+                        {choice === 'grabba' ? '😮‍💨 Grabba' : choice === 'vegan' ? '🥹 Vegan' : 'Claim Later'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
+            {/* PAYMENT */}
             <div className={`${bg2} border ${border} rounded-2xl p-5 mb-6`}>
               <h3 className="font-bold mb-2">Send Payment</h3>
               <p className={`text-sm mb-5 ${text2}`}>Send <span className="text-[#c9a84c] font-bold">${total.toFixed(2)}</span> to our Cash App then tap confirm.</p>
@@ -491,6 +585,7 @@ export default function Home() {
           </div>
         </div>
       )}
+
       {/* INSTALL PROMPT */}
       {showInstallPrompt && (
         <div className={`fixed bottom-0 left-0 right-0 z-50 p-4 ${dark ? 'bg-[#1a1a1a] border-t border-[#333]' : 'bg-white border-t border-[#e0d9cc]'}`}>
@@ -503,8 +598,7 @@ export default function Home() {
                   <p className={`text-xs ${text3}`}>Order faster — works like a real app!</p>
                 </div>
               </div>
-              <button onClick={() => { setShowInstallPrompt(false); localStorage.setItem('ld_install_prompt', 'seen') }}
-                className={`text-xl leading-none ${text3}`}>×</button>
+              <button onClick={() => { setShowInstallPrompt(false); localStorage.setItem('ld_install_prompt', 'seen') }} className={`text-xl leading-none ${text3}`}>×</button>
             </div>
             <div className={`rounded-xl p-3 text-xs ${dark ? 'bg-[#222]' : 'bg-[#f5f0e8]'} ${text2}`}>
               <p className="font-bold mb-1">iPhone / iPad:</p>
@@ -519,6 +613,7 @@ export default function Home() {
           </div>
         </div>
       )}
+
     </main>
   )
 }

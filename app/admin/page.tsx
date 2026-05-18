@@ -420,8 +420,10 @@ export default function AdminPage() {
                 ) : (
                   <a href={`https://maps.google.com/?q=${encodeURIComponent(selectedOrder.customer_address)}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 text-sm block">📍 {selectedOrder.customer_address}</a>
                 )}
-                {selectedOrder.order_notes && (
-                  <div className="mt-3 bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl p-3 text-sm text-[#666]">💬 {selectedOrder.order_notes}</div>
+                {(selectedOrder as any).referral_code && (
+                  <div className="mt-2 bg-green-50 border border-green-200 rounded-xl p-3 text-sm text-green-700">
+                    🎁 Referral code used: <span className="font-bold font-mono">{(selectedOrder as any).referral_code}</span>
+                  </div>
                 )}
               </div>
               <div className="bg-white border border-[#e0d9cc] rounded-2xl p-4 mb-4">
