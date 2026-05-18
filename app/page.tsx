@@ -190,11 +190,7 @@ export default function Home() {
     if (!existingLoyalty) {
       const bonusPoints = checkoutReferralValid ? 50 : 25
       const pendingReward = checkoutReferralValid && checkoutReferralChoice === 'later'
-        ? 'Mini Grabba Pre-Roll'
-        : checkoutReferralValid && checkoutReferralChoice === 'grabba'
-        ? 'Mini Grabba Pre-Roll'
-        : checkoutReferralValid && checkoutReferralChoice === 'vegan'
-        ? 'Mini Pre-Roll (Vegan)'
+        ? 'Mini Grabba Pre-Roll or Mini Pre-Roll (Vegan)'
         : null
 
       await supabase.from('loyalty').insert({
@@ -207,7 +203,7 @@ export default function Home() {
         membership_status: 'active',
         referral_code: Math.random().toString(36).substring(2, 8).toUpperCase(),
         referred_by: checkoutReferralValid ? checkoutReferral.toUpperCase() : null,
-        pending_referral_reward: checkoutReferralChoice === 'later' ? pendingReward : null
+        pending_referral_reward: pendingReward
       })
 
       // Add to cart immediately if they chose grabba or vegan
