@@ -393,7 +393,7 @@ export default function Home() {
         <span className="text-2xl">🚗</span>
         <div>
           <p className="font-semibold text-[#f5f0e8]">Delivering to NYC</p>
-          <p className="text-[#f5f0e8]/50 text-sm">Open until 11 PM</p>
+          <p className="text-[#f5f0e8]/50 text-sm">Open 24/7 🌙</p>
         </div>
         <div className="ml-auto bg-[#c9a84c]/20 text-[#c9a84c] text-sm font-bold px-4 py-1 rounded-full">⚡ 30-45 min</div>
       </div>
