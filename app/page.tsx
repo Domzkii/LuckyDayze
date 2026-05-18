@@ -176,7 +176,7 @@ export default function Home() {
         : 'Claim Later'
         : null
     })
-    
+
     if (error) { setLoading(false); alert('Something went wrong: ' + error.message); return }
 
     // Create loyalty profile for new customers
@@ -189,6 +189,14 @@ export default function Home() {
 
     if (!existingLoyalty) {
       const bonusPoints = checkoutReferralValid ? 50 : 25
+      const pendingReward = checkoutReferralValid && checkoutReferralChoice === 'later'
+        ? 'Mini Grabba Pre-Roll'
+        : checkoutReferralValid && checkoutReferralChoice === 'grabba'
+        ? 'Mini Grabba Pre-Roll'
+        : checkoutReferralValid && checkoutReferralChoice === 'vegan'
+        ? 'Mini Pre-Roll (Vegan)'
+        : null
+
       await supabase.from('loyalty').insert({
         customer_phone: cleanPhone,
         customer_name: name,
@@ -198,10 +206,11 @@ export default function Home() {
         membership_tier: 'guest',
         membership_status: 'active',
         referral_code: Math.random().toString(36).substring(2, 8).toUpperCase(),
-        referred_by: checkoutReferralValid ? checkoutReferral.toUpperCase() : null
+        referred_by: checkoutReferralValid ? checkoutReferral.toUpperCase() : null,
+        pending_referral_reward: checkoutReferralChoice === 'later' ? pendingReward : null
       })
 
-      // Save referral mini pre-roll choice to localStorage
+      // Add to cart immediately if they chose grabba or vegan
       if (checkoutReferralValid && checkoutReferralChoice && checkoutReferralChoice !== 'later') {
         localStorage.setItem('luckydayze_referral_reward', JSON.stringify({
           name: checkoutReferralChoice === 'grabba' ? 'Mini Grabba Pre-Roll' : 'Mini Pre-Roll',

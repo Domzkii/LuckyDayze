@@ -185,7 +185,35 @@ export default function RewardsPage() {
               <div className="text-xs uppercase tracking-wider text-[#999] mb-2">Your Points</div>
               <div style={{fontFamily: 'Georgia, serif'}} className="text-4xl font-bold text-[#c9a84c] mb-1">{points}</div>
               <p className="text-[#999] text-xs mb-4">{purchaseCount} total purchase{purchaseCount !== 1 ? 's' : ''}</p>
-
+              {/* PENDING REFERRAL REWARD */}
+            {customer.pending_referral_reward && (
+              <div className="bg-white border border-[#e0d9cc] rounded-2xl p-5 mb-4">
+                <div className="text-xs uppercase tracking-wider text-[#999] mb-3">Your Referral Reward</div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-bold text-sm">🎁 {customer.pending_referral_reward}</p>
+                    <p className="text-xs text-[#999] mt-1">Free mini pre-roll from your referral</p>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      const confirmed = window.confirm(`Claim your free ${customer.pending_referral_reward}? It will be added to your cart!`)
+                      if (!confirmed) return
+                      await supabase.from('loyalty').update({ pending_referral_reward: null }).eq('customer_phone', customer.customer_phone)
+                      localStorage.setItem('luckydayze_reward', JSON.stringify({
+                        name: customer.pending_referral_reward,
+                        key: 'referral_preroll',
+                        phone: customer.customer_phone
+                      }))
+                      setCustomer((prev: any) => ({ ...prev, pending_referral_reward: null }))
+                      window.location.href = '/?reward=claimed'
+                    }}
+                    className="text-xs bg-[#1a1a1a] text-[#f5f0e8] font-bold px-4 py-2 rounded-full hover:bg-[#333] transition-all"
+                  >
+                    Claim →
+                  </button>
+                </div>
+              </div>
+            )}
               {tier === 'guest' && (
                 <div className="flex flex-col gap-2">
                   <div className={`flex justify-between items-center p-3 rounded-xl border ${points >= 100 ? 'border-green-200 bg-green-50' : 'border-[#e0d9cc] bg-[#f5f0e8]'}`}>
