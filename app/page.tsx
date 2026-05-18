@@ -407,7 +407,7 @@ const [pullDistance, setPullDistance] = useState(0)
     'Is it a two-bag kind of day?',
     'One for now and one for later?',
   ]
-  const welcomeMessage = welcomeMessages[Math.floor(Date.now() / 60000) % welcomeMessages.length]
+  const [welcomeMessage] = useState(() => welcomeMessages[Math.floor(Math.random() * welcomeMessages.length)])
 
   const flowerProducts = products.filter((p: any) => p.category === 'Flower')
   const preRollProducts = products.filter((p: any) => p.category === 'Pre-Rolls')
