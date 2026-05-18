@@ -2,8 +2,10 @@
 
 import { useState } from 'react'
 import { supabase } from '../supabase'
+import { useTheme } from '../theme'
 
 export default function HousePage() {
+    const { toggle } = useTheme()
   const [phone, setPhone] = useState('')
   const [member, setMember] = useState<any>(null)
   const [loading, setLoading] = useState(false)
@@ -44,7 +46,10 @@ export default function HousePage() {
           <div style={{fontFamily: 'Georgia, serif'}} className="text-xl font-bold tracking-wider text-[#c9a84c]">THE HOUSE</div>
           <div className="text-xs tracking-widest uppercase text-[#666]">Members Only</div>
         </div>
-        <a href="/" className="border border-white/10 text-[#999] text-sm font-bold px-4 py-2 rounded-full hover:border-white/30 transition-all">Store</a>
+        <div className="flex items-center gap-3">
+          <button onClick={toggle} className="text-lg">☀️</button>
+          <a href="/" className="border border-white/10 text-[#999] text-sm font-bold px-4 py-2 rounded-full hover:border-white/30 transition-all">Store</a>
+        </div>
       </nav>
 
       <div className="max-w-md mx-auto px-6 py-10">
