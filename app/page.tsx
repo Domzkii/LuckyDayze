@@ -8,11 +8,35 @@ const WEIGHT_LABELS: Record<string, string> = {
   '3.5': '1/8', '7': '1/4', '14': '1/2', '28': '1oz'
 }
 
+function fireConfetti() {
+  const colors = ['#c9a84c', '#1a1a1a', '#f5f0e8', '#e8c97a', '#4caf50']
+  const container = document.body
+  for (let i = 0; i < 80; i++) {
+    const el = document.createElement('div')
+    el.style.cssText = `
+      position: fixed;
+      width: ${Math.random() * 8 + 4}px;
+      height: ${Math.random() * 8 + 4}px;
+      background: ${colors[Math.floor(Math.random() * colors.length)]};
+      left: ${Math.random() * 100}vw;
+      top: -10px;
+      border-radius: ${Math.random() > 0.5 ? '50%' : '0'};
+      z-index: 9999;
+      pointer-events: none;
+      animation: confettiFall ${Math.random() * 2 + 1.5}s linear forwards;
+      animation-delay: ${Math.random() * 0.5}s;
+    `
+    container.appendChild(el)
+    setTimeout(() => el.remove(), 3000)
+  }
+}
+
 export default function Home() {
   const { theme, toggle } = useTheme()
   const [products, setProducts] = useState<any[]>([])
   const [cart, setCart] = useState<any[]>([])
   const [cartOpen, setCartOpen] = useState(false)
+  const [cartBounce, setCartBounce] = useState(false)
   const [checkoutOpen, setCheckoutOpen] = useState(false)
   const [orderPlaced, setOrderPlaced] = useState(false)
   const [name, setName] = useState('')
@@ -101,6 +125,8 @@ export default function Home() {
         : [...prev, { ...product, qty, originalPrice: product.price }]
       return applyPreRollPricing(newCart)
     })
+    setCartBounce(true)
+    setTimeout(() => setCartBounce(false), 600)
   }
 
   function removeFromCart(id: any, itemName?: string) {
@@ -207,6 +233,7 @@ export default function Home() {
 
     setLoading(false)
     setFinalTotal(total)
+    fireConfetti()
     fetch('/api/notify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -228,6 +255,19 @@ export default function Home() {
   const borderHover = dark ? 'hover:border-[#555]' : 'hover:border-[#c9a84c]'
   const input = dark ? 'bg-[#222] border-[#444] text-[#f5f0e8] placeholder-[#555]' : 'bg-[#f5f0e8] border-[#e0d9cc] text-[#1a1a1a] placeholder-[#bbb]'
 
+  const hour = new Date().getHours()
+  const greeting = hour < 12 ? 'Good Morning ☀️' : hour < 17 ? 'Good Afternoon 🌤️' : hour < 21 ? 'Good Evening 🌙' : 'Late Night Vibes 🌙'
+  const welcomeMessages = [
+    'What are we smoking today?',
+    'The plug is in. 🌿',
+    'Premium flower, delivered fast.',
+    "NYC's finest, at your door.",
+    'Roll up. We got you. 🔥',
+    'Top shelf, every time.',
+    'Fresh drops. Fast delivery.',
+  ]
+  const welcomeMessage = welcomeMessages[Math.floor(Date.now() / 60000) % welcomeMessages.length]
+
   const flowerProducts = products.filter((p: any) => p.category === 'Flower')
   const preRollProducts = products.filter((p: any) => p.category === 'Pre-Rolls')
 
@@ -240,9 +280,12 @@ export default function Home() {
     const maxQty = isFlower ? Math.floor((product.stock_grams || 0) / parseFloat(selected.weight)) : 99
 
     return (
-      <div className={`${bg2} border ${border} rounded-2xl overflow-hidden ${borderHover} transition-all group flex flex-col`}>
-        <div className={`h-28 ${bg3} flex items-center justify-center text-4xl group-hover:opacity-90 transition-all`}>
+      <div className={`${bg2} border ${border} rounded-2xl overflow-hidden ${borderHover} transition-all group flex flex-col animate-fade-in`}>
+        <div className={`h-28 ${bg3} flex items-center justify-center text-4xl group-hover:opacity-90 transition-all relative`}>
           {product.emoji}
+          {product.is_popular && (
+            <span className="absolute top-2 left-2 bg-[#c9a84c] text-[#1a1a1a] text-xs font-bold px-2 py-0.5 rounded-full">🔥 Popular</span>
+          )}
         </div>
         <div className="p-3 flex flex-col flex-1">
           <div className="flex items-start justify-between gap-1 mb-1">
@@ -297,7 +340,7 @@ export default function Home() {
                   addToCart(product)
                 }
               }}
-              className="bg-[#1a1a1a] text-[#f5f0e8] text-xs font-bold px-3 py-1.5 rounded-full hover:bg-[#c9a84c] hover:text-[#1a1a1a] transition-all"
+              className="bg-[#1a1a1a] text-[#f5f0e8] text-xs font-bold px-3 py-1.5 rounded-full hover:bg-[#c9a84c] hover:text-[#1a1a1a] transition-all active:scale-95"
             >+ Add</button>
           </div>
         </div>
@@ -308,13 +351,13 @@ export default function Home() {
   if (!ageVerified) {
     return (
       <main className={`min-h-screen flex flex-col items-center justify-center px-6 text-center transition-colors ${dark ? 'bg-[#0f0f0f] text-[#f5f0e8]' : 'bg-[#f5f0e8] text-[#1a1a1a]'}`}>
-        <div className="text-5xl mb-4">🌿</div>
-        <div style={{fontFamily: 'Georgia, serif'}} className="text-4xl font-bold mb-1">LUCKY DAYZE</div>
-        <div className={`text-xs tracking-widest uppercase mb-12 ${text3}`}>New York Cannabis House</div>
-        <h1 className="text-2xl font-bold mb-3">Are you 21 or older?</h1>
-        <p className="text-sm mb-10 max-w-xs opacity-60">You must be of legal age to purchase cannabis.</p>
-        <div className="flex gap-4">
-          <button onClick={() => setAgeVerified(true)} className="bg-[#1a1a1a] text-[#f5f0e8] font-bold px-10 py-4 rounded-full text-lg hover:bg-[#333] transition-all">Yes, I'm 21+</button>
+        <div className="text-5xl mb-4 animate-fade-in">🌿</div>
+        <div style={{fontFamily: 'Georgia, serif'}} className="text-4xl font-bold mb-1 animate-fade-in">LUCKY DAYZE</div>
+        <div className={`text-xs tracking-widest uppercase mb-12 ${text3} animate-fade-in`}>New York Cannabis House</div>
+        <h1 className="text-2xl font-bold mb-3 animate-fade-in">Are you 21 or older?</h1>
+        <p className="text-sm mb-10 max-w-xs opacity-60 animate-fade-in">You must be of legal age to purchase cannabis.</p>
+        <div className="flex gap-4 animate-fade-in">
+          <button onClick={() => setAgeVerified(true)} className="bg-[#1a1a1a] text-[#f5f0e8] font-bold px-10 py-4 rounded-full text-lg hover:bg-[#333] transition-all active:scale-95">Yes, I'm 21+</button>
           <button onClick={() => alert('You must be 21 or older to enter.')} className={`border font-bold px-10 py-4 rounded-full text-lg transition-all ${dark ? 'border-white/20 text-white/50' : 'border-[#1a1a1a]/30 text-[#666]'}`}>No</button>
         </div>
         <p className="text-xs mt-10 max-w-xs opacity-40">By entering you confirm you are of legal age to purchase cannabis in your state.</p>
@@ -325,11 +368,11 @@ export default function Home() {
   if (orderPlaced) {
     return (
       <main className={`min-h-screen flex flex-col items-center justify-center px-6 text-center transition-colors ${dark ? 'bg-[#0f0f0f] text-[#f5f0e8]' : 'bg-[#f5f0e8] text-[#1a1a1a]'}`}>
-        <div className="text-6xl mb-6">🌿</div>
-        <h1 className="text-3xl font-bold mb-3">Order Received!</h1>
-        <p className="text-lg mb-2 opacity-70">Thanks, {name}!</p>
-        <p className="text-sm mb-8 max-w-sm opacity-50">We are confirming your Cash App payment now. You will get a call or text at {phone} once your order is on the way.</p>
-        <div className={`border rounded-2xl p-6 mb-8 max-w-sm w-full ${dark ? 'bg-[#1a1a1a] border-[#333]' : 'bg-white border-[#e0d9cc]'}`}>
+        <div className="text-6xl mb-6 animate-fade-in">🌿</div>
+        <h1 className="text-3xl font-bold mb-3 animate-fade-in">Order Received!</h1>
+        <p className="text-lg mb-2 opacity-70 animate-fade-in">Thanks, {name}!</p>
+        <p className="text-sm mb-8 max-w-sm opacity-50 animate-fade-in">We are confirming your Cash App payment now. You will get a call or text at {phone} once your order is on the way.</p>
+        <div className={`border rounded-2xl p-6 mb-8 max-w-sm w-full animate-fade-in ${dark ? 'bg-[#1a1a1a] border-[#333]' : 'bg-white border-[#e0d9cc]'}`}>
           <p className="text-sm mb-1 opacity-50">Delivering to</p>
           <p className="font-bold">{address || 'Pickup'}</p>
           <div className={`border-t mt-4 pt-4 ${dark ? 'border-[#333]' : 'border-[#e0d9cc]'}`}>
@@ -337,9 +380,9 @@ export default function Home() {
             <p className="text-[#c9a84c] text-2xl font-bold">${finalTotal.toFixed(2)}</p>
           </div>
         </div>
-        <a href="/track" className="bg-[#c9a84c] text-[#1a1a1a] font-bold px-8 py-3 rounded-full hover:bg-[#e8c97a] transition-all mb-3 block text-center">Track My Order →</a>
+        <a href="/track" className="bg-[#c9a84c] text-[#1a1a1a] font-bold px-8 py-3 rounded-full hover:bg-[#e8c97a] transition-all mb-3 block text-center animate-fade-in">Track My Order →</a>
         <button onClick={() => { setOrderPlaced(false); setName(''); setPhone(''); setAddress(''); setNotes(''); setCheckoutReferral(''); setCheckoutReferralValid(false); setCheckoutReferralChecked(false); setCheckoutReferralChoice(null) }}
-          className="bg-[#1a1a1a] text-[#f5f0e8] font-bold px-8 py-3 rounded-full hover:bg-[#333] transition-all">Back to Menu</button>
+          className="bg-[#1a1a1a] text-[#f5f0e8] font-bold px-8 py-3 rounded-full hover:bg-[#333] transition-all animate-fade-in">Back to Menu</button>
       </main>
     )
   }
@@ -369,7 +412,8 @@ export default function Home() {
           <a href="/track" className={`text-sm font-semibold transition-all tracking-wide ${text2}`}>Track</a>
           <a href="/rewards" className="text-sm font-semibold text-[#c9a84c] hover:text-[#a07830] transition-all tracking-wide">Rewards</a>
           <a href="https://instagram.com/lucky_dayze" target="_blank" rel="noopener noreferrer" className="text-xl">📸</a>
-          <button onClick={() => setCartOpen(true)} className="bg-[#1a1a1a] text-[#f5f0e8] text-sm font-bold px-5 py-2 rounded-full relative hover:bg-[#333] transition-all">
+          <button onClick={() => setCartOpen(true)}
+            className={`bg-[#1a1a1a] text-[#f5f0e8] text-sm font-bold px-5 py-2 rounded-full relative hover:bg-[#333] transition-all duration-150 ${cartBounce ? 'scale-125' : 'scale-100'}`}>
             Cart
             {cartCount > 0 && <span className="absolute -top-2 -right-2 bg-[#c9a84c] text-[#1a1a1a] text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">{cartCount}</span>}
           </button>
@@ -378,13 +422,14 @@ export default function Home() {
 
       {/* HERO */}
       <section className={`px-6 py-16 max-w-2xl border-b ${border}`}>
-        <p className="text-xs font-bold tracking-widest uppercase text-[#c9a84c] mb-4">Fast Delivery · NYC</p>
-        <h1 style={{fontFamily: 'Georgia, serif'}} className="text-5xl font-bold leading-tight mb-4">
+        <p className="text-xs font-bold tracking-widest uppercase text-[#c9a84c] mb-2">{greeting} · Fast Delivery · NYC</p>
+        <h1 style={{fontFamily: 'Georgia, serif'}} className="text-5xl font-bold leading-tight mb-3">
           Premium Cannabis<br /><span className="italic text-[#c9a84c]">Delivered Fast.</span>
         </h1>
-        <p className={`text-lg mb-8 max-w-md ${text2}`}>Flower, pre-rolls and more — delivered to your door in under 45 minutes.</p>
+        <p className={`text-base font-semibold mb-3 ${text2}`}>{welcomeMessage}</p>
+        <p className={`text-lg mb-8 max-w-md ${text2} opacity-70`}>Flower, pre-rolls and more — delivered to your door in under 45 minutes.</p>
         <div className="flex gap-4 flex-wrap">
-          <button onClick={() => setCartOpen(true)} className="bg-[#1a1a1a] text-[#f5f0e8] font-bold px-8 py-3 rounded-full hover:bg-[#333] transition-all">View Cart</button>
+          <button onClick={() => setCartOpen(true)} className="bg-[#1a1a1a] text-[#f5f0e8] font-bold px-8 py-3 rounded-full hover:bg-[#333] transition-all active:scale-95">View Cart</button>
           <a href="/rewards" className={`border font-bold px-8 py-3 rounded-full transition-all ${dark ? 'border-white/20 text-[#f5f0e8] hover:border-white/40' : 'border-[#1a1a1a]/30 text-[#1a1a1a] hover:border-[#1a1a1a]'}`}>Rewards</a>
         </div>
       </section>
@@ -439,7 +484,7 @@ export default function Home() {
       {cartOpen && (
         <div className="fixed inset-0 z-50 flex">
           <div className="flex-1 bg-black/40 backdrop-blur-sm" onClick={() => setCartOpen(false)} />
-          <div className={`w-full max-w-sm ${bg} border-l ${border} flex flex-col h-full overflow-y-auto`}>
+          <div className={`w-full max-w-sm ${bg} border-l ${border} flex flex-col h-full overflow-y-auto animate-slide-in`}>
             <div className={`flex items-center justify-between px-6 py-5 border-b ${border}`}>
               <h2 style={{fontFamily: 'Georgia, serif'}} className="text-lg font-bold">Your Cart</h2>
               <button onClick={() => setCartOpen(false)} className={`text-2xl leading-none ${text3}`}>×</button>
@@ -453,7 +498,7 @@ export default function Home() {
               <>
                 <div className="flex-1 px-6 py-4 flex flex-col gap-4">
                   {cart.map((item: any) => (
-                    <div key={item.id + item.name} className="flex gap-3 items-start">
+                    <div key={item.id + item.name} className="flex gap-3 items-start animate-fade-in">
                       <div className={`w-12 h-12 ${bg3} rounded-xl flex items-center justify-center text-2xl flex-shrink-0`}>{item.emoji}</div>
                       <div className="flex-1">
                         <p className="font-bold text-sm">{item.name}</p>
@@ -484,7 +529,7 @@ export default function Home() {
                     <span className="font-bold text-xl">${total.toFixed(2)}</span>
                   </div>
                   <button onClick={() => { setCartOpen(false); setCheckoutOpen(true) }}
-                    className="w-full bg-[#1a1a1a] text-[#f5f0e8] font-bold py-4 rounded-2xl text-lg hover:bg-[#333] transition-all">
+                    className="w-full bg-[#1a1a1a] text-[#f5f0e8] font-bold py-4 rounded-2xl text-lg hover:bg-[#333] transition-all active:scale-95">
                     Checkout → ${total.toFixed(2)}
                   </button>
                 </div>
@@ -496,13 +541,12 @@ export default function Home() {
 
       {/* CHECKOUT */}
       {checkoutOpen && (
-        <div className={`fixed inset-0 z-50 ${bg} overflow-y-auto`}>
+        <div className={`fixed inset-0 z-50 ${bg} overflow-y-auto animate-fade-in`}>
           <div className="max-w-md mx-auto px-6 py-8">
             <button onClick={() => { setCheckoutOpen(false); setCartOpen(true) }} className={`text-sm mb-6 flex items-center gap-2 ${text2}`}>← Back to cart</button>
             <h1 style={{fontFamily: 'Georgia, serif'}} className="text-2xl font-bold mb-2">Checkout</h1>
             <p className={`text-sm mb-6 ${text2}`}>Fill in your info and send payment</p>
 
-            {/* DELIVERY METHOD */}
             <div className={`${bg2} border ${border} rounded-2xl p-5 mb-6`}>
               <h3 className="font-bold mb-4">How would you like to receive your order?</h3>
               <div className="flex flex-col gap-3">
@@ -523,7 +567,6 @@ export default function Home() {
               </div>
             </div>
 
-            {/* ORDER SUMMARY */}
             <div className={`${bg2} border ${border} rounded-2xl p-5 mb-6`}>
               <h3 className="font-bold mb-4">Order Summary</h3>
               {cart.map((item: any) => (
@@ -538,7 +581,6 @@ export default function Home() {
               </div>
             </div>
 
-            {/* YOUR INFO */}
             <div className={`${bg2} border ${border} rounded-2xl p-5 mb-6`}>
               <h3 className="font-bold mb-4">Your Info</h3>
               <input type="text" placeholder="Your full name *" value={name} onChange={e => setName(e.target.value)} className={`w-full border rounded-xl px-4 py-3 text-sm mb-3 outline-none focus:border-[#c9a84c] ${input}`} />
@@ -551,7 +593,6 @@ export default function Home() {
               )}
               <textarea placeholder="Order notes (optional)" value={notes} onChange={e => setNotes(e.target.value)} rows={2} className={`w-full border rounded-xl px-4 py-3 text-sm outline-none focus:border-[#c9a84c] resize-none ${input}`} />
 
-              {/* REFERRAL CODE */}
               {!checkoutReferralChecked && (
                 <div className="mt-3">
                   <div className="flex gap-2">
@@ -559,9 +600,7 @@ export default function Home() {
                       onChange={e => { setCheckoutReferral(e.target.value.toUpperCase()); setCheckoutReferralValid(false); setCheckoutReferralError('') }}
                       className={`flex-1 border rounded-xl px-4 py-3 text-sm outline-none font-mono tracking-widest ${input}`} />
                     <button onClick={checkReferralCode} disabled={!checkoutReferral}
-                      className="bg-[#1a1a1a] text-[#f5f0e8] font-bold px-4 py-3 rounded-xl text-sm hover:bg-[#333] transition-all disabled:opacity-50">
-                      Apply
-                    </button>
+                      className="bg-[#1a1a1a] text-[#f5f0e8] font-bold px-4 py-3 rounded-xl text-sm hover:bg-[#333] transition-all disabled:opacity-50">Apply</button>
                   </div>
                   {checkoutReferralError && <p className="text-red-500 text-xs mt-1">{checkoutReferralError}</p>}
                 </div>
@@ -582,7 +621,6 @@ export default function Home() {
               )}
             </div>
 
-            {/* PAYMENT */}
             <div className={`${bg2} border ${border} rounded-2xl p-5 mb-6`}>
               <h3 className="font-bold mb-2">Send Payment</h3>
               <p className={`text-sm mb-5 ${text2}`}>Send <span className="text-[#c9a84c] font-bold">${total.toFixed(2)}</span> to our Cash App then tap confirm.</p>
@@ -596,7 +634,7 @@ export default function Home() {
             </div>
 
             <button onClick={placeOrder} disabled={loading}
-              className="w-full bg-[#1a1a1a] text-[#f5f0e8] font-bold py-4 rounded-2xl text-lg hover:bg-[#333] transition-all disabled:opacity-50">
+              className="w-full bg-[#1a1a1a] text-[#f5f0e8] font-bold py-4 rounded-2xl text-lg hover:bg-[#333] transition-all disabled:opacity-50 active:scale-95">
               {loading ? 'Placing Order...' : "I've Sent Payment ✓"}
             </button>
             <p className={`text-xs text-center mt-4 ${text3}`}>Your order will be confirmed once payment is verified. Average delivery 30–45 min.</p>
@@ -606,7 +644,7 @@ export default function Home() {
 
       {/* INSTALL PROMPT */}
       {showInstallPrompt && (
-        <div className={`fixed bottom-0 left-0 right-0 z-50 p-4 ${dark ? 'bg-[#1a1a1a] border-t border-[#333]' : 'bg-white border-t border-[#e0d9cc]'}`}>
+        <div className={`fixed bottom-0 left-0 right-0 z-50 p-4 animate-slide-in ${dark ? 'bg-[#1a1a1a] border-t border-[#333]' : 'bg-white border-t border-[#e0d9cc]'}`}>
           <div className="max-w-md mx-auto">
             <div className="flex items-start justify-between mb-2">
               <div className="flex items-center gap-3">
@@ -625,9 +663,7 @@ export default function Home() {
               <p>Tap the <span className="font-bold">menu (⋮)</span> in Chrome → tap <span className="font-bold">Add to Home Screen</span></p>
             </div>
             <button onClick={() => { setShowInstallPrompt(false); localStorage.setItem('ld_install_prompt', 'seen') }}
-              className="w-full mt-3 bg-[#1a1a1a] text-[#f5f0e8] font-bold py-2.5 rounded-xl text-sm hover:bg-[#333] transition-all">
-              Got it!
-            </button>
+              className="w-full mt-3 bg-[#1a1a1a] text-[#f5f0e8] font-bold py-2.5 rounded-xl text-sm hover:bg-[#333] transition-all">Got it!</button>
           </div>
         </div>
       )}
