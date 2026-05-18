@@ -368,6 +368,7 @@ export default function Home() {
           <button onClick={toggle} className="text-lg" aria-label="Toggle dark mode">{dark ? '☀️' : '🌙'}</button>
           <a href="/track" className={`text-sm font-semibold transition-all tracking-wide ${text2}`}>Track</a>
           <a href="/rewards" className="text-sm font-semibold text-[#c9a84c] hover:text-[#a07830] transition-all tracking-wide">Rewards</a>
+          <a href="https://instagram.com/lucky_dayze" target="_blank" rel="noopener noreferrer" className="text-xl">📸</a>
           <button onClick={() => setCartOpen(true)} className="bg-[#1a1a1a] text-[#f5f0e8] text-sm font-bold px-5 py-2 rounded-full relative hover:bg-[#333] transition-all">
             Cart
             {cartCount > 0 && <span className="absolute -top-2 -right-2 bg-[#c9a84c] text-[#1a1a1a] text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">{cartCount}</span>}
