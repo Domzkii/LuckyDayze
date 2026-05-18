@@ -94,9 +94,23 @@ export default function TrackPage() {
         ) : (
           <>
             <div className="bg-[#1a1a1a] rounded-2xl p-6 mb-6 text-center">
-              <div className="text-5xl mb-3">{currentStatus?.icon}</div>
+              <div className={`text-5xl mb-3 ${order.status === 'out_for_delivery' ? 'animate-bounce' : order.status === 'delivered' ? 'animate-pulse' : ''}`}>
+                {currentStatus?.icon}
+              </div>
               <div style={{fontFamily: 'Georgia, serif'}} className="text-2xl font-bold text-[#f5f0e8] mb-2">{currentStatus?.label}</div>
               <p className="text-[#999] text-sm">{currentStatus?.desc}</p>
+              {order.status === 'out_for_delivery' && (
+                <div className="mt-3 flex items-center justify-center gap-2">
+                  <span className="w-2 h-2 bg-[#c9a84c] rounded-full animate-ping"></span>
+                  <span className="text-[#c9a84c] text-xs font-bold">On the way to you!</span>
+                  <span className="w-2 h-2 bg-[#c9a84c] rounded-full animate-ping"></span>
+                </div>
+              )}
+              {order.status === 'delivered' && (
+                <div className="mt-3 bg-green-900/20 border border-green-500/30 rounded-xl px-4 py-2">
+                  <p className="text-green-400 text-xs font-bold">🎉 Enjoy your order!</p>
+                </div>
+              )}
             </div>
 
             {order.status !== 'cancelled' && (

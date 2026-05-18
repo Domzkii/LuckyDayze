@@ -49,6 +49,9 @@ export default function Home() {
   const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'pickup'>('delivery')
   const [selectedWeights, setSelectedWeights] = useState<Record<string, {weight: string, qty: number}>>({})
   const [showInstallPrompt, setShowInstallPrompt] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+const [pullStart, setPullStart] = useState(0)
+const [pullDistance, setPullDistance] = useState(0)
   const [checkoutReferral, setCheckoutReferral] = useState('')
   const [checkoutReferralChoice, setCheckoutReferralChoice] = useState<'grabba' | 'vegan' | 'later' | null>(null)
   const [checkoutReferralValid, setCheckoutReferralValid] = useState(false)
@@ -88,7 +91,46 @@ export default function Home() {
       } catch (e) {}
     }
   }, [])
+  useEffect(() => {
+    let startY = 0
+    let pulling = false
 
+    function onTouchStart(e: TouchEvent) {
+      if (window.scrollY === 0) {
+        startY = e.touches[0].clientY
+        pulling = true
+      }
+    }
+
+    function onTouchMove(e: TouchEvent) {
+      if (!pulling) return
+      const dist = e.touches[0].clientY - startY
+      if (dist > 0 && dist < 100) setPullDistance(dist)
+    }
+
+    async function onTouchEnd() {
+      if (!pulling) return
+      pulling = false
+      if (pullDistance > 60) {
+        setRefreshing(true)
+        setPullDistance(0)
+        const { data } = await supabase.from('products').select('*')
+        setProducts(data || [])
+        setTimeout(() => setRefreshing(false), 800)
+      } else {
+        setPullDistance(0)
+      }
+    }
+
+    window.addEventListener('touchstart', onTouchStart)
+    window.addEventListener('touchmove', onTouchMove)
+    window.addEventListener('touchend', onTouchEnd)
+    return () => {
+      window.removeEventListener('touchstart', onTouchStart)
+      window.removeEventListener('touchmove', onTouchMove)
+      window.removeEventListener('touchend', onTouchEnd)
+    }
+  }, [pullDistance])
   function applyPreRollPricing(cart: any[]) {
     const regularPreRolls = cart.filter((i: any) => i.category === 'Pre-Rolls' && !i.isReward && (i.originalPrice || i.price) >= 15)
     const miniPreRolls = cart.filter((i: any) => i.category === 'Pre-Rolls' && !i.isReward && (i.originalPrice || i.price) < 15)
@@ -389,6 +431,19 @@ export default function Home() {
 
   return (
     <main className={`min-h-screen ${bg} ${text} transition-colors`}>
+
+      {/* PULL TO REFRESH */}
+      {(pullDistance > 0 || refreshing) && (
+        <div className="fixed top-0 left-0 right-0 z-50 flex justify-center pt-4 pointer-events-none"
+          style={{ transform: `translateY(${Math.min(pullDistance, 60)}px)` }}>
+          <div className={`${dark ? 'bg-[#1a1a1a] border-[#333]' : 'bg-white border-[#e0d9cc]'} border rounded-full px-4 py-2 flex items-center gap-2 shadow-lg`}>
+            <span className={`text-sm ${refreshing ? 'animate-spin' : ''}`}>🌿</span>
+            <span className={`text-xs font-bold ${dark ? 'text-[#f5f0e8]' : 'text-[#1a1a1a]'}`}>
+              {refreshing ? 'Refreshing...' : pullDistance > 60 ? 'Release to refresh' : 'Pull to refresh'}
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* NAV */}
       <nav className={`flex items-center justify-between px-6 py-5 border-b ${border} sticky top-0 ${dark ? 'bg-[#0f0f0f]/95' : 'bg-[#f5f0e8]/95'} backdrop-blur z-40`}>
