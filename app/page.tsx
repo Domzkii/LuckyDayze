@@ -25,7 +25,6 @@ export default function Home() {
   const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'pickup'>('delivery')
   const [selectedWeights, setSelectedWeights] = useState<Record<string, {weight: string, qty: number}>>({})
   const [showInstallPrompt, setShowInstallPrompt] = useState(false)
-  // Referral state
   const [checkoutReferral, setCheckoutReferral] = useState('')
   const [checkoutReferralChoice, setCheckoutReferralChoice] = useState<'grabba' | 'vegan' | 'later' | null>(null)
   const [checkoutReferralValid, setCheckoutReferralValid] = useState(false)
@@ -39,7 +38,6 @@ export default function Home() {
     }
     loadProducts()
 
-    // Install prompt
     const isIOS = /iphone|ipad|ipod/.test(navigator.userAgent.toLowerCase())
     const isAndroid = /android/.test(navigator.userAgent.toLowerCase())
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches
@@ -48,7 +46,6 @@ export default function Home() {
       setTimeout(() => setShowInstallPrompt(true), 3000)
     }
 
-    // Claimed reward from rewards page
     const rewardRaw = localStorage.getItem('luckydayze_reward')
     if (rewardRaw) {
       try {
@@ -68,7 +65,6 @@ export default function Home() {
     }
   }, [])
 
-  // ── PRE-ROLL PRICING ──────────────────────────────────────────
   function applyPreRollPricing(cart: any[]) {
     const regularPreRolls = cart.filter((i: any) => i.category === 'Pre-Rolls' && !i.isReward && (i.originalPrice || i.price) >= 15)
     const miniPreRolls = cart.filter((i: any) => i.category === 'Pre-Rolls' && !i.isReward && (i.originalPrice || i.price) < 15)
@@ -96,7 +92,6 @@ export default function Home() {
     })
   }
 
-  // ── CART FUNCTIONS ────────────────────────────────────────────
   function addToCart(product: any) {
     setCart((prev: any[]) => {
       const qty = product.qty_override || 1
@@ -127,7 +122,6 @@ export default function Home() {
   const total = cart.reduce((sum: number, i: any) => sum + i.price * i.qty, 0)
   const cartCount = cart.reduce((sum: number, i: any) => sum + i.qty, 0)
 
-  // ── REFERRAL CODE CHECK ───────────────────────────────────────
   async function checkReferralCode() {
     if (!checkoutReferral) return
     setCheckoutReferralError('')
@@ -148,7 +142,6 @@ export default function Home() {
     }
   }
 
-  // ── PLACE ORDER ───────────────────────────────────────────────
   async function placeOrder() {
     if (!name || !phone) { alert('Please fill in your name and phone number.'); return }
     if (deliveryMethod === 'delivery' && !address) { alert('Please fill in your delivery address.'); return }
@@ -160,7 +153,6 @@ export default function Home() {
       emoji: i.emoji, category: i.category, grams: i.grams
     }))
 
-    // Insert order
     const { error } = await supabase.from('orders').insert({
       customer_name: name,
       customer_phone: phone,
@@ -179,7 +171,6 @@ export default function Home() {
 
     if (error) { setLoading(false); alert('Something went wrong: ' + error.message); return }
 
-    // Create loyalty profile for new customers
     const cleanPhone = phone.replace(/\D/g, '')
     const { data: existingLoyalty } = await supabase
       .from('loyalty')
@@ -206,7 +197,6 @@ export default function Home() {
         pending_referral_reward: pendingReward
       })
 
-      // Add to cart immediately if they chose grabba or vegan
       if (checkoutReferralValid && checkoutReferralChoice && checkoutReferralChoice !== 'later') {
         localStorage.setItem('luckydayze_referral_reward', JSON.stringify({
           name: checkoutReferralChoice === 'grabba' ? 'Mini Grabba Pre-Roll' : 'Mini Pre-Roll',
@@ -227,7 +217,6 @@ export default function Home() {
     setOrderPlaced(true)
   }
 
-  // ── THEME HELPERS ─────────────────────────────────────────────
   const dark = theme === 'dark'
   const bg = dark ? 'bg-[#0f0f0f]' : 'bg-[#f5f0e8]'
   const bg2 = dark ? 'bg-[#1a1a1a]' : 'bg-white'
@@ -239,7 +228,83 @@ export default function Home() {
   const borderHover = dark ? 'hover:border-[#555]' : 'hover:border-[#c9a84c]'
   const input = dark ? 'bg-[#222] border-[#444] text-[#f5f0e8] placeholder-[#555]' : 'bg-[#f5f0e8] border-[#e0d9cc] text-[#1a1a1a] placeholder-[#bbb]'
 
-  // ── AGE GATE ──────────────────────────────────────────────────
+  const flowerProducts = products.filter((p: any) => p.category === 'Flower')
+  const preRollProducts = products.filter((p: any) => p.category === 'Pre-Rolls')
+
+  function ProductCard({ product }: { product: any }) {
+    const isFlower = product.category === 'Flower'
+    const weightPrices = product.weight_prices || {}
+    const selected = selectedWeights[product.id] || { weight: '3.5', qty: 1 }
+    const selectedPrice = isFlower ? (weightPrices[selected.weight] || product.price) : product.price
+    const isLowStock = isFlower && (product.stock_grams || 0) < 14
+    const maxQty = isFlower ? Math.floor((product.stock_grams || 0) / parseFloat(selected.weight)) : 99
+
+    return (
+      <div className={`${bg2} border ${border} rounded-2xl overflow-hidden ${borderHover} transition-all group flex flex-col`}>
+        <div className={`h-28 ${bg3} flex items-center justify-center text-4xl group-hover:opacity-90 transition-all`}>
+          {product.emoji}
+        </div>
+        <div className="p-3 flex flex-col flex-1">
+          <div className="flex items-start justify-between gap-1 mb-1">
+            <p style={{fontFamily: 'Georgia, serif'}} className="font-bold text-sm leading-tight">{product.name}</p>
+            <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 ${
+              product.strain_type === 'Sativa' ? 'bg-amber-100 text-amber-700' :
+              product.strain_type === 'Indica' ? 'bg-purple-100 text-purple-700' :
+              'bg-green-100 text-green-700'
+            }`}>{product.strain_type}</span>
+          </div>
+          <p className={`text-xs mb-1 ${text3}`}>{product.thc} THC</p>
+          {isLowStock && <p className="text-amber-500 text-xs font-bold mb-1">⚠ Low Stock</p>}
+          {!isFlower && product.price < 15 && <p className="text-green-500 text-xs font-bold mb-1">🎉 2 for $15</p>}
+          {!isFlower && product.price >= 15 && <p className="text-green-500 text-xs font-bold mb-1">🎉 2 for $25</p>}
+
+          {isFlower && Object.keys(weightPrices).length > 0 && (
+            <div className="mb-2 mt-1">
+              <div className="grid grid-cols-4 gap-1 mb-2">
+                {Object.keys(weightPrices).map(w => (
+                  <button key={w}
+                    onClick={() => setSelectedWeights(prev => ({ ...prev, [product.id]: { weight: w, qty: 1 } }))}
+                    className={`py-1 rounded-lg text-xs font-bold transition-all ${selected.weight === w
+                      ? 'bg-[#1a1a1a] text-[#f5f0e8]'
+                      : dark ? 'bg-[#333] border border-[#444] text-[#aaa]' : 'bg-[#f5f0e8] border border-[#e0d9cc] text-[#666]'
+                    }`}>
+                    {WEIGHT_LABELS[w] || w + 'g'}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setSelectedWeights(prev => ({ ...prev, [product.id]: { weight: selected.weight, qty: Math.max(1, (prev[product.id]?.qty || 1) - 1) } }))}
+                  className={`w-6 h-6 rounded-full border text-xs flex items-center justify-center transition-all ${dark ? 'border-white/20 text-[#aaa]' : 'border-[#1a1a1a]/20 text-[#666] hover:border-[#1a1a1a]'}`}>−</button>
+                <span className="text-xs font-bold w-4 text-center">{selected.qty}</span>
+                <button onClick={() => {
+                  if ((selectedWeights[product.id]?.qty || 1) >= maxQty) { alert(`Only ${maxQty} available`); return }
+                  setSelectedWeights(prev => ({ ...prev, [product.id]: { weight: selected.weight, qty: (prev[product.id]?.qty || 1) + 1 } }))
+                }} className={`w-6 h-6 rounded-full border text-xs flex items-center justify-center transition-all ${dark ? 'border-white/20 text-[#aaa]' : 'border-[#1a1a1a]/20 text-[#666] hover:border-[#1a1a1a]'}`}>+</button>
+                <span className={`text-xs ${text3}`}>{parseFloat(selected.weight) * selected.qty}g</span>
+              </div>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between mt-auto pt-2">
+            <span className="font-bold text-sm">${isFlower ? selectedPrice * selected.qty : product.price}</span>
+            <button
+              onClick={() => {
+                if (isFlower) {
+                  if (selected.qty > maxQty) { alert(`Only ${maxQty} available`); return }
+                  addToCart({ ...product, price: selectedPrice, name: `${product.name} (${WEIGHT_LABELS[selected.weight] || selected.weight + 'g'})`, grams: parseFloat(selected.weight), qty_override: selected.qty })
+                  setSelectedWeights(prev => ({ ...prev, [product.id]: { weight: selected.weight, qty: 1 } }))
+                } else {
+                  addToCart(product)
+                }
+              }}
+              className="bg-[#1a1a1a] text-[#f5f0e8] text-xs font-bold px-3 py-1.5 rounded-full hover:bg-[#c9a84c] hover:text-[#1a1a1a] transition-all"
+            >+ Add</button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   if (!ageVerified) {
     return (
       <main className={`min-h-screen flex flex-col items-center justify-center px-6 text-center transition-colors ${dark ? 'bg-[#0f0f0f] text-[#f5f0e8]' : 'bg-[#f5f0e8] text-[#1a1a1a]'}`}>
@@ -257,7 +322,6 @@ export default function Home() {
     )
   }
 
-  // ── ORDER PLACED ──────────────────────────────────────────────
   if (orderPlaced) {
     return (
       <main className={`min-h-screen flex flex-col items-center justify-center px-6 text-center transition-colors ${dark ? 'bg-[#0f0f0f] text-[#f5f0e8]' : 'bg-[#f5f0e8] text-[#1a1a1a]'}`}>
@@ -273,7 +337,6 @@ export default function Home() {
             <p className="text-[#c9a84c] text-2xl font-bold">${finalTotal.toFixed(2)}</p>
           </div>
         </div>
-        {/* ── TRACK & BACK BUTTONS ── */}
         <a href="/track" className="bg-[#c9a84c] text-[#1a1a1a] font-bold px-8 py-3 rounded-full hover:bg-[#e8c97a] transition-all mb-3 block text-center">Track My Order →</a>
         <button onClick={() => { setOrderPlaced(false); setName(''); setPhone(''); setAddress(''); setNotes(''); setCheckoutReferral(''); setCheckoutReferralValid(false); setCheckoutReferralChecked(false); setCheckoutReferralChoice(null) }}
           className="bg-[#1a1a1a] text-[#f5f0e8] font-bold px-8 py-3 rounded-full hover:bg-[#333] transition-all">Back to Menu</button>
@@ -281,7 +344,6 @@ export default function Home() {
     )
   }
 
-  // ── MAIN STORE ────────────────────────────────────────────────
   return (
     <main className={`min-h-screen ${bg} ${text} transition-colors`}>
 
@@ -336,88 +398,40 @@ export default function Home() {
         <div className="ml-auto bg-[#c9a84c]/20 text-[#c9a84c] text-sm font-bold px-4 py-1 rounded-full">⚡ 30-45 min</div>
       </div>
 
-      {/* PRODUCTS */}
+      {/* MENU */}
       <section className="px-6 py-12 pb-16">
         <div className="flex items-baseline justify-between mb-8 max-w-2xl">
           <h2 style={{fontFamily: 'Georgia, serif'}} className="text-2xl font-bold">The Menu</h2>
           <span className={`text-xs tracking-widest uppercase ${text3}`}>{products.length} products</span>
         </div>
-        <div className="grid grid-cols-2 gap-4 max-w-2xl">
-          {products.map((product: any) => {
-            const isFlower = product.category === 'Flower'
-            const weightPrices = product.weight_prices || {}
-            const selected = selectedWeights[product.id] || { weight: '3.5', qty: 1 }
-            const selectedPrice = isFlower ? (weightPrices[selected.weight] || product.price) : product.price
-            const isLowStock = isFlower && (product.stock_grams || 0) < 14
-            const maxQty = isFlower ? Math.floor((product.stock_grams || 0) / parseFloat(selected.weight)) : 99
 
-            return (
-              <div key={product.id} className={`${bg2} border ${border} rounded-2xl overflow-hidden ${borderHover} transition-all group flex flex-col`}>
-                <div className={`h-28 ${bg3} flex items-center justify-center text-4xl group-hover:opacity-90 transition-all`}>
-                  {product.emoji}
-                </div>
-                <div className="p-3 flex flex-col flex-1">
-                  <div className="flex items-start justify-between gap-1 mb-1">
-                    <p style={{fontFamily: 'Georgia, serif'}} className="font-bold text-sm leading-tight">{product.name}</p>
-                    <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 ${
-                      product.strain_type === 'Sativa' ? 'bg-amber-100 text-amber-700' :
-                      product.strain_type === 'Indica' ? 'bg-purple-100 text-purple-700' :
-                      'bg-green-100 text-green-700'
-                    }`}>{product.strain_type}</span>
-                  </div>
-                  <p className={`text-xs mb-1 ${text3}`}>{product.category} · {product.thc}</p>
-                  {isLowStock && <p className="text-amber-500 text-xs font-bold mb-1">⚠ Low Stock</p>}
-                  {product.category === 'Pre-Rolls' && product.price < 15 && <p className="text-green-500 text-xs font-bold mb-1">🎉 2 for $15</p>}
-                  {product.category === 'Pre-Rolls' && product.price >= 15 && <p className="text-green-500 text-xs font-bold mb-1">🎉 2 for $25</p>}
+        {/* FLOWER */}
+        {flowerProducts.length > 0 && (
+          <div className="mb-10 max-w-2xl">
+            <div className={`flex items-center gap-2 mb-4 pb-2 border-b ${border}`}>
+              <span className="text-xl">🌿</span>
+              <h3 style={{fontFamily: 'Georgia, serif'}} className="text-lg font-bold">Flower</h3>
+              <span className={`text-xs ${text3} ml-auto`}>{flowerProducts.length} strains</span>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              {flowerProducts.map((product: any) => <ProductCard key={product.id} product={product} />)}
+            </div>
+          </div>
+        )}
 
-                  {/* FLOWER WEIGHT SELECTOR */}
-                  {isFlower && Object.keys(weightPrices).length > 0 && (
-                    <div className="mb-2 mt-1">
-                      <div className="grid grid-cols-4 gap-1 mb-2">
-                        {Object.keys(weightPrices).map(w => (
-                          <button key={w}
-                            onClick={() => setSelectedWeights(prev => ({ ...prev, [product.id]: { weight: w, qty: 1 } }))}
-                            className={`py-1 rounded-lg text-xs font-bold transition-all ${selected.weight === w
-                              ? 'bg-[#1a1a1a] text-[#f5f0e8]'
-                              : dark ? 'bg-[#333] border border-[#444] text-[#aaa]' : 'bg-[#f5f0e8] border border-[#e0d9cc] text-[#666]'
-                            }`}>
-                            {WEIGHT_LABELS[w] || w + 'g'}
-                          </button>
-                        ))}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => setSelectedWeights(prev => ({ ...prev, [product.id]: { weight: selected.weight, qty: Math.max(1, (prev[product.id]?.qty || 1) - 1) } }))}
-                          className={`w-6 h-6 rounded-full border text-xs flex items-center justify-center transition-all ${dark ? 'border-white/20 text-[#aaa] hover:border-white/40' : 'border-[#1a1a1a]/20 text-[#666] hover:border-[#1a1a1a]'}`}>−</button>
-                        <span className="text-xs font-bold w-4 text-center">{selected.qty}</span>
-                        <button onClick={() => {
-                          if ((selectedWeights[product.id]?.qty || 1) >= maxQty) { alert(`Only ${maxQty} available`); return }
-                          setSelectedWeights(prev => ({ ...prev, [product.id]: { weight: selected.weight, qty: (prev[product.id]?.qty || 1) + 1 } }))
-                        }} className={`w-6 h-6 rounded-full border text-xs flex items-center justify-center transition-all ${dark ? 'border-white/20 text-[#aaa] hover:border-white/40' : 'border-[#1a1a1a]/20 text-[#666] hover:border-[#1a1a1a]'}`}>+</button>
-                        <span className={`text-xs ${text3}`}>{parseFloat(selected.weight) * selected.qty}g</span>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="flex items-center justify-between mt-auto pt-2">
-                    <span className="font-bold text-sm">${isFlower ? selectedPrice * selected.qty : product.price}</span>
-                    <button
-                      onClick={() => {
-                        if (isFlower) {
-                          if (selected.qty > maxQty) { alert(`Only ${maxQty} available`); return }
-                          addToCart({ ...product, price: selectedPrice, name: `${product.name} (${WEIGHT_LABELS[selected.weight] || selected.weight + 'g'})`, grams: parseFloat(selected.weight), qty_override: selected.qty })
-                          setSelectedWeights(prev => ({ ...prev, [product.id]: { weight: selected.weight, qty: 1 } }))
-                        } else {
-                          addToCart(product)
-                        }
-                      }}
-                      className="bg-[#1a1a1a] text-[#f5f0e8] text-xs font-bold px-3 py-1.5 rounded-full hover:bg-[#c9a84c] hover:text-[#1a1a1a] transition-all"
-                    >+ Add</button>
-                  </div>
-                </div>
-              </div>
-            )
-          })}
-        </div>
+        {/* PRE-ROLLS */}
+        {preRollProducts.length > 0 && (
+          <div className="max-w-2xl">
+            <div className={`flex items-center gap-2 mb-4 pb-2 border-b ${border}`}>
+              <span className="text-xl">🚬</span>
+              <h3 style={{fontFamily: 'Georgia, serif'}} className="text-lg font-bold">Pre-Rolls</h3>
+              <span className={`text-xs ${text3} ml-auto`}>{preRollProducts.length} options</span>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              {preRollProducts.map((product: any) => <ProductCard key={product.id} product={product} />)}
+            </div>
+          </div>
+        )}
       </section>
 
       {/* CART DRAWER */}
@@ -499,7 +513,7 @@ export default function Home() {
                     </div>
                     <div className="flex-1">
                       <div className="font-bold text-sm">{method === 'delivery' ? '🚗 Delivery' : '📍 Pickup'}</div>
-                      <div className={`text-xs ${text3}`}>{method === 'delivery' ? 'We come to you · $25 minimum order' : 'No minimum · We\'ll send you a location in one of the 5 boroughs'}</div>
+                      <div className={`text-xs ${text3}`}>{method === 'delivery' ? 'We come to you · $25 minimum order' : "No minimum · We'll send you a location in one of the 5 boroughs"}</div>
                     </div>
                     {method === 'delivery' && total > 0 && total < 25 && deliveryMethod === 'delivery' && <div className="text-xs text-red-500 font-bold">Add ${(25 - total).toFixed(2)} more</div>}
                     {method === 'delivery' && total >= 25 && deliveryMethod === 'delivery' && <div className="text-xs text-green-500 font-bold">✓ Eligible</div>}
@@ -523,12 +537,10 @@ export default function Home() {
               </div>
             </div>
 
-            {/* DELIVERY INFO */}
+            {/* YOUR INFO */}
             <div className={`${bg2} border ${border} rounded-2xl p-5 mb-6`}>
               <h3 className="font-bold mb-4">Your Info</h3>
-              {/* ── PASTE AFTER: name input ── */}
               <input type="text" placeholder="Your full name *" value={name} onChange={e => setName(e.target.value)} className={`w-full border rounded-xl px-4 py-3 text-sm mb-3 outline-none focus:border-[#c9a84c] ${input}`} />
-              {/* ── PASTE AFTER: phone input ── */}
               <input type="tel" placeholder="Phone number *" value={phone} onChange={e => setPhone(e.target.value)} className={`w-full border rounded-xl px-4 py-3 text-sm mb-3 outline-none focus:border-[#c9a84c] ${input}`} />
               {deliveryMethod === 'delivery' && (
                 <input type="text" placeholder="Delivery address *" value={address} onChange={e => setAddress(e.target.value)} className={`w-full border rounded-xl px-4 py-3 text-sm mb-3 outline-none focus:border-[#c9a84c] ${input}`} />
@@ -536,20 +548,15 @@ export default function Home() {
               {deliveryMethod === 'pickup' && (
                 <div className={`border rounded-xl px-4 py-3 text-sm mb-3 ${text3} ${dark ? 'bg-[#222] border-[#444]' : 'bg-[#f5f0e8] border-[#e0d9cc]'}`}>📍 After your order is confirmed we will text you a pickup location in one of the 5 boroughs.</div>
               )}
-              {/* ── PASTE AFTER: notes textarea ── */}
               <textarea placeholder="Order notes (optional)" value={notes} onChange={e => setNotes(e.target.value)} rows={2} className={`w-full border rounded-xl px-4 py-3 text-sm outline-none focus:border-[#c9a84c] resize-none ${input}`} />
 
               {/* REFERRAL CODE */}
               {!checkoutReferralChecked && (
                 <div className="mt-3">
                   <div className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="Referral code (optional)"
-                      value={checkoutReferral}
+                    <input type="text" placeholder="Referral code (optional)" value={checkoutReferral}
                       onChange={e => { setCheckoutReferral(e.target.value.toUpperCase()); setCheckoutReferralValid(false); setCheckoutReferralError('') }}
-                      className={`flex-1 border rounded-xl px-4 py-3 text-sm outline-none font-mono tracking-widest ${input}`}
-                    />
+                      className={`flex-1 border rounded-xl px-4 py-3 text-sm outline-none font-mono tracking-widest ${input}`} />
                     <button onClick={checkReferralCode} disabled={!checkoutReferral}
                       className="bg-[#1a1a1a] text-[#f5f0e8] font-bold px-4 py-3 rounded-xl text-sm hover:bg-[#333] transition-all disabled:opacity-50">
                       Apply
