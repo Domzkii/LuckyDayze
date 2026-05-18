@@ -169,9 +169,14 @@ export default function Home() {
       items: orderItems,
       total,
       status: 'pending_payment',
-      referral_code: checkoutReferralValid ? checkoutReferral.toUpperCase() : null
+      referral_code: checkoutReferralValid ? checkoutReferral.toUpperCase() : null,
+      referral_reward: checkoutReferralValid && checkoutReferralChoice
+        ? checkoutReferralChoice === 'grabba' ? 'Mini Grabba Pre-Roll'
+        : checkoutReferralChoice === 'vegan' ? 'Mini Pre-Roll (Vegan)'
+        : 'Claim Later'
+        : null
     })
-
+    
     if (error) { setLoading(false); alert('Something went wrong: ' + error.message); return }
 
     // Create loyalty profile for new customers

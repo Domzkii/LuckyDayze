@@ -422,7 +422,14 @@ export default function AdminPage() {
                 )}
                 {(selectedOrder as any).referral_code && (
                   <div className="mt-2 bg-green-50 border border-green-200 rounded-xl p-3 text-sm text-green-700">
-                    🎁 Referral code used: <span className="font-bold font-mono">{(selectedOrder as any).referral_code}</span>
+                    <p className="font-bold mb-1">🎁 Referral code: <span className="font-mono">{(selectedOrder as any).referral_code}</span></p>
+                    {(selectedOrder as any).referral_reward && (
+                      <p className="text-xs">
+                        {(selectedOrder as any).referral_reward === 'Claim Later'
+                          ? '⏳ Customer chose to claim their free mini pre-roll later via Rewards page'
+                          : `✓ Free mini pre-roll requested: ${(selectedOrder as any).referral_reward} — include in this order!`}
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
