@@ -240,7 +240,25 @@ async function searchCustomers() {
     } else {
       await supabase.from('orders').update({ status }).eq('id', orderId)
     }
+    // Auto-update popular badge based on most sold strain
+    const { data: topStrain } = await supabase
+      .from('sales')
+      .select('product_name, grams_sold')
+      .eq('category', 'Flower')
+      .then(async ({ data }) => {
+        if (!data) return { data: null }
+        const totals: Record<string, number> = {}
+        data.forEach((s: any) => {
+          totals[s.product_name] = (totals[s.product_name] || 0) + s.grams_sold
+        })
+        const top = Object.entries(totals).sort((a, b) => b[1] - a[1])[0]
+        return { data: top ? top[0] : null }
+      })
 
+    if (topStrain) {
+      await supabase.from('products').update({ is_popular: false }).eq('category', 'Flower')
+      await supabase.from('products').update({ is_popular: true }).eq('name', topStrain)
+    }
     setSelectedOrder(prev => prev ? { ...prev, status } : null)
     loadOrders()
   }
