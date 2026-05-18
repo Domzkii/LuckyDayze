@@ -42,7 +42,12 @@ export default function AdminPage() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [filter, setFilter] = useState('all')
   const [membershipRequests, setMembershipRequests] = useState<any[]>([])
-  const [activeTab, setActiveTab] = useState<'orders' | 'members'>('orders')
+  const [activeTab, setActiveTab] = useState<'orders' | 'members' | 'customers'>('orders')
+  const [customerSearch, setCustomerSearch] = useState('')
+const [customers, setCustomers] = useState<any[]>([])
+const [selectedCustomer, setSelectedCustomer] = useState<any>(null)
+const [customerOrders, setCustomerOrders] = useState<any[]>([])
+const [loadingCustomers, setLoadingCustomers] = useState(false)
 
   useEffect(() => {
     if (authenticated) {
@@ -85,7 +90,28 @@ export default function AdminPage() {
       .order('created_at', { ascending: false })
     setMembershipRequests(data || [])
   }
+async function searchCustomers() {
+    if (!customerSearch) return
+    setLoadingCustomers(true)
+    setSelectedCustomer(null)
+    setCustomerOrders([])
+    const { data } = await supabase
+      .from('loyalty')
+      .select('*')
+      .or(`customer_phone.ilike.%${customerSearch}%,customer_name.ilike.%${customerSearch}%`)
+      .order('created_at', { ascending: false })
+    setCustomers(data || [])
+    setLoadingCustomers(false)
+  }
 
+  async function loadCustomerOrders(phone: string) {
+    const { data } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('customer_phone', phone)
+      .order('created_at', { ascending: false })
+    setCustomerOrders(data || [])
+  }
   async function handleMembership(requestId: string, customerPhone: string, tier: string, approve: boolean) {
     await supabase.from('membership_requests').update({
       status: approve ? 'approved' : 'declined'
@@ -283,17 +309,21 @@ export default function AdminPage() {
         </div>
       </nav>
 
-      <div className="flex gap-2 px-4 py-4 border-b border-[#1a1a1a]/10 max-w-2xl mx-auto">
+      <div className="flex gap-2 px-4 py-4 border-b border-[#1a1a1a]/10 max-w-2xl mx-auto overflow-x-auto">
         <button onClick={() => setActiveTab('orders')}
-          className={`px-5 py-2 rounded-full text-sm font-bold transition-all ${activeTab === 'orders' ? 'bg-[#1a1a1a] text-[#f5f0e8]' : 'border border-[#1a1a1a]/20 text-[#666]'}`}>
+          className={`flex-shrink-0 px-5 py-2 rounded-full text-sm font-bold transition-all ${activeTab === 'orders' ? 'bg-[#1a1a1a] text-[#f5f0e8]' : 'border border-[#1a1a1a]/20 text-[#666]'}`}>
           Orders
         </button>
         <button onClick={() => { setActiveTab('members'); loadRequests() }}
-          className={`px-5 py-2 rounded-full text-sm font-bold transition-all relative ${activeTab === 'members' ? 'bg-[#1a1a1a] text-[#f5f0e8]' : 'border border-[#1a1a1a]/20 text-[#666]'}`}>
+          className={`flex-shrink-0 px-5 py-2 rounded-full text-sm font-bold transition-all relative ${activeTab === 'members' ? 'bg-[#1a1a1a] text-[#f5f0e8]' : 'border border-[#1a1a1a]/20 text-[#666]'}`}>
           Membership
           {pendingRequests > 0 && (
             <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold w-4 h-4 rounded-full flex items-center justify-center">{pendingRequests}</span>
           )}
+        </button>
+        <button onClick={() => { setActiveTab('customers'); setCustomers([]); setSelectedCustomer(null) }}
+          className={`flex-shrink-0 px-5 py-2 rounded-full text-sm font-bold transition-all ${activeTab === 'customers' ? 'bg-[#1a1a1a] text-[#f5f0e8]' : 'border border-[#1a1a1a]/20 text-[#666]'}`}>
+          Customers
         </button>
       </div>
 
@@ -401,7 +431,139 @@ export default function AdminPage() {
           )}
         </div>
       )}
+      {/* CUSTOMERS TAB */}
+      {activeTab === 'customers' && (
+        <div className="px-4 pb-24 max-w-2xl mx-auto pt-6">
+          <h2 style={{fontFamily: 'Georgia, serif'}} className="text-xl font-bold mb-4">Customer Lookup</h2>
 
+          {/* SEARCH */}
+          <div className="flex gap-2 mb-6">
+            <input
+              type="text"
+              placeholder="Search by name or phone..."
+              value={customerSearch}
+              onChange={e => setCustomerSearch(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') searchCustomers() }}
+              className="flex-1 bg-white border border-[#e0d9cc] rounded-xl px-4 py-3 text-sm outline-none focus:border-[#c9a84c] placeholder-[#bbb]"
+            />
+            <button onClick={searchCustomers} disabled={loadingCustomers}
+              className="bg-[#1a1a1a] text-[#f5f0e8] font-bold px-5 py-3 rounded-xl text-sm hover:bg-[#333] transition-all disabled:opacity-50">
+              {loadingCustomers ? '...' : 'Search'}
+            </button>
+          </div>
+
+          {/* RESULTS */}
+          {!selectedCustomer ? (
+            <div className="flex flex-col gap-3">
+              {customers.length === 0 && customerSearch && !loadingCustomers && (
+                <div className="text-center text-[#999] py-10">
+                  <div className="text-3xl mb-2">🔍</div>
+                  <p>No customers found</p>
+                </div>
+              )}
+              {customers.map((c: any) => (
+                <div key={c.id} onClick={async () => { setSelectedCustomer(c); await loadCustomerOrders(c.customer_phone) }}
+                  className="bg-white border border-[#e0d9cc] rounded-2xl p-4 cursor-pointer hover:border-[#c9a84c] transition-all">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <div style={{fontFamily: 'Georgia, serif'}} className="font-bold">{c.customer_name}</div>
+                      <div className="text-[#999] text-xs">{c.customer_phone}</div>
+                    </div>
+                    <span className={`text-xs font-bold px-3 py-1 rounded-full ${
+                      c.membership_tier === 'house' ? 'bg-[#1a1a1a] text-[#c9a84c]' :
+                      c.membership_tier === 'member' ? 'bg-green-100 text-green-700' :
+                      'bg-gray-100 text-gray-600'
+                    }`}>
+                      {c.membership_tier === 'house' ? 'The House' : c.membership_tier === 'member' ? 'Member' : 'Guest'}
+                    </span>
+                  </div>
+                  <div className="flex gap-4 text-xs text-[#999]">
+                    <span>⭐ {c.points || 0} points</span>
+                    <span>🛒 {c.purchase_count || 0} orders</span>
+                    <span>💰 ${(c.total_spent || 0).toFixed(0)} spent</span>
+                    {c.referral_count > 0 && <span>🎁 {c.referral_count} referrals</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div>
+              <button onClick={() => { setSelectedCustomer(null); setCustomerOrders([]) }}
+                className="text-[#999] text-sm mb-4 flex items-center gap-1 hover:text-[#1a1a1a]">← Back to results</button>
+
+              {/* CUSTOMER PROFILE */}
+              <div className="bg-[#1a1a1a] text-[#f5f0e8] rounded-2xl p-5 mb-4">
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <div style={{fontFamily: 'Georgia, serif'}} className="text-xl font-bold">{selectedCustomer.customer_name}</div>
+                    <a href={`tel:${selectedCustomer.customer_phone}`} className="text-[#c9a84c] text-sm font-bold">📞 {selectedCustomer.customer_phone}</a>
+                  </div>
+                  <span className={`text-xs font-bold px-3 py-1 rounded-full ${
+                    selectedCustomer.membership_tier === 'house' ? 'bg-[#c9a84c]/20 text-[#c9a84c]' :
+                    selectedCustomer.membership_tier === 'member' ? 'bg-green-900/30 text-green-400' :
+                    'bg-white/10 text-[#999]'
+                  }`}>
+                    {selectedCustomer.membership_tier === 'house' ? '👑 The House' : selectedCustomer.membership_tier === 'member' ? '✓ Member' : 'Guest'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-3 mb-4">
+                  <div className="bg-white/5 rounded-xl p-3 text-center">
+                    <div className="text-[#c9a84c] text-xl font-bold">{selectedCustomer.points || 0}</div>
+                    <div className="text-[#999] text-xs">Points</div>
+                  </div>
+                  <div className="bg-white/5 rounded-xl p-3 text-center">
+                    <div className="text-xl font-bold">{selectedCustomer.purchase_count || 0}</div>
+                    <div className="text-[#999] text-xs">Orders</div>
+                  </div>
+                  <div className="bg-white/5 rounded-xl p-3 text-center">
+                    <div className="text-xl font-bold">${(selectedCustomer.total_spent || 0).toFixed(0)}</div>
+                    <div className="text-[#999] text-xs">Spent</div>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1 text-xs text-[#999]">
+                  {selectedCustomer.referral_code && <span>🔗 Referral code: <span className="text-[#c9a84c] font-mono font-bold">{selectedCustomer.referral_code}</span></span>}
+                  {selectedCustomer.referred_by && <span>👥 Referred by: <span className="font-bold text-[#f5f0e8]">{selectedCustomer.referred_by}</span></span>}
+                  {selectedCustomer.referral_count > 0 && <span>🎁 Successful referrals: <span className="font-bold text-[#f5f0e8]">{selectedCustomer.referral_count}</span></span>}
+                  {selectedCustomer.pending_referral_reward && <span>⏳ Pending reward: <span className="font-bold text-[#c9a84c]">{selectedCustomer.pending_referral_reward}</span></span>}
+                  {selectedCustomer.email && <span>📧 {selectedCustomer.email}</span>}
+                  {selectedCustomer.birthday && <span>🎂 {selectedCustomer.birthday}</span>}
+                  {selectedCustomer.house_paid_until && <span>💳 House paid until: {selectedCustomer.house_paid_until}</span>}
+                </div>
+              </div>
+
+              {/* ORDER HISTORY */}
+              <h3 style={{fontFamily: 'Georgia, serif'}} className="text-lg font-bold mb-3">Order History</h3>
+              {customerOrders.length === 0 ? (
+                <div className="text-center text-[#999] py-8 bg-white border border-[#e0d9cc] rounded-2xl">
+                  <p>No orders yet</p>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {customerOrders.map((order: any) => (
+                    <div key={order.id} className="bg-white border border-[#e0d9cc] rounded-2xl p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="text-xs text-[#999]">{new Date(order.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                          order.status === 'delivered' ? 'bg-green-100 text-green-700' :
+                          order.status === 'cancelled' ? 'bg-red-100 text-red-600' :
+                          'bg-amber-100 text-amber-700'
+                        }`}>{order.status.replace(/_/g, ' ')}</span>
+                      </div>
+                      <div className="text-xs text-[#666] mb-2">
+                        {Array.isArray(order.items) ? order.items.map((i: any) => `${i.emoji} ${i.name} x${i.qty}`).join(', ') : ''}
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-[#999]">{order.customer_address === 'PICKUP' ? '📍 Pickup' : '🚗 Delivery'}</span>
+                        <span className="font-bold text-[#c9a84c]">${order.total}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
       {selectedOrder && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setSelectedOrder(null)} />
