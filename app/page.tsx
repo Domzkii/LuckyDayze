@@ -137,7 +137,7 @@ const [pullDistance, setPullDistance] = useState(0)
     const totalRegular = regularPreRolls.reduce((sum: number, i: any) => sum + i.qty, 0)
     const totalMini = miniPreRolls.reduce((sum: number, i: any) => sum + i.qty, 0)
     const totalRegularCost = (Math.floor(totalRegular / 2) * 25) + (totalRegular % 2 * 15)
-    const totalMiniCost = (Math.floor(totalMini / 2) * 15) + (totalMini % 2 * 10)
+    const totalMiniCost = Math.floor(totalMini / 4) * 20 + (totalMini % 4) * 10
 
     return cart.map((i: any) => {
       if (i.category !== 'Pre-Rolls' || i.isReward) return i
@@ -299,6 +299,7 @@ const [pullDistance, setPullDistance] = useState(0)
 
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Good Morning ☀️' : hour < 17 ? 'Good Afternoon 🌤️' : hour < 21 ? 'Good Evening 🌙' : 'Late Night Vibes 🌙'
+  const greetingColor = hour < 12 ? 'text-orange-400' : hour < 17 ? 'text-green-500' : hour < 21 ? 'text-purple-400' : 'text-purple-600'
   const welcomeMessages = [
     // Witty
     'What are we smoking today?',
@@ -439,7 +440,7 @@ const [pullDistance, setPullDistance] = useState(0)
           </div>
           <p className={`text-xs mb-1 ${text3}`}>{product.thc} THC</p>
           {isLowStock && <p className="text-amber-500 text-xs font-bold mb-1">⚠ Low Stock</p>}
-          {!isFlower && product.price < 15 && <p className="text-green-500 text-xs font-bold mb-1">🎉 2 for $15</p>}
+          {!isFlower && product.price < 15 && <p className="text-green-500 text-xs font-bold mb-1">🎉 4 for $20</p>}
           {!isFlower && product.price >= 15 && <p className="text-green-500 text-xs font-bold mb-1">🎉 2 for $25</p>}
 
           {isFlower && Object.keys(weightPrices).length > 0 && (
@@ -576,7 +577,7 @@ const [pullDistance, setPullDistance] = useState(0)
 
       {/* HERO */}
       <section className={`px-6 py-16 max-w-2xl border-b ${border}`}>
-        <p className="text-xs font-bold tracking-widest uppercase text-[#c9a84c] mb-2">{greeting} · Fast Delivery · NYC</p>
+        <p className={`text-sm font-bold tracking-widest uppercase mb-2 ${greetingColor}`}>{greeting} · Fast Delivery · NYC</p>
         <h1 style={{fontFamily: 'Georgia, serif'}} className="text-5xl font-bold leading-tight mb-3">
           Premium Cannabis<br /><span className="italic text-[#c9a84c]">Delivered Fast.</span>
         </h1>
