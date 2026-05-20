@@ -298,8 +298,8 @@ const [pullDistance, setPullDistance] = useState(0)
   const input = dark ? 'bg-[#222] border-[#444] text-[#f5f0e8] placeholder-[#555]' : 'bg-[#f5f0e8] border-[#e0d9cc] text-[#1a1a1a] placeholder-[#bbb]'
 
   const hour = new Date().getHours()
-  const greeting = hour < 12 ? 'Good Morning ☀️' : hour < 17 ? 'Good Afternoon 🌤️' : hour < 21 ? 'Good Evening 🌙' : 'Late Night Vibes 🌙'
-  const greetingColor = hour < 12 ? 'text-orange-400' : hour < 17 ? 'text-green-500' : hour < 21 ? 'text-purple-400' : 'text-purple-600'
+  const greeting = hour >= 5 && hour < 12 ? 'Good Morning ☀️' : hour >= 12 && hour < 17 ? 'Good Afternoon 🌤️' : hour >= 17 && hour < 21 ? 'Good Evening 🌙' : 'Late Night Vibes 🌙'
+  const greetingColor = hour >= 5 && hour < 12 ? 'text-orange-400' : hour >= 12 && hour < 17 ? 'text-green-500' : hour >= 17 && hour < 21 ? 'text-purple-400' : 'text-purple-600'
   const welcomeMessages = [
     // Witty
     'What are we smoking today?',
