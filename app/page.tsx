@@ -578,8 +578,8 @@ const [pullDistance, setPullDistance] = useState(0)
       {/* HERO */}
       <section className={`px-6 py-16 max-w-2xl border-b ${border}`}>
         <p className={`text-sm font-bold tracking-widest uppercase mb-2 ${greetingColor}`}>{greeting} · Fast Delivery · NYC</p>
-        <h1 style={{fontFamily: 'Georgia, serif'}} className="text-5xl font-bold leading-tight mb-3">
-          Premium Cannabis<br /><span className="italic text-[#c9a84c]">Delivered Fast.</span>
+        <h1 style={{fontFamily: 'Georgia, serif'}} className="text-5xl font-bold leading-tight mb-4">
+          Premium Cannabis<br /><span className="italic text-[#c9a84c]">Delivered Right.</span>
         </h1>
         <p className={`text-base font-semibold mb-3 ${text2}`}>{welcomeMessage}</p>
         <p className={`text-lg mb-8 max-w-md ${text2} opacity-70`}>Flower, pre-rolls and more — delivered to your door reliably across all 5 boroughs.</p>
