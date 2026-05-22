@@ -582,7 +582,7 @@ const [pullDistance, setPullDistance] = useState(0)
           Premium Cannabis<br /><span className="italic text-[#c9a84c]">Delivered Fast.</span>
         </h1>
         <p className={`text-base font-semibold mb-3 ${text2}`}>{welcomeMessage}</p>
-        <p className={`text-lg mb-8 max-w-md ${text2} opacity-70`}>Flower, pre-rolls and more — delivered to your door in under 45 minutes.</p>
+        <p className={`text-lg mb-8 max-w-md ${text2} opacity-70`}>Flower, pre-rolls and more — delivered to your door reliably across all 5 boroughs.</p>
         <div className="flex gap-4 flex-wrap">
           <button onClick={() => setCartOpen(true)} className="bg-[#1a1a1a] text-[#f5f0e8] font-bold px-8 py-3 rounded-full hover:bg-[#333] transition-all active:scale-95">View Cart</button>
           <a href="/rewards" className={`border font-bold px-8 py-3 rounded-full transition-all ${dark ? 'border-white/20 text-[#f5f0e8] hover:border-white/40' : 'border-[#1a1a1a]/30 text-[#1a1a1a] hover:border-[#1a1a1a]'}`}>Rewards</a>
@@ -594,9 +594,9 @@ const [pullDistance, setPullDistance] = useState(0)
         <span className="text-2xl">🚗</span>
         <div>
           <p className="font-semibold text-[#f5f0e8]">Delivering to NYC</p>
-          <p className="text-[#f5f0e8]/50 text-sm">Open 24/7 🌙</p>
+          <p className="text-[#f5f0e8]/50 text-sm">Reliable delivery · All 5 boroughs</p>
         </div>
-        <div className="ml-auto bg-[#c9a84c]/20 text-[#c9a84c] text-sm font-bold px-4 py-1 rounded-full">⚡ 30-45 min</div>
+        <div className="ml-auto bg-[#c9a84c]/20 text-[#c9a84c] text-sm font-bold px-4 py-1 rounded-full">✓ Reliable</div>
       </div>
 
       {/* MENU */}
