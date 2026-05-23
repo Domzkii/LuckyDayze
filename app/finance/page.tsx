@@ -39,6 +39,7 @@ export default function FinancePage() {
   const [deletedProducts, setDeletedProducts] = useState<string[]>([])
   const [reupFund, setReupFund] = useState<any>(null)
   const [reupGoal, setReupGoal] = useState(800)
+  const [investmentFund, setInvestmentFund] = useState<any>(null)
 
   const [costPerQP, setCostPerQP] = useState(400)
   const [deliveryCost, setDeliveryCost] = useState(10)
@@ -76,6 +77,9 @@ export default function FinancePage() {
     const { data: reupData } = await supabase.from('reup_fund').select('*').eq('status', 'active').maybeSingle()
     setReupFund(reupData || null)
     if (reupData) setReupGoal(reupData.goal)
+    const { data: investData } = await supabase.from('investment_fund').select('*').order('created_at', { ascending: false })
+    const totalInvested = (investData || []).reduce((sum: number, i: any) => sum + (i.contribution || 0), 0)
+    setInvestmentFund({ total: totalInvested, history: investData || [] })
     setLoadingData(false)
   }
 
@@ -137,6 +141,7 @@ export default function FinancePage() {
 
     let reupContribution = 0
     let teamPayoutProfit = 0
+    let investmentContribution = 0
 
     if (reupFund && reupFund.status !== 'completed') {
       const currentBalance = reupFund.current_balance || 0
@@ -147,7 +152,8 @@ export default function FinancePage() {
         teamPayoutProfit = 0
       } else {
         reupContribution = needed
-        teamPayoutProfit = totalProfit - needed
+        investmentContribution = totalRevenue * 0.05
+        teamPayoutProfit = totalProfit - needed - investmentContribution
       }
       const newBalance = currentBalance + reupContribution
       await supabase.from('reup_fund').update({
@@ -155,7 +161,18 @@ export default function FinancePage() {
         status: newBalance >= goal ? 'completed' : 'active'
       }).eq('id', reupFund.id)
     } else {
-      teamPayoutProfit = totalProfit
+      investmentContribution = totalRevenue * 0.05
+      teamPayoutProfit = totalProfit - investmentContribution
+    }
+
+    if (investmentContribution > 0) {
+      const currentTotal = investmentFund?.total || 0
+      await supabase.from('investment_fund').insert({
+        week_id: activeWeek.id,
+        contribution: investmentContribution,
+        running_total: currentTotal + investmentContribution,
+        week_revenue: totalRevenue
+      })
     }
 
     await supabase.from('weeks').update({
@@ -194,10 +211,12 @@ export default function FinancePage() {
   const reupNeeded = reupFund ? Math.max(0, (reupFund.goal || 800) - (reupFund.current_balance || 0)) : 0
   const weekSurplus = reupFund && reupFund.status !== 'completed' ? Math.max(0, weekProfit - reupNeeded) : weekProfit
   const weekToReup = reupFund && reupFund.status !== 'completed' ? Math.min(weekProfit, reupNeeded) : 0
+  const weekInvestment = (reupFund && reupFund.status !== 'completed' && weekProfit > reupNeeded) || (reupFund && reupFund.status === 'completed') ? weekRevenue * 0.05 : 0
+  const weekTeamSurplus = Math.max(0, weekSurplus - weekInvestment)
 
   const projectedPayouts: Record<string, any> = {}
   ROLES.forEach(r => {
-    const gross = (weekSurplus * splits[r.key]) / 100
+    const gross = (weekTeamSurplus * splits[r.key]) / 100
     const deliveryShare = (weekDelivery * splits[r.key]) / 100
     projectedPayouts[r.key] = { gross, deliveryShare, net: gross - deliveryShare }
   })
@@ -266,6 +285,7 @@ export default function FinancePage() {
 
       <div className="max-w-2xl mx-auto px-6 py-8">
 
+        {/* OVERVIEW TAB */}
         {tab === 'overview' && (
           <>
             <div className="bg-[#1a1a1a] text-[#f5f0e8] rounded-2xl p-6 mb-6">
@@ -275,6 +295,7 @@ export default function FinancePage() {
                 <div><div className="text-[#999] text-xs mb-1">Net Profit</div><div style={{fontFamily: 'Georgia, serif'}} className="text-3xl font-bold">${totalProfit.toFixed(2)}</div></div>
                 <div><div className="text-[#999] text-xs mb-1">Weeks Completed</div><div className="text-xl font-bold">{weekHistory.length}</div></div>
                 <div><div className="text-[#999] text-xs mb-1">Total Orders</div><div className="text-xl font-bold">{[...new Set(sales.map((s: any) => s.order_id))].length}</div></div>
+                <div><div className="text-[#999] text-xs mb-1">Investment Fund</div><div style={{fontFamily: 'Georgia, serif'}} className="text-3xl font-bold text-green-400">${(investmentFund?.total || 0).toFixed(2)}</div></div>
               </div>
               <div className="border-t border-white/10 pt-5">
                 <div className="text-xs tracking-widest uppercase text-[#c9a84c] mb-4">All Time Payouts by Role</div>
@@ -304,6 +325,32 @@ export default function FinancePage() {
                 })}
               </div>
             </div>
+
+            {/* INVESTMENT FUND HISTORY */}
+            {investmentFund?.history?.length > 0 && (
+              <div className="bg-white border border-[#e0d9cc] rounded-2xl p-6 mb-6">
+                <h2 style={{fontFamily: 'Georgia, serif'}} className="text-lg font-bold mb-4">📈 Investment Fund History</h2>
+                <div className="flex flex-col gap-2">
+                  {investmentFund.history.map((entry: any, i: number) => (
+                    <div key={entry.id} className="flex justify-between items-center py-2 border-b border-[#e0d9cc] last:border-0">
+                      <div>
+                        <div className="text-sm font-bold">Week contribution</div>
+                        <div className="text-xs text-[#999]">{new Date(entry.created_at).toLocaleDateString()} · Revenue: ${entry.week_revenue?.toFixed(2)}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-green-600 font-bold">+${entry.contribution?.toFixed(2)}</div>
+                        <div className="text-xs text-[#999]">Total: ${entry.running_total?.toFixed(2)}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4 pt-4 border-t border-[#e0d9cc] flex justify-between font-bold">
+                  <span>Total Invested</span>
+                  <span className="text-green-600 text-lg">${(investmentFund?.total || 0).toFixed(2)}</span>
+                </div>
+              </div>
+            )}
+
             <div className="bg-white border border-[#e0d9cc] rounded-2xl p-6 mb-6">
               <h2 style={{fontFamily: 'Georgia, serif'}} className="text-lg font-bold mb-4">Inventory Status</h2>
               <div className="flex flex-col gap-3">
@@ -330,6 +377,7 @@ export default function FinancePage() {
           </>
         )}
 
+        {/* THIS WEEK TAB */}
         {tab === 'week' && (
           <>
             {reupFund && (
@@ -360,6 +408,38 @@ export default function FinancePage() {
               </div>
             )}
 
+            {/* INVESTMENT FUND CARD */}
+            <div className="bg-white border border-[#e0d9cc] rounded-2xl p-5 mb-6">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <div className="text-xs uppercase tracking-wider text-[#999] mb-1">Investment Fund</div>
+                  <div style={{fontFamily: 'Georgia, serif'}} className="text-lg font-bold">📈 Building Wealth</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-green-600 text-2xl font-bold">${(investmentFund?.total || 0).toFixed(2)}</div>
+                  <div className="text-[#999] text-xs">total invested</div>
+                </div>
+              </div>
+              <div className="bg-[#f5f0e8] rounded-xl p-3">
+                <div className="flex justify-between text-sm mb-1">
+                  <span className="text-[#666]">Rate</span>
+                  <span className="font-bold">5% of weekly revenue</span>
+                </div>
+                <div className="flex justify-between text-sm mb-1">
+                  <span className="text-[#666]">Triggers when</span>
+                  <span className="font-bold">Re-Up goal is met</span>
+                </div>
+                <div className="flex justify-between text-sm mb-1">
+                  <span className="text-[#666]">This week projection</span>
+                  <span className="font-bold text-green-600">${weekInvestment.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-[#666]">Strategy</span>
+                  <span className="font-bold">Index funds / ETFs</span>
+                </div>
+              </div>
+            </div>
+
             {!activeWeek ? (
               <div className="bg-white border border-[#e0d9cc] rounded-2xl p-8 text-center mb-6">
                 <div className="text-4xl mb-4">📅</div>
@@ -389,9 +469,13 @@ export default function FinancePage() {
                         <span className="text-[#999]">Goes to Re-Up Fund</span>
                         <span className="text-[#c9a84c] font-bold">${weekToReup.toFixed(2)}</span>
                       </div>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="text-[#999]">📈 Investment Fund (5%)</span>
+                        <span className="text-green-400 font-bold">${weekInvestment.toFixed(2)}</span>
+                      </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-[#999]">Available for team</span>
-                        <span className="font-bold">${weekSurplus.toFixed(2)}</span>
+                        <span className="font-bold">${weekTeamSurplus.toFixed(2)}</span>
                       </div>
                     </div>
                   )}
@@ -464,6 +548,7 @@ export default function FinancePage() {
           </>
         )}
 
+        {/* HISTORY TAB */}
         {tab === 'history' && (
           <>
             <h2 style={{fontFamily: 'Georgia, serif'}} className="text-2xl font-bold mb-6">Week History</h2>
@@ -486,9 +571,18 @@ export default function FinancePage() {
                     <div className="grid grid-cols-2 gap-3 mb-4">
                       <div className="bg-[#f5f0e8] rounded-xl p-3"><div className="text-xs text-[#999] mb-1">Revenue</div><div className="font-bold text-[#c9a84c]">${week.total_revenue?.toFixed(2)}</div></div>
                       <div className="bg-[#f5f0e8] rounded-xl p-3"><div className="text-xs text-[#999] mb-1">Net Profit</div><div className="font-bold">${week.total_profit?.toFixed(2)}</div></div>
-                      <div className="bg-[#f5f0e8] rounded-xl p-3"><div className="text-xs text-[#999] mb-1">Oz Sold</div><div className="font-bold">{(week.total_grams_sold / 28).toFixed(2)}oz ({week.total_grams_sold?.toFixed(1)}g)</div></div>
+                      <div className="bg-[#f5f0e8] rounded-xl p-3"><div className="text-xs text-[#999] mb-1">Oz Sold</div><div className="font-bold">{((week.total_grams_sold || 0) / 28).toFixed(2)}oz ({week.total_grams_sold?.toFixed(1)}g)</div></div>
                       <div className="bg-[#f5f0e8] rounded-xl p-3"><div className="text-xs text-[#999] mb-1">Delivery Costs</div><div className="font-bold text-red-500">${week.total_delivery_costs?.toFixed(2)}</div></div>
                     </div>
+                    {/* Investment fund contribution for this week */}
+                    {investmentFund?.history?.find((i: any) => i.week_id === week.id) && (
+                      <div className="bg-green-50 border border-green-200 rounded-xl p-3 mb-4">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-green-700 font-bold">📈 Investment Fund</span>
+                          <span className="text-green-700 font-bold">+${investmentFund.history.find((i: any) => i.week_id === week.id)?.contribution?.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    )}
                     <WeekPayouts weekId={week.id} />
                   </div>
                 ))}
@@ -497,6 +591,7 @@ export default function FinancePage() {
           </>
         )}
 
+        {/* SIMULATOR TAB */}
         {tab === 'simulator' && (
           <>
             <div className="bg-white border border-[#e0d9cc] rounded-2xl p-6 mb-6">
@@ -557,7 +652,6 @@ export default function FinancePage() {
             <h2 style={{fontFamily: 'Georgia, serif'}} className="text-xl font-bold mb-2">Start New Week</h2>
             <p className="text-[#999] text-sm mb-5">Set your inventory in ounces and Re-Up goal for this week.</p>
 
-            {/* RE-UP GOAL */}
             <div className="bg-[#1a1a1a] text-[#f5f0e8] rounded-2xl p-4 mb-5">
               <div className="text-xs tracking-widest uppercase text-[#c9a84c] mb-2">Re-Up Goal</div>
               <p className="text-[#999] text-xs mb-3">All profit goes here first. Team gets paid once goal is met.</p>
@@ -570,7 +664,6 @@ export default function FinancePage() {
               </div>
             </div>
 
-            {/* EXISTING PRODUCTS */}
             <div className="flex flex-col gap-3 mb-4">
               {products.filter((p: any) => p.category !== 'Pre-Rolls' && !deletedProducts.includes(p.id)).map((product: any) => (
                 <div key={product.id}>
@@ -594,7 +687,6 @@ export default function FinancePage() {
               ))}
             </div>
 
-            {/* NEW STRAINS */}
             {newStrains.map((strain, idx) => (
               <div key={idx} className="mb-3 bg-white border border-[#c9a84c]/30 rounded-xl p-3">
                 <div className="flex items-center justify-between mb-2">
@@ -624,7 +716,6 @@ export default function FinancePage() {
               + Add New Strain
             </button>
 
-            {/* BREAKDOWN */}
             <div className="bg-white border border-[#e0d9cc] rounded-xl p-4 mb-4">
               <div className="text-xs uppercase tracking-wider text-[#999] mb-3">Inventory Breakdown</div>
               {products.filter((p: any) => p.category !== 'Pre-Rolls' && !deletedProducts.includes(p.id)).map((product: any) => {
@@ -682,14 +773,21 @@ export default function FinancePage() {
                   </div>
                   <div className="flex justify-between text-sm py-1.5 border-b border-[#e0d9cc] mb-3">
                     <span className="text-[#999]">Available for team</span>
-                    <span className="font-bold">${weekSurplus.toFixed(2)}</span>
+                    <span className="font-bold">${weekTeamSurplus.toFixed(2)}</span>
                   </div>
-                  {weekSurplus === 0 && (
+                  {weekTeamSurplus === 0 && (
                     <p className="text-xs text-amber-600 mb-3">All profit goes to Re-Up this week. ${reupNeeded.toFixed(0)} still needed.</p>
                   )}
-                  <div className="text-xs uppercase tracking-wider text-[#999] mb-3">Team Payouts</div>
+                  <div className="text-xs uppercase tracking-wider text-[#999] mb-3">Deductions</div>
                 </>
               )}
+              {weekInvestment > 0 && (
+                <div className="flex justify-between text-sm py-1.5 border-b border-[#e0d9cc]">
+                  <span className="font-bold text-green-600">📈 Investment Fund (5%)</span>
+                  <span className="font-bold text-green-600">${weekInvestment.toFixed(2)}</span>
+                </div>
+              )}
+              <div className="text-xs uppercase tracking-wider text-[#999] mb-3 mt-3">Team Payouts</div>
               {ROLES.map(role => (
                 <div key={role.key} className="flex justify-between text-sm py-1.5 border-b border-[#e0d9cc] last:border-0">
                   <span className="font-bold">{role.label}</span>
