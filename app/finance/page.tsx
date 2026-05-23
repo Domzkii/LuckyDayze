@@ -93,7 +93,8 @@ export default function FinancePage() {
         const { data: inserted } = await supabase.from('products').insert({
           name: newStrain.name, category: 'Flower', price: 40, thc: '—',
           strain_type: 'Hybrid', description: 'New strain', emoji: '🌿',
-          in_stock: true, stock_grams: Number(newStrain.grams)
+          in_stock: true, stock_grams: Number(newStrain.grams),
+          weight_prices: newStrain.weight_prices || {"3.5": 30, "7": 70, "14": 130, "28": 240}
         }).select().single()
         if (inserted) productGrams[inserted.id] = Number(newStrain.grams)
       }
@@ -683,6 +684,23 @@ export default function FinancePage() {
                       = {productGrams[product.id].toFixed(1)}g · {(productGrams[product.id] / 28).toFixed(2)}oz · {(productGrams[product.id] / 112).toFixed(2)} QP
                     </p>
                   )}
+                  <div className="grid grid-cols-4 gap-1 mt-2">
+                    {[{label:'1/8', key:'3.5'}, {label:'1/4', key:'7'}, {label:'1/2', key:'14'}, {label:'1oz', key:'28'}].map(w => (
+                      <div key={w.key}>
+                        <label className="text-xs text-[#999] block mb-1 text-center">{w.label}</label>
+                        <input type="number" placeholder="$0"
+                          value={(() => { try { const wp = JSON.parse(JSON.stringify(product.weight_prices || {})); return wp[w.key] || '' } catch { return '' } })()}
+                          onChange={async e => {
+                            const val = Number(e.target.value)
+                            const current = product.weight_prices || {}
+                            const updated = { ...current, [w.key]: val }
+                            await supabase.from('products').update({ weight_prices: updated }).eq('id', product.id)
+                            setProducts(prev => prev.map((p: any) => p.id === product.id ? { ...p, weight_prices: updated } : p))
+                          }}
+                          className="w-full bg-[#f5f0e8] border border-[#e0d9cc] rounded-lg px-2 py-1.5 text-xs outline-none focus:border-[#c9a84c] text-center" />
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ))}
             </div>
@@ -708,6 +726,17 @@ export default function FinancePage() {
                     = {Number(strain.grams).toFixed(1)}g · {(Number(strain.grams) / 28).toFixed(2)}oz · {(Number(strain.grams) / 112).toFixed(2)} QP
                   </p>
                 )}
+                <div className="grid grid-cols-4 gap-1 mt-2">
+                  {[{label:'1/8', key:'3.5'}, {label:'1/4', key:'7'}, {label:'1/2', key:'14'}, {label:'1oz', key:'28'}].map(w => (
+                    <div key={w.key}>
+                      <label className="text-xs text-[#999] block mb-1 text-center">{w.label}</label>
+                      <input type="number" placeholder="$0"
+                        value={strain.weight_prices?.[w.key] || ''}
+                        onChange={e => setNewStrains(prev => prev.map((s, i) => i === idx ? { ...s, weight_prices: { ...(s.weight_prices || {}), [w.key]: Number(e.target.value) } } : s))}
+                        className="w-full bg-white border border-[#e0d9cc] rounded-lg px-2 py-1.5 text-xs outline-none focus:border-[#c9a84c] text-center" />
+                    </div>
+                  ))}
+                </div>
               </div>
             ))}
 
