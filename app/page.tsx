@@ -410,8 +410,8 @@ const [pullDistance, setPullDistance] = useState(0)
   ]
   const [welcomeMessage] = useState(() => welcomeMessages[Math.floor(Math.random() * welcomeMessages.length)])
 
-  const flowerProducts = products.filter((p: any) => p.category === 'Flower')
-  const preRollProducts = products.filter((p: any) => p.category === 'Pre-Rolls')
+  const flowerProducts = products.filter((p: any) => p.category === 'Flower' && !p.archived && p.in_stock)
+const preRollProducts = products.filter((p: any) => p.category === 'Pre-Rolls' && !p.archived && p.in_stock)
 
   function ProductCard({ product }: { product: any }) {
     const isFlower = product.category === 'Flower'

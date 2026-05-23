@@ -100,7 +100,7 @@ export default function FinancePage() {
     }
 
     for (const id of deletedProducts) {
-      await supabase.from('products').delete().eq('id', id)
+      await supabase.from('products').update({ archived: true }).eq('id', id)
     }
 
     const { data: newWeek } = await supabase.from('weeks').insert({
@@ -665,7 +665,7 @@ export default function FinancePage() {
             </div>
 
             <div className="flex flex-col gap-3 mb-4">
-              {products.filter((p: any) => p.category !== 'Pre-Rolls' && !deletedProducts.includes(p.id)).map((product: any) => (
+              {products.filter((p: any) => p.category !== 'Pre-Rolls' && !p.archived && !deletedProducts.includes(p.id)).map((product: any) => (
                 <div key={product.id}>
                   <div className="flex items-center justify-between mb-1">
                     <label className="text-sm font-bold">{product.emoji} {product.name}</label>
@@ -718,7 +718,7 @@ export default function FinancePage() {
 
             <div className="bg-white border border-[#e0d9cc] rounded-xl p-4 mb-4">
               <div className="text-xs uppercase tracking-wider text-[#999] mb-3">Inventory Breakdown</div>
-              {products.filter((p: any) => p.category !== 'Pre-Rolls' && !deletedProducts.includes(p.id)).map((product: any) => {
+              {products.filter((p: any) => p.category !== 'Pre-Rolls' && !p.archived && !deletedProducts.includes(p.id)).map((product: any) => {
                 const g = Number(productGrams[product.id] || 0)
                 if (!g) return null
                 return (
