@@ -108,7 +108,6 @@ export default function FinancePage() {
       await supabase.from('products').update({ stock_grams: Number(productGrams[product.id]) || 0 }).eq('id', product.id)
     }
 
-    // Set up Re-Up fund for this week
     if (reupFund) {
       await supabase.from('reup_fund').update({
         goal: reupGoal, current_balance: 0, status: 'active', week_id: newWeek?.id || null
@@ -309,13 +308,16 @@ export default function FinancePage() {
               <h2 style={{fontFamily: 'Georgia, serif'}} className="text-lg font-bold mb-4">Inventory Status</h2>
               <div className="flex flex-col gap-3">
                 {products.filter((p: any) => p.category !== 'Pre-Rolls').map((p: any) => {
+                  const stockOz = (p.stock_grams || 0) / 28
                   const stockPct = Math.max(0, Math.min(100, ((p.stock_grams || 0) / 112) * 100))
                   const isLow = (p.stock_grams || 0) < 14
                   return (
                     <div key={p.id}>
                       <div className="flex justify-between text-sm mb-1">
                         <span className="font-bold">{p.name}</span>
-                        <span className={`font-bold ${isLow ? 'text-red-500' : 'text-green-600'}`}>{isLow ? '⚠ Low — ' : '✓ '}{(p.stock_grams || 0).toFixed(1)}g left</span>
+                        <span className={`font-bold ${isLow ? 'text-red-500' : 'text-green-600'}`}>
+                          {isLow ? '⚠ Low — ' : '✓ '}{stockOz.toFixed(2)}oz ({(p.stock_grams || 0).toFixed(1)}g)
+                        </span>
                       </div>
                       <div className="h-2 bg-[#f0ebe0] rounded-full overflow-hidden">
                         <div className={`h-full rounded-full ${isLow ? 'bg-red-400' : 'bg-[#c9a84c]'}`} style={{ width: `${stockPct}%` }} />
@@ -378,7 +380,7 @@ export default function FinancePage() {
                   <div className="grid grid-cols-2 gap-4 mb-4">
                     <div><div className="text-[#999] text-xs mb-1">Revenue This Week</div><div className="text-2xl font-bold text-[#c9a84c]">${weekRevenue.toFixed(2)}</div></div>
                     <div><div className="text-[#999] text-xs mb-1">Profit This Week</div><div className="text-2xl font-bold">${weekProfit.toFixed(2)}</div></div>
-                    <div><div className="text-[#999] text-xs mb-1">Grams Sold</div><div className="text-xl font-bold">{weekGramsSold.toFixed(1)}g</div></div>
+                    <div><div className="text-[#999] text-xs mb-1">Oz Sold</div><div className="text-xl font-bold">{(weekGramsSold / 28).toFixed(2)}oz ({weekGramsSold.toFixed(1)}g)</div></div>
                     <div><div className="text-[#999] text-xs mb-1">Delivery Costs</div><div className="text-xl font-bold text-red-400">${weekDelivery.toFixed(2)}</div></div>
                   </div>
                   {reupFund && reupFund.status !== 'completed' && (
@@ -413,7 +415,10 @@ export default function FinancePage() {
                       {weekSales.map((sale: any) => (
                         <div key={sale.id} className="py-3 border-b border-[#e0d9cc] last:border-0">
                           <div className="flex items-center justify-between text-sm mb-2">
-                            <div><div className="font-bold">{sale.product_name}</div><div className="text-[#999] text-xs">{sale.grams_sold}g · {new Date(sale.created_at).toLocaleDateString()}</div></div>
+                            <div>
+                              <div className="font-bold">{sale.product_name}</div>
+                              <div className="text-[#999] text-xs">{(sale.grams_sold / 28).toFixed(2)}oz ({sale.grams_sold}g) · {new Date(sale.created_at).toLocaleDateString()}</div>
+                            </div>
                             <div className="text-right"><div className="font-bold">${sale.revenue?.toFixed(2)}</div><div className="text-green-600 text-xs">+${sale.net_profit?.toFixed(2)} profit</div></div>
                           </div>
                           {sale.delivery_shares && (
@@ -481,7 +486,7 @@ export default function FinancePage() {
                     <div className="grid grid-cols-2 gap-3 mb-4">
                       <div className="bg-[#f5f0e8] rounded-xl p-3"><div className="text-xs text-[#999] mb-1">Revenue</div><div className="font-bold text-[#c9a84c]">${week.total_revenue?.toFixed(2)}</div></div>
                       <div className="bg-[#f5f0e8] rounded-xl p-3"><div className="text-xs text-[#999] mb-1">Net Profit</div><div className="font-bold">${week.total_profit?.toFixed(2)}</div></div>
-                      <div className="bg-[#f5f0e8] rounded-xl p-3"><div className="text-xs text-[#999] mb-1">Grams Sold</div><div className="font-bold">{week.total_grams_sold?.toFixed(1)}g</div></div>
+                      <div className="bg-[#f5f0e8] rounded-xl p-3"><div className="text-xs text-[#999] mb-1">Oz Sold</div><div className="font-bold">{(week.total_grams_sold / 28).toFixed(2)}oz ({week.total_grams_sold?.toFixed(1)}g)</div></div>
                       <div className="bg-[#f5f0e8] rounded-xl p-3"><div className="text-xs text-[#999] mb-1">Delivery Costs</div><div className="font-bold text-red-500">${week.total_delivery_costs?.toFixed(2)}</div></div>
                     </div>
                     <WeekPayouts weekId={week.id} />
@@ -550,19 +555,15 @@ export default function FinancePage() {
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowNewWeek(false)} />
           <div className="relative w-full max-w-sm bg-[#f5f0e8] border border-[#e0d9cc] rounded-2xl p-6 max-h-[90vh] overflow-y-auto">
             <h2 style={{fontFamily: 'Georgia, serif'}} className="text-xl font-bold mb-2">Start New Week</h2>
-            <p className="text-[#999] text-sm mb-5">Set your inventory and Re-Up goal for this week.</p>
+            <p className="text-[#999] text-sm mb-5">Set your inventory in ounces and Re-Up goal for this week.</p>
 
-            {/* RE-UP GOAL INPUT */}
+            {/* RE-UP GOAL */}
             <div className="bg-[#1a1a1a] text-[#f5f0e8] rounded-2xl p-4 mb-5">
               <div className="text-xs tracking-widest uppercase text-[#c9a84c] mb-2">Re-Up Goal</div>
               <p className="text-[#999] text-xs mb-3">All profit goes here first. Team gets paid once goal is met.</p>
-              <input
-                type="number"
-                value={reupGoal}
-                onChange={e => setReupGoal(Number(e.target.value))}
+              <input type="number" value={reupGoal} onChange={e => setReupGoal(Number(e.target.value))}
                 className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-2 text-sm outline-none focus:border-[#c9a84c] text-[#f5f0e8] placeholder-[#999] mb-2"
-                placeholder="800"
-              />
+                placeholder="800" />
               <div className="flex justify-between text-xs text-[#999]">
                 <span>2 QPs = $800 recommended</span>
                 <span className="text-[#c9a84c] font-bold">{(reupGoal / 400).toFixed(1)} QPs</span>
@@ -577,13 +578,23 @@ export default function FinancePage() {
                     <label className="text-sm font-bold">{product.emoji} {product.name}</label>
                     <button onClick={() => setDeletedProducts(prev => [...prev, product.id])} className="text-xs text-red-400 hover:text-red-600 font-bold">Remove</button>
                   </div>
-                  <input type="number" placeholder="0" value={productGrams[product.id] || ''}
-                    onChange={e => setProductGrams(prev => ({ ...prev, [product.id]: Number(e.target.value) }))}
-                    className="w-full bg-white border border-[#e0d9cc] rounded-xl px-4 py-2 text-sm outline-none focus:border-[#c9a84c]" />
+                  <div className="flex items-center gap-2">
+                    <input type="number" placeholder="0" step="0.5"
+                      value={productGrams[product.id] ? productGrams[product.id] / 28 : ''}
+                      onChange={e => setProductGrams(prev => ({ ...prev, [product.id]: Number(e.target.value) * 28 }))}
+                      className="w-full bg-white border border-[#e0d9cc] rounded-xl px-4 py-2 text-sm outline-none focus:border-[#c9a84c]" />
+                    <span className="text-sm font-bold text-[#999] flex-shrink-0">oz</span>
+                  </div>
+                  {productGrams[product.id] > 0 && (
+                    <p className="text-xs text-[#c9a84c] mt-1 font-bold">
+                      = {productGrams[product.id].toFixed(1)}g · {(productGrams[product.id] / 28).toFixed(2)}oz · {(productGrams[product.id] / 112).toFixed(2)} QP
+                    </p>
+                  )}
                 </div>
               ))}
             </div>
 
+            {/* NEW STRAINS */}
             {newStrains.map((strain, idx) => (
               <div key={idx} className="mb-3 bg-white border border-[#c9a84c]/30 rounded-xl p-3">
                 <div className="flex items-center justify-between mb-2">
@@ -593,9 +604,18 @@ export default function FinancePage() {
                 <input type="text" placeholder="Strain name" value={strain.name}
                   onChange={e => setNewStrains(prev => prev.map((s, i) => i === idx ? { ...s, name: e.target.value } : s))}
                   className="w-full bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl px-3 py-2 text-sm mb-2 outline-none focus:border-[#c9a84c]" />
-                <input type="number" placeholder="Grams" value={strain.grams}
-                  onChange={e => setNewStrains(prev => prev.map((s, i) => i === idx ? { ...s, grams: e.target.value } : s))}
-                  className="w-full bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl px-3 py-2 text-sm outline-none focus:border-[#c9a84c]" />
+                <div className="flex items-center gap-2">
+                  <input type="number" placeholder="Ounces" step="0.5"
+                    value={strain.grams ? Number(strain.grams) / 28 : ''}
+                    onChange={e => setNewStrains(prev => prev.map((s, i) => i === idx ? { ...s, grams: String(Number(e.target.value) * 28) } : s))}
+                    className="w-full bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl px-3 py-2 text-sm outline-none focus:border-[#c9a84c]" />
+                  <span className="text-sm font-bold text-[#999] flex-shrink-0">oz</span>
+                </div>
+                {strain.grams && Number(strain.grams) > 0 && (
+                  <p className="text-xs text-[#c9a84c] mt-1 font-bold">
+                    = {Number(strain.grams).toFixed(1)}g · {(Number(strain.grams) / 28).toFixed(2)}oz · {(Number(strain.grams) / 112).toFixed(2)} QP
+                  </p>
+                )}
               </div>
             ))}
 
@@ -613,7 +633,7 @@ export default function FinancePage() {
                 return (
                   <div key={product.id} className="flex justify-between text-sm py-1 border-b border-[#e0d9cc] last:border-0">
                     <span className="font-bold">{product.emoji} {product.name}</span>
-                    <span className="text-[#999]">{g}g · {(g/128).toFixed(2)}oz · {(g/512).toFixed(2)} QP</span>
+                    <span className="text-[#999]">{(g/28).toFixed(2)}oz · {g.toFixed(1)}g · {(g/112).toFixed(2)} QP</span>
                   </div>
                 )
               })}
@@ -622,7 +642,7 @@ export default function FinancePage() {
                 return (
                   <div key={i} className="flex justify-between text-sm py-1 border-b border-[#e0d9cc] last:border-0">
                     <span className="font-bold">🌿 {s.name}</span>
-                    <span className="text-[#999]">{g}g · {(g/128).toFixed(2)}oz · {(g/512).toFixed(2)} QP</span>
+                    <span className="text-[#999]">{(g/28).toFixed(2)}oz · {g.toFixed(1)}g · {(g/112).toFixed(2)} QP</span>
                   </div>
                 )
               })}
@@ -634,7 +654,7 @@ export default function FinancePage() {
                       ...products.filter((p: any) => p.category !== 'Pre-Rolls' && !deletedProducts.includes(p.id)).map((p: any) => Number(productGrams[p.id] || 0)),
                       ...newStrains.filter(s => s.grams).map(s => Number(s.grams))
                     ].reduce((a, b) => a + b, 0)
-                    return `${totalG}g · ${(totalG/128).toFixed(2)}oz · ${(totalG/512).toFixed(2)} QP`
+                    return `${(totalG/28).toFixed(2)}oz · ${totalG.toFixed(1)}g · ${(totalG/112).toFixed(2)} QP`
                   })()}
                 </span>
               </div>
