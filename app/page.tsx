@@ -641,7 +641,7 @@ const preRollProducts = products.filter((p: any) => p.category === 'Pre-Rolls' &
       </nav>
 
       {/* HERO */}
-      <section className={`px-6 py-16 max-w-2xl border-b ${border}`}>
+      <section className={`px-6 py-16 max-w-2xl mx-auto border-b ${border}`}>
         <p className={`text-sm font-bold tracking-widest uppercase mb-2 ${greetingColor}`}>{greeting} · Fast Delivery · NYC</p>
         <h1 style={{fontFamily: 'Georgia, serif'}} className="text-5xl font-bold leading-tight mb-4">
           Premium Cannabis<br /><span className="italic text-[#c9a84c]">Delivered Right.</span>
@@ -655,7 +655,7 @@ const preRollProducts = products.filter((p: any) => p.category === 'Pre-Rolls' &
       </section>
 
       {/* ETA BANNER */}
-      <div className="mx-6 mt-8 bg-[#1a1a1a] rounded-2xl px-6 py-4 flex items-center gap-4 max-w-2xl">
+      <div className="mx-auto mt-8 bg-[#1a1a1a] rounded-2xl px-6 py-4 flex items-center gap-4 max-w-2xl">
         <span className="text-2xl">🚗</span>
         <div>
           <p className="font-semibold text-[#f5f0e8]">Delivering to NYC</p>
@@ -665,7 +665,7 @@ const preRollProducts = products.filter((p: any) => p.category === 'Pre-Rolls' &
       </div>
 
       {/* MENU */}
-      <section className="px-6 py-12 pb-16">
+      <section className="px-6 py-12 pb-16 max-w-2xl mx-auto">
         <div className="flex items-baseline justify-between mb-8 max-w-2xl">
           <h2 style={{fontFamily: 'Georgia, serif'}} className="text-2xl font-bold">The Menu</h2>
           <span className={`text-xs tracking-widest uppercase ${text3}`}>{[...flowerProducts, ...preRollProducts].length} products</span>
