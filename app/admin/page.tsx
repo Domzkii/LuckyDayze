@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase'
+import { useTheme } from '../theme'
 
 const STATUSES = [
   { value: 'pending_payment', label: 'Pending Payment', color: 'bg-amber-100 text-amber-700' },
@@ -34,6 +35,17 @@ interface Order {
 }
 
 export default function AdminPage() {
+  const { theme, toggle } = useTheme()
+  const dark = theme === 'dark'
+  const bg = dark ? 'bg-[#0f0f0f]' : 'bg-[#f5f0e8]'
+  const bg2 = dark ? 'bg-[#1a1a1a]' : 'bg-white'
+  const bg3 = dark ? 'bg-[#222]' : 'bg-[#f5f0e8]'
+  const text = dark ? 'text-[#f5f0e8]' : 'text-[#1a1a1a]'
+  const text2 = dark ? 'text-[#aaa]' : 'text-[#666]'
+  const text3 = dark ? 'text-[#666]' : 'text-[#999]'
+  const border = dark ? 'border-[#333]' : 'border-[#e0d9cc]'
+  const input = dark ? 'bg-[#222] border-[#444] text-[#f5f0e8] placeholder-[#555]' : 'bg-white border-[#e0d9cc] text-[#1a1a1a] placeholder-[#bbb]'
+
   const [authenticated, setAuthenticated] = useState(false)
   const [password, setPassword] = useState('')
   const [wrongPassword, setWrongPassword] = useState(false)
@@ -44,10 +56,10 @@ export default function AdminPage() {
   const [membershipRequests, setMembershipRequests] = useState<any[]>([])
   const [activeTab, setActiveTab] = useState<'orders' | 'members' | 'customers'>('orders')
   const [customerSearch, setCustomerSearch] = useState('')
-const [customers, setCustomers] = useState<any[]>([])
-const [selectedCustomer, setSelectedCustomer] = useState<any>(null)
-const [customerOrders, setCustomerOrders] = useState<any[]>([])
-const [loadingCustomers, setLoadingCustomers] = useState(false)
+  const [customers, setCustomers] = useState<any[]>([])
+  const [selectedCustomer, setSelectedCustomer] = useState<any>(null)
+  const [customerOrders, setCustomerOrders] = useState<any[]>([])
+  const [loadingCustomers, setLoadingCustomers] = useState(false)
 
   useEffect(() => {
     if (authenticated) {
@@ -65,10 +77,7 @@ const [loadingCustomers, setLoadingCustomers] = useState(false)
   }, [authenticated])
 
   async function loadOrders(notify = false) {
-    const { data } = await supabase
-      .from('orders')
-      .select('*')
-      .order('created_at', { ascending: false })
+    const { data } = await supabase.from('orders').select('*').order('created_at', { ascending: false })
     const newOrders = data || []
     if (notify && newOrders.length > orders.length) {
       const latest = newOrders[0]
@@ -84,20 +93,16 @@ const [loadingCustomers, setLoadingCustomers] = useState(false)
   }
 
   async function loadRequests() {
-    const { data } = await supabase
-      .from('membership_requests')
-      .select('*')
-      .order('created_at', { ascending: false })
+    const { data } = await supabase.from('membership_requests').select('*').order('created_at', { ascending: false })
     setMembershipRequests(data || [])
   }
-async function searchCustomers() {
+
+  async function searchCustomers() {
     if (!customerSearch) return
     setLoadingCustomers(true)
     setSelectedCustomer(null)
     setCustomerOrders([])
-    const { data } = await supabase
-      .from('loyalty')
-      .select('*')
+    const { data } = await supabase.from('loyalty').select('*')
       .or(`customer_phone.ilike.%${customerSearch}%,customer_name.ilike.%${customerSearch}%`)
       .order('created_at', { ascending: false })
     setCustomers(data || [])
@@ -105,25 +110,18 @@ async function searchCustomers() {
   }
 
   async function loadCustomerOrders(phone: string) {
-    const { data } = await supabase
-      .from('orders')
-      .select('*')
-      .eq('customer_phone', phone)
-      .order('created_at', { ascending: false })
+    const { data } = await supabase.from('orders').select('*').eq('customer_phone', phone).order('created_at', { ascending: false })
     setCustomerOrders(data || [])
   }
+
   async function handleMembership(requestId: string, customerPhone: string, tier: string, approve: boolean) {
-    await supabase.from('membership_requests').update({
-      status: approve ? 'approved' : 'declined'
-    }).eq('id', requestId)
+    await supabase.from('membership_requests').update({ status: approve ? 'approved' : 'declined' }).eq('id', requestId)
     if (approve) {
       const paidUntil = tier === 'house'
         ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
         : null
       await supabase.from('loyalty').update({
-        membership_tier: tier,
-        membership_approved: true,
-        membership_requested: null,
+        membership_tier: tier, membership_approved: true, membership_requested: null,
         ...(paidUntil ? { house_paid_until: paidUntil } : {})
       }).eq('customer_phone', customerPhone)
     } else {
@@ -137,38 +135,26 @@ async function searchCustomers() {
       const input = window.prompt('Enter actual delivery cost for this order ($):', '10')
       if (input === null) return
       const actualDeliveryCost = parseFloat(input) || 10
-
       await supabase.from('orders').update({ status }).eq('id', orderId)
-
-      const { data: activeWeek } = await supabase
-        .from('weeks').select('id').eq('status', 'active').single()
-
+      const { data: activeWeek } = await supabase.from('weeks').select('id').eq('status', 'active').single()
       const costPerGram = 400 / 112
 
-      // LOYALTY — once per order
-      const { data: loyaltyRecord } = await supabase
-        .from('loyalty').select('*').eq('customer_phone', selectedOrder.customer_phone).single()
-
+      const { data: loyaltyRecord } = await supabase.from('loyalty').select('*').eq('customer_phone', selectedOrder.customer_phone).single()
       const orderTotal = selectedOrder.total
       const currentTier = loyaltyRecord?.membership_tier || 'guest'
       const isHighSpend = orderTotal >= 50
       const pointsToAdd = (currentTier === 'member' && isHighSpend) || currentTier === 'house'
-        ? Math.floor(orderTotal) * 2
-        : Math.floor(orderTotal)
+        ? Math.floor(orderTotal) * 2 : Math.floor(orderTotal)
 
       if (loyaltyRecord) {
         const isFirstPurchase = (loyaltyRecord.purchase_count || 0) === 0
-
         await supabase.from('loyalty').update({
           purchase_count: (loyaltyRecord.purchase_count || 0) + 1,
           total_spent: (loyaltyRecord.total_spent || 0) + orderTotal,
           points: (loyaltyRecord.points || 0) + pointsToAdd
         }).eq('customer_phone', selectedOrder.customer_phone)
-
-        // Award referrer 50 points on first purchase
         if (isFirstPurchase && loyaltyRecord.referred_by) {
-          const { data: referrer } = await supabase
-            .from('loyalty').select('*').eq('referral_code', loyaltyRecord.referred_by).single()
+          const { data: referrer } = await supabase.from('loyalty').select('*').eq('referral_code', loyaltyRecord.referred_by).single()
           if (referrer) {
             await supabase.from('loyalty').update({
               points: (referrer.points || 0) + 50,
@@ -180,21 +166,15 @@ async function searchCustomers() {
         await supabase.from('loyalty').insert({
           customer_phone: selectedOrder.customer_phone,
           customer_name: selectedOrder.customer_name,
-          purchase_count: 1,
-          total_spent: orderTotal,
-          points: pointsToAdd,
-          membership_tier: 'guest',
-          membership_status: 'active',
+          purchase_count: 1, total_spent: orderTotal, points: pointsToAdd,
+          membership_tier: 'guest', membership_status: 'active',
           referral_code: Math.random().toString(36).substring(2, 8).toUpperCase()
         })
       }
 
-      // ITEM LOOP — sales + inventory
       if (Array.isArray(selectedOrder.items)) {
         for (const item of selectedOrder.items) {
-          const { data: product } = await supabase
-            .from('products').select('id, grams, stock_grams').eq('name', item.name).single()
-
+          const { data: product } = await supabase.from('products').select('id, grams, stock_grams').eq('name', item.name).single()
           const isPreRoll = item.category === 'Pre-Rolls'
           const grams = isPreRoll ? 1 : (product?.grams || 3.5)
           const gramsSold = grams * item.qty
@@ -203,13 +183,9 @@ async function searchCustomers() {
           const itemDeliveryCost = actualDeliveryCost / selectedOrder.items.length
           const netProfit = revenue - inventoryCost - itemDeliveryCost
 
-          // Deduct inventory and auto set out of stock when grams hit 0
           if (product?.id && !isPreRoll) {
             const newGrams = Math.max(0, (product.stock_grams || 0) - gramsSold)
-            await supabase.from('products').update({
-              stock_grams: newGrams,
-              in_stock: newGrams > 0
-            }).eq('id', product.id)
+            await supabase.from('products').update({ stock_grams: newGrams, in_stock: newGrams > 0 }).eq('id', product.id)
           }
 
           const roleSplits: Record<string, number> = { ceo: 35, cfo: 20, acquisitions: 25, delivery: 20 }
@@ -219,23 +195,15 @@ async function searchCustomers() {
           })
 
           await supabase.from('sales').insert({
-            order_id: orderId,
-            product_name: item.name,
-            category: item.category,
-            grams_sold: gramsSold,
-            revenue,
-            inventory_cost: inventoryCost,
-            delivery_cost: itemDeliveryCost,
-            net_profit: netProfit,
-            delivery_shares: roleDeliveryShares,
-            status: 'delivered',
-            week_id: activeWeek?.id || null
+            order_id: orderId, product_name: item.name, category: item.category,
+            grams_sold: gramsSold, revenue, inventory_cost: inventoryCost,
+            delivery_cost: itemDeliveryCost, net_profit: netProfit,
+            delivery_shares: roleDeliveryShares, status: 'delivered', week_id: activeWeek?.id || null
           })
 
           if (isPreRoll) {
-            const { data: flowerProducts } = await supabase
-              .from('products').select('id, stock_grams').eq('category', 'Flower')
-              .order('stock_grams', { ascending: false }).limit(1)
+            const { data: flowerProducts } = await supabase.from('products').select('id, stock_grams')
+              .eq('category', 'Flower').order('stock_grams', { ascending: false }).limit(1)
             if (flowerProducts && flowerProducts.length > 0) {
               const newStock = Math.max(0, (flowerProducts[0].stock_grams || 0) - gramsSold)
               await supabase.from('products').update({ stock_grams: newStock }).eq('id', flowerProducts[0].id)
@@ -249,21 +217,15 @@ async function searchCustomers() {
     } else {
       await supabase.from('orders').update({ status }).eq('id', orderId)
     }
-    // Auto-update popular badge based on most sold strain
-    const { data: topStrain } = await supabase
-      .from('sales')
-      .select('product_name, grams_sold')
-      .eq('category', 'Flower')
+
+    const { data: topStrain } = await supabase.from('sales').select('product_name, grams_sold').eq('category', 'Flower')
       .then(async ({ data }) => {
         if (!data) return { data: null }
         const totals: Record<string, number> = {}
-        data.forEach((s: any) => {
-          totals[s.product_name] = (totals[s.product_name] || 0) + s.grams_sold
-        })
+        data.forEach((s: any) => { totals[s.product_name] = (totals[s.product_name] || 0) + s.grams_sold })
         const top = Object.entries(totals).sort((a, b) => b[1] - a[1])[0]
         return { data: top ? top[0] : null }
       })
-
     if (topStrain) {
       await supabase.from('products').update({ is_popular: false }).eq('category', 'Flower')
       await supabase.from('products').update({ is_popular: true }).eq('name', topStrain)
@@ -275,15 +237,11 @@ async function searchCustomers() {
   function getStatusStyle(status: string) {
     return STATUSES.find(s => s.value === status)?.color || 'bg-gray-100 text-gray-600'
   }
-
   function getStatusLabel(status: string) {
     return STATUSES.find(s => s.value === status)?.label || status
   }
-
   function formatTime(ts: string) {
-    return new Date(ts).toLocaleString('en-US', {
-      month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true
-    })
+    return new Date(ts).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
   }
 
   const filtered = filter === 'all' ? orders : orders.filter(o => o.status === filter)
@@ -295,18 +253,18 @@ async function searchCustomers() {
 
   if (!authenticated) {
     return (
-      <main className="min-h-screen bg-[#f5f0e8] text-[#1a1a1a] flex flex-col items-center justify-center px-6">
+      <main className={`min-h-screen ${bg} ${text} flex flex-col items-center justify-center px-6 transition-colors`}>
         <div className="w-full max-w-sm">
           <div className="text-center mb-10">
             <div style={{fontFamily: 'Georgia, serif'}} className="text-3xl font-bold mb-1">LUCKY DAYZE</div>
-            <div className="text-xs tracking-widest uppercase text-[#999]">Admin Panel</div>
+            <div className={`text-xs tracking-widest uppercase ${text3}`}>Admin Panel</div>
           </div>
-          <div className="bg-white border border-[#e0d9cc] rounded-2xl p-6">
+          <div className={`${bg2} border ${border} rounded-2xl p-6`}>
             <h2 className="font-bold text-lg mb-6">Enter Password</h2>
             <input type="password" placeholder="Password" value={password}
               onChange={e => setPassword(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') { if (password === 'luckydayze2025') { setAuthenticated(true); setWrongPassword(false) } else setWrongPassword(true) } }}
-              className="w-full bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl px-4 py-3 text-sm mb-3 outline-none focus:border-[#c9a84c] placeholder-[#bbb]" />
+              className={`w-full border rounded-xl px-4 py-3 text-sm mb-3 outline-none focus:border-[#c9a84c] ${input}`} />
             {wrongPassword && <p className="text-red-500 text-xs mb-3">Incorrect password.</p>}
             <button onClick={() => { if (password === 'luckydayze2025') { setAuthenticated(true); setWrongPassword(false) } else setWrongPassword(true) }}
               className="w-full bg-[#1a1a1a] text-[#f5f0e8] font-bold py-3 rounded-xl hover:bg-[#333] transition-all">Login</button>
@@ -317,68 +275,62 @@ async function searchCustomers() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f5f0e8] text-[#1a1a1a]">
-      <nav className="border-b border-[#1a1a1a]/10 sticky top-0 bg-[#f5f0e8]/95 backdrop-blur z-40">
+    <main className={`min-h-screen ${bg} ${text} transition-colors`}>
+      <nav className={`border-b ${border} sticky top-0 ${dark ? 'bg-[#0f0f0f]/95' : 'bg-[#f5f0e8]/95'} backdrop-blur z-40`}>
         <div className="flex items-center justify-between px-4 py-3">
           <div>
             <div style={{fontFamily: 'Georgia, serif'}} className="text-lg font-bold tracking-wider">LUCKY DAYZE</div>
-            <div className="text-xs tracking-widest uppercase text-[#999]">Admin Panel</div>
+            <div className={`text-xs tracking-widest uppercase ${text3}`}>Admin Panel</div>
           </div>
           <div className="flex items-center gap-1.5">
             <div className="flex items-center gap-1">
               <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-              <span className="text-[#999] text-xs hidden sm:block">Live</span>
+              <span className={`${text3} text-xs hidden sm:block`}>Live</span>
             </div>
-            <button onClick={() => loadOrders()} className="border border-[#1a1a1a]/20 text-[#666] text-xs font-bold px-3 py-1.5 rounded-full hover:border-[#1a1a1a] transition-all">Refresh</button>
+            <button onClick={toggle} className="text-lg px-2" aria-label="Toggle dark mode">{dark ? '☀️' : '🌙'}</button>
+            <button onClick={() => loadOrders()} className={`border ${border} ${text2} text-xs font-bold px-3 py-1.5 rounded-full hover:border-[#c9a84c] transition-all`}>Refresh</button>
             <a href="/finance" className="bg-[#1a1a1a] text-[#f5f0e8] text-xs font-bold px-3 py-1.5 rounded-full hover:bg-[#333] transition-all">Finance</a>
-            <a href="/" className="border border-[#1a1a1a]/20 text-[#666] text-xs font-bold px-3 py-1.5 rounded-full hover:border-[#1a1a1a] transition-all">Store</a>
+            <a href="/" className={`border ${border} ${text2} text-xs font-bold px-3 py-1.5 rounded-full hover:border-[#c9a84c] transition-all`}>Store</a>
           </div>
         </div>
       </nav>
 
-      <div className="flex gap-2 px-4 py-4 border-b border-[#1a1a1a]/10 max-w-2xl mx-auto overflow-x-auto">
-        <button onClick={() => setActiveTab('orders')}
-          className={`flex-shrink-0 px-5 py-2 rounded-full text-sm font-bold transition-all ${activeTab === 'orders' ? 'bg-[#1a1a1a] text-[#f5f0e8]' : 'border border-[#1a1a1a]/20 text-[#666]'}`}>
-          Orders
-        </button>
-        <button onClick={() => { setActiveTab('members'); loadRequests() }}
-          className={`flex-shrink-0 px-5 py-2 rounded-full text-sm font-bold transition-all relative ${activeTab === 'members' ? 'bg-[#1a1a1a] text-[#f5f0e8]' : 'border border-[#1a1a1a]/20 text-[#666]'}`}>
-          Membership
-          {pendingRequests > 0 && (
-            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold w-4 h-4 rounded-full flex items-center justify-center">{pendingRequests}</span>
-          )}
-        </button>
-        <button onClick={() => { setActiveTab('customers'); setCustomers([]); setSelectedCustomer(null) }}
-          className={`flex-shrink-0 px-5 py-2 rounded-full text-sm font-bold transition-all ${activeTab === 'customers' ? 'bg-[#1a1a1a] text-[#f5f0e8]' : 'border border-[#1a1a1a]/20 text-[#666]'}`}>
-          Customers
-        </button>
+      <div className={`flex gap-2 px-4 py-4 border-b ${border} max-w-2xl mx-auto overflow-x-auto`}>
+        {(['orders', 'members', 'customers'] as const).map(t => (
+          <button key={t} onClick={() => {
+            setActiveTab(t)
+            if (t === 'members') loadRequests()
+            if (t === 'customers') { setCustomers([]); setSelectedCustomer(null) }
+          }}
+            className={`flex-shrink-0 px-5 py-2 rounded-full text-sm font-bold transition-all relative capitalize ${activeTab === t ? 'bg-[#1a1a1a] text-[#f5f0e8]' : `border ${border} ${text2}`}`}>
+            {t === 'members' ? 'Membership' : t.charAt(0).toUpperCase() + t.slice(1)}
+            {t === 'members' && pendingRequests > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold w-4 h-4 rounded-full flex items-center justify-center">{pendingRequests}</span>
+            )}
+          </button>
+        ))}
       </div>
 
       {activeTab === 'orders' && (
         <>
           <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-4 max-w-2xl mx-auto">
-            <div className="bg-white border border-[#e0d9cc] rounded-2xl p-4">
-              <div className="text-[#999] text-xs mb-1">Pending Payment</div>
-              <div style={{fontFamily: 'Georgia, serif'}} className="text-2xl font-bold text-amber-600">{pending}</div>
-            </div>
-            <div className="bg-white border border-[#e0d9cc] rounded-2xl p-4">
-              <div className="text-[#999] text-xs mb-1">Active Orders</div>
-              <div style={{fontFamily: 'Georgia, serif'}} className="text-2xl font-bold text-blue-600">{active}</div>
-            </div>
-            <div className="bg-white border border-[#e0d9cc] rounded-2xl p-4">
-              <div className="text-[#999] text-xs mb-1">Delivered</div>
-              <div style={{fontFamily: 'Georgia, serif'}} className="text-2xl font-bold text-green-600">{delivered}</div>
-            </div>
-            <div className="bg-white border border-[#e0d9cc] rounded-2xl p-4">
-              <div className="text-[#999] text-xs mb-1">Total Revenue</div>
-              <div style={{fontFamily: 'Georgia, serif'}} className="text-2xl font-bold text-[#c9a84c]">${revenue.toFixed(0)}</div>
-            </div>
+            {[
+              { label: 'Pending Payment', value: pending, color: 'text-amber-500' },
+              { label: 'Active Orders', value: active, color: 'text-blue-500' },
+              { label: 'Delivered', value: delivered, color: 'text-green-500' },
+              { label: 'Total Revenue', value: `$${revenue.toFixed(0)}`, color: 'text-[#c9a84c]' },
+            ].map(stat => (
+              <div key={stat.label} className={`${bg2} border ${border} rounded-2xl p-4`}>
+                <div className={`${text3} text-xs mb-1`}>{stat.label}</div>
+                <div style={{fontFamily: 'Georgia, serif'}} className={`text-2xl font-bold ${stat.color}`}>{stat.value}</div>
+              </div>
+            ))}
           </div>
 
           <div className="flex gap-2 px-4 pb-4 overflow-x-auto max-w-2xl mx-auto">
             {['all', 'pending_payment', 'confirmed', 'preparing', 'out_for_delivery', 'delivered'].map(f => (
               <button key={f} onClick={() => setFilter(f)}
-                className={`flex-shrink-0 px-4 py-2 rounded-full text-xs font-bold transition-all ${filter === f ? 'bg-[#1a1a1a] text-[#f5f0e8]' : 'bg-white border border-[#e0d9cc] text-[#666]'}`}>
+                className={`flex-shrink-0 px-4 py-2 rounded-full text-xs font-bold transition-all ${filter === f ? 'bg-[#1a1a1a] text-[#f5f0e8]' : `${bg2} border ${border} ${text2}`}`}>
                 {f === 'all' ? 'All Orders' : getStatusLabel(f)}
               </button>
             ))}
@@ -386,9 +338,9 @@ async function searchCustomers() {
 
           <div className="px-4 pb-24 max-w-2xl mx-auto">
             {loading ? (
-              <div className="text-center text-[#999] py-20">Loading orders...</div>
+              <div className={`text-center ${text3} py-20`}>Loading orders...</div>
             ) : filtered.length === 0 ? (
-              <div className="text-center text-[#999] py-20">
+              <div className={`text-center ${text3} py-20`}>
                 <div className="text-4xl mb-3">📭</div>
                 <p>No orders yet</p>
               </div>
@@ -396,17 +348,17 @@ async function searchCustomers() {
               <div className="flex flex-col gap-3">
                 {filtered.map(order => (
                   <div key={order.id} onClick={() => setSelectedOrder(order)}
-                    className="bg-white border border-[#e0d9cc] rounded-2xl p-4 cursor-pointer hover:border-[#c9a84c] transition-all">
+                    className={`${bg2} border ${border} rounded-2xl p-4 cursor-pointer hover:border-[#c9a84c] transition-all`}>
                     <div className="flex items-start justify-between mb-3">
                       <div>
-                        <div style={{fontFamily: 'Georgia, serif'}} className="font-bold text-base text-[#1a1a1a]">{order.customer_name}</div>
-                        <div className="text-[#999] text-xs mt-0.5">{formatTime(order.created_at)}</div>
+                        <div style={{fontFamily: 'Georgia, serif'}} className="font-bold text-base">{order.customer_name}</div>
+                        <div className={`${text3} text-xs mt-0.5`}>{formatTime(order.created_at)}</div>
                       </div>
                       <span className={`text-xs font-bold px-3 py-1 rounded-full ${getStatusStyle(order.status)}`}>{getStatusLabel(order.status)}</span>
                     </div>
-                    <div className="text-[#666] text-sm mb-3">{order.customer_address}</div>
+                    <div className={`${text2} text-sm mb-3`}>{order.customer_address}</div>
                     <div className="flex items-center justify-between">
-                      <div className="text-[#999] text-xs">{Array.isArray(order.items) ? order.items.map(i => `${i.emoji} ${i.name} x${i.qty}`).join(', ') : ''}</div>
+                      <div className={`${text3} text-xs`}>{Array.isArray(order.items) ? order.items.map(i => `${i.emoji} ${i.name} x${i.qty}`).join(', ') : ''}</div>
                       <div className="text-[#c9a84c] font-bold">${order.total}</div>
                     </div>
                   </div>
@@ -421,35 +373,35 @@ async function searchCustomers() {
         <div className="px-4 pb-24 max-w-2xl mx-auto pt-6">
           <h2 style={{fontFamily: 'Georgia, serif'}} className="text-xl font-bold mb-4">Membership Requests</h2>
           {membershipRequests.length === 0 ? (
-            <div className="text-center text-[#999] py-20">
+            <div className={`text-center ${text3} py-20`}>
               <div className="text-4xl mb-3">👥</div>
               <p>No membership requests yet</p>
             </div>
           ) : (
             <div className="flex flex-col gap-3">
               {membershipRequests.map(req => (
-                <div key={req.id} className="bg-white border border-[#e0d9cc] rounded-2xl p-5">
+                <div key={req.id} className={`${bg2} border ${border} rounded-2xl p-5`}>
                   <div className="flex items-start justify-between mb-3">
                     <div>
                       <div style={{fontFamily: 'Georgia, serif'}} className="font-bold text-base">{req.customer_name}</div>
-                      <div className="text-[#999] text-xs">{req.customer_phone}</div>
+                      <div className={`${text3} text-xs`}>{req.customer_phone}</div>
                     </div>
                     <span className={`text-xs font-bold px-3 py-1 rounded-full ${req.status === 'pending' ? 'bg-amber-100 text-amber-700' : req.status === 'approved' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
                       {req.status === 'pending' ? 'Pending' : req.status === 'approved' ? 'Approved ✓' : 'Declined'}
                     </span>
                   </div>
-                  <div className="flex flex-col gap-1 text-sm text-[#666] mb-4">
+                  <div className={`flex flex-col gap-1 text-sm ${text2} mb-4`}>
                     <span>📧 {req.customer_email || '—'}</span>
                     <span>🎂 {req.customer_birthday || '—'}</span>
-                    <span>🏷️ Requesting: <span className={`font-bold ${req.requested_tier === 'house' ? 'text-[#c9a84c]' : 'text-green-700'}`}>{req.requested_tier === 'house' ? 'The House' : 'Member'}</span></span>
-                    <span className="text-xs text-[#999]">Submitted {new Date(req.created_at).toLocaleDateString()}</span>
+                    <span>🏷️ Requesting: <span className={`font-bold ${req.requested_tier === 'house' ? 'text-[#c9a84c]' : 'text-green-500'}`}>{req.requested_tier === 'house' ? 'The House' : 'Member'}</span></span>
+                    <span className={`text-xs ${text3}`}>Submitted {new Date(req.created_at).toLocaleDateString()}</span>
                   </div>
                   {req.status === 'pending' && (
                     <div className="flex gap-2">
                       <button onClick={() => handleMembership(req.id, req.customer_phone, req.requested_tier, true)}
                         className="flex-1 bg-[#1a1a1a] text-[#f5f0e8] font-bold py-2 rounded-xl text-sm hover:bg-[#333] transition-all">✓ Approve</button>
                       <button onClick={() => handleMembership(req.id, req.customer_phone, req.requested_tier, false)}
-                        className="flex-1 border border-red-200 text-red-500 font-bold py-2 rounded-xl text-sm hover:bg-red-50 transition-all">✗ Decline</button>
+                        className="flex-1 border border-red-400 text-red-400 font-bold py-2 rounded-xl text-sm hover:bg-red-500/10 transition-all">✗ Decline</button>
                     </div>
                   )}
                 </div>
@@ -458,53 +410,45 @@ async function searchCustomers() {
           )}
         </div>
       )}
-      {/* CUSTOMERS TAB */}
+
       {activeTab === 'customers' && (
         <div className="px-4 pb-24 max-w-2xl mx-auto pt-6">
           <h2 style={{fontFamily: 'Georgia, serif'}} className="text-xl font-bold mb-4">Customer Lookup</h2>
-
-          {/* SEARCH */}
           <div className="flex gap-2 mb-6">
-            <input
-              type="text"
-              placeholder="Search by name or phone..."
-              value={customerSearch}
+            <input type="text" placeholder="Search by name or phone..." value={customerSearch}
               onChange={e => setCustomerSearch(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') searchCustomers() }}
-              className="flex-1 bg-white border border-[#e0d9cc] rounded-xl px-4 py-3 text-sm outline-none focus:border-[#c9a84c] placeholder-[#bbb]"
-            />
+              className={`flex-1 border rounded-xl px-4 py-3 text-sm outline-none focus:border-[#c9a84c] ${input}`} />
             <button onClick={searchCustomers} disabled={loadingCustomers}
               className="bg-[#1a1a1a] text-[#f5f0e8] font-bold px-5 py-3 rounded-xl text-sm hover:bg-[#333] transition-all disabled:opacity-50">
               {loadingCustomers ? '...' : 'Search'}
             </button>
           </div>
 
-          {/* RESULTS */}
           {!selectedCustomer ? (
             <div className="flex flex-col gap-3">
               {customers.length === 0 && customerSearch && !loadingCustomers && (
-                <div className="text-center text-[#999] py-10">
+                <div className={`text-center ${text3} py-10`}>
                   <div className="text-3xl mb-2">🔍</div>
                   <p>No customers found</p>
                 </div>
               )}
               {customers.map((c: any) => (
                 <div key={c.id} onClick={async () => { setSelectedCustomer(c); await loadCustomerOrders(c.customer_phone) }}
-                  className="bg-white border border-[#e0d9cc] rounded-2xl p-4 cursor-pointer hover:border-[#c9a84c] transition-all">
+                  className={`${bg2} border ${border} rounded-2xl p-4 cursor-pointer hover:border-[#c9a84c] transition-all`}>
                   <div className="flex items-center justify-between mb-2">
                     <div>
                       <div style={{fontFamily: 'Georgia, serif'}} className="font-bold">{c.customer_name}</div>
-                      <div className="text-[#999] text-xs">{c.customer_phone}</div>
+                      <div className={`${text3} text-xs`}>{c.customer_phone}</div>
                     </div>
                     <span className={`text-xs font-bold px-3 py-1 rounded-full ${
                       c.membership_tier === 'house' ? 'bg-[#1a1a1a] text-[#c9a84c]' :
-                      c.membership_tier === 'member' ? 'bg-green-100 text-green-700' :
-                      'bg-gray-100 text-gray-600'
+                      c.membership_tier === 'member' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
                     }`}>
                       {c.membership_tier === 'house' ? 'The House' : c.membership_tier === 'member' ? 'Member' : 'Guest'}
                     </span>
                   </div>
-                  <div className="flex gap-4 text-xs text-[#999]">
+                  <div className={`flex gap-4 text-xs ${text3}`}>
                     <span>⭐ {c.points || 0} points</span>
                     <span>🛒 {c.purchase_count || 0} orders</span>
                     <span>💰 ${(c.total_spent || 0).toFixed(0)} spent</span>
@@ -516,9 +460,7 @@ async function searchCustomers() {
           ) : (
             <div>
               <button onClick={() => { setSelectedCustomer(null); setCustomerOrders([]) }}
-                className="text-[#999] text-sm mb-4 flex items-center gap-1 hover:text-[#1a1a1a]">← Back to results</button>
-
-              {/* CUSTOMER PROFILE */}
+                className={`${text3} text-sm mb-4 flex items-center gap-1 hover:text-[#c9a84c]`}>← Back to results</button>
               <div className="bg-[#1a1a1a] text-[#f5f0e8] rounded-2xl p-5 mb-4">
                 <div className="flex items-start justify-between mb-4">
                   <div>
@@ -527,8 +469,7 @@ async function searchCustomers() {
                   </div>
                   <span className={`text-xs font-bold px-3 py-1 rounded-full ${
                     selectedCustomer.membership_tier === 'house' ? 'bg-[#c9a84c]/20 text-[#c9a84c]' :
-                    selectedCustomer.membership_tier === 'member' ? 'bg-green-900/30 text-green-400' :
-                    'bg-white/10 text-[#999]'
+                    selectedCustomer.membership_tier === 'member' ? 'bg-green-900/30 text-green-400' : 'bg-white/10 text-[#999]'
                   }`}>
                     {selectedCustomer.membership_tier === 'house' ? '👑 The House' : selectedCustomer.membership_tier === 'member' ? '✓ Member' : 'Guest'}
                   </span>
@@ -550,7 +491,7 @@ async function searchCustomers() {
                 <div className="flex flex-col gap-1 text-xs text-[#999]">
                   {selectedCustomer.referral_code && <span>🔗 Referral code: <span className="text-[#c9a84c] font-mono font-bold">{selectedCustomer.referral_code}</span></span>}
                   {selectedCustomer.referred_by && <span>👥 Referred by: <span className="font-bold text-[#f5f0e8]">{selectedCustomer.referred_by}</span></span>}
-                  {selectedCustomer.referral_count > 0 && <span>🎁 Successful referrals: <span className="font-bold text-[#f5f0e8]">{selectedCustomer.referral_count}</span></span>}
+                  {selectedCustomer.referral_count > 0 && <span>🎁 Referrals: <span className="font-bold text-[#f5f0e8]">{selectedCustomer.referral_count}</span></span>}
                   {selectedCustomer.pending_referral_reward && <span>⏳ Pending reward: <span className="font-bold text-[#c9a84c]">{selectedCustomer.pending_referral_reward}</span></span>}
                   {selectedCustomer.email && <span>📧 {selectedCustomer.email}</span>}
                   {selectedCustomer.birthday && <span>🎂 {selectedCustomer.birthday}</span>}
@@ -558,29 +499,25 @@ async function searchCustomers() {
                 </div>
               </div>
 
-              {/* ORDER HISTORY */}
               <h3 style={{fontFamily: 'Georgia, serif'}} className="text-lg font-bold mb-3">Order History</h3>
               {customerOrders.length === 0 ? (
-                <div className="text-center text-[#999] py-8 bg-white border border-[#e0d9cc] rounded-2xl">
-                  <p>No orders yet</p>
-                </div>
+                <div className={`text-center ${text3} py-8 ${bg2} border ${border} rounded-2xl`}><p>No orders yet</p></div>
               ) : (
                 <div className="flex flex-col gap-3">
                   {customerOrders.map((order: any) => (
-                    <div key={order.id} className="bg-white border border-[#e0d9cc] rounded-2xl p-4">
+                    <div key={order.id} className={`${bg2} border ${border} rounded-2xl p-4`}>
                       <div className="flex items-center justify-between mb-2">
-                        <div className="text-xs text-[#999]">{new Date(order.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
+                        <div className={`text-xs ${text3}`}>{new Date(order.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
                         <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
                           order.status === 'delivered' ? 'bg-green-100 text-green-700' :
-                          order.status === 'cancelled' ? 'bg-red-100 text-red-600' :
-                          'bg-amber-100 text-amber-700'
+                          order.status === 'cancelled' ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-700'
                         }`}>{order.status.replace(/_/g, ' ')}</span>
                       </div>
-                      <div className="text-xs text-[#666] mb-2">
+                      <div className={`text-xs ${text2} mb-2`}>
                         {Array.isArray(order.items) ? order.items.map((i: any) => `${i.emoji} ${i.name} x${i.qty}`).join(', ') : ''}
                       </div>
                       <div className="flex justify-between items-center">
-                        <span className="text-xs text-[#999]">{order.customer_address === 'PICKUP' ? '📍 Pickup' : '🚗 Delivery'}</span>
+                        <span className={`text-xs ${text3}`}>{order.customer_address === 'PICKUP' ? '📍 Pickup' : '🚗 Delivery'}</span>
                         <span className="font-bold text-[#c9a84c]">${order.total}</span>
                       </div>
                     </div>
@@ -591,62 +528,65 @@ async function searchCustomers() {
           )}
         </div>
       )}
+
       {selectedOrder && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setSelectedOrder(null)} />
-          <div className="relative w-full max-w-md bg-[#f5f0e8] border border-[#e0d9cc] rounded-t-3xl sm:rounded-3xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between px-6 py-5 border-b border-[#e0d9cc]">
+          <div className={`relative w-full max-w-md ${bg} border ${border} rounded-t-3xl sm:rounded-3xl max-h-[90vh] overflow-y-auto`}>
+            <div className={`flex items-center justify-between px-6 py-5 border-b ${border}`}>
               <h2 style={{fontFamily: 'Georgia, serif'}} className="font-bold text-lg">Order Details</h2>
-              <button onClick={() => setSelectedOrder(null)} className="text-[#999] text-2xl leading-none hover:text-[#1a1a1a]">×</button>
+              <button onClick={() => setSelectedOrder(null)} className={`${text3} text-2xl leading-none hover:text-[#c9a84c]`}>×</button>
             </div>
             <div className="p-6">
-              <div className="bg-white border border-[#e0d9cc] rounded-2xl p-4 mb-4">
-                <div className="text-[#999] text-xs font-bold uppercase tracking-wider mb-3">Customer</div>
-                <div style={{fontFamily: 'Georgia, serif'}} className="font-bold text-lg mb-1 text-[#1a1a1a]">{selectedOrder.customer_name}</div>
+              <div className={`${bg2} border ${border} rounded-2xl p-4 mb-4`}>
+                <div className={`${text3} text-xs font-bold uppercase tracking-wider mb-3`}>Customer</div>
+                <div style={{fontFamily: 'Georgia, serif'}} className="font-bold text-lg mb-1">{selectedOrder.customer_name}</div>
                 <a href={`tel:${selectedOrder.customer_phone}`} className="text-[#c9a84c] text-sm mb-1 block font-bold">📞 {selectedOrder.customer_phone}</a>
                 {selectedOrder.customer_address === 'PICKUP' ? (
-                  <div className="text-[#666] text-sm">📍 Pickup order — send them location</div>
+                  <div className={`${text2} text-sm`}>📍 Pickup order — send them location</div>
                 ) : (
-                  <a href={`https://maps.google.com/?q=${encodeURIComponent(selectedOrder.customer_address)}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 text-sm block">📍 {selectedOrder.customer_address}</a>
+                  <a href={`https://maps.google.com/?q=${encodeURIComponent(selectedOrder.customer_address)}`} target="_blank" rel="noopener noreferrer" className="text-blue-400 text-sm block">📍 {selectedOrder.customer_address}</a>
                 )}
                 {(selectedOrder as any).referral_code && (
-                  <div className="mt-2 bg-green-50 border border-green-200 rounded-xl p-3 text-sm text-green-700">
+                  <div className="mt-2 bg-green-500/10 border border-green-500/30 rounded-xl p-3 text-sm text-green-400">
                     <p className="font-bold mb-1">🎁 Referral code: <span className="font-mono">{(selectedOrder as any).referral_code}</span></p>
                     {(selectedOrder as any).referral_reward && (
                       <p className="text-xs">
                         {(selectedOrder as any).referral_reward === 'Claim Later'
                           ? '⏳ Customer chose to claim their free mini pre-roll later via Rewards page'
-                          : `✓ Free mini pre-roll requested: ${(selectedOrder as any).referral_reward} — include in this order!`}
+                          : `✓ Include in this order: ${(selectedOrder as any).referral_reward}`}
                       </p>
                     )}
                   </div>
                 )}
               </div>
-              <div className="bg-white border border-[#e0d9cc] rounded-2xl p-4 mb-4">
-                <div className="text-[#999] text-xs font-bold uppercase tracking-wider mb-3">Items Ordered</div>
+
+              <div className={`${bg2} border ${border} rounded-2xl p-4 mb-4`}>
+                <div className={`${text3} text-xs font-bold uppercase tracking-wider mb-3`}>Items Ordered</div>
                 {Array.isArray(selectedOrder.items) && selectedOrder.items.map((item, i) => (
                   <div key={i} className="flex justify-between items-center mb-2">
-                    <span className="text-sm text-[#1a1a1a]">{item.emoji} {item.name} x {item.qty}</span>
+                    <span className={`text-sm ${text}`}>{item.emoji} {item.name} x {item.qty}</span>
                     <span className="text-[#c9a84c] font-bold text-sm">${(item.price * item.qty).toFixed(2)}</span>
                   </div>
                 ))}
-                <div className="border-t border-[#e0d9cc] mt-3 pt-3 flex justify-between font-bold">
-                  <span className="text-[#1a1a1a]">Total</span>
+                <div className={`border-t ${border} mt-3 pt-3 flex justify-between font-bold`}>
+                  <span>Total</span>
                   <span className="text-[#c9a84c]">${selectedOrder.total}</span>
                 </div>
               </div>
-              <div className="bg-white border border-[#e0d9cc] rounded-2xl p-4 mb-4">
-                <div className="text-[#999] text-xs font-bold uppercase tracking-wider mb-3">Update Status</div>
+
+              <div className={`${bg2} border ${border} rounded-2xl p-4 mb-4`}>
+                <div className={`${text3} text-xs font-bold uppercase tracking-wider mb-3`}>Update Status</div>
                 <div className="flex flex-col gap-2">
                   {STATUSES.map(s => (
                     <button key={s.value} onClick={() => updateStatus(selectedOrder.id, s.value)}
-                      className={`w-full py-3 rounded-xl text-sm font-bold transition-all ${selectedOrder.status === s.value ? 'bg-[#1a1a1a] text-[#f5f0e8]' : 'bg-[#f5f0e8] border border-[#e0d9cc] text-[#666] hover:border-[#1a1a1a] hover:text-[#1a1a1a]'}`}>
+                      className={`w-full py-3 rounded-xl text-sm font-bold transition-all ${selectedOrder.status === s.value ? 'bg-[#1a1a1a] text-[#f5f0e8]' : `${bg3} border ${border} ${text2} hover:border-[#c9a84c]`}`}>
                       {selectedOrder.status === s.value ? '✓ ' : ''}{s.label}
                     </button>
                   ))}
                 </div>
               </div>
-              <div className="text-[#999] text-xs text-center">Order placed {formatTime(selectedOrder.created_at)}</div>
+              <div className={`${text3} text-xs text-center`}>Order placed {formatTime(selectedOrder.created_at)}</div>
             </div>
           </div>
         </div>
