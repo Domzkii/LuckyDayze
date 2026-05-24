@@ -148,7 +148,7 @@ const [pullDistance, setPullDistance] = useState(0)
       const totalCount = isMini ? totalMini : totalRegular
       if (totalQty === 0) return i
       const isFirst = group[0]?.id === i.id
-      const promo = totalCount >= 2 ? (isMini ? '2 for $15' : '2 for $25') : null
+      const promo = isMini ? (totalCount >= 4 ? '4 for $20' : null) : (totalCount >= 2 ? '2 for $25' : null)
       if (isFirst) {
         const otherCost = group.filter((p: any) => p.id !== i.id).reduce((sum: number, p: any) => sum + Math.floor((p.qty / totalQty) * totalCost), 0)
         return { ...i, price: (totalCost - otherCost) / i.qty, promo }
@@ -668,7 +668,7 @@ const preRollProducts = products.filter((p: any) => p.category === 'Pre-Rolls' &
       <section className="px-6 py-12 pb-16">
         <div className="flex items-baseline justify-between mb-8 max-w-2xl">
           <h2 style={{fontFamily: 'Georgia, serif'}} className="text-2xl font-bold">The Menu</h2>
-          <span className={`text-xs tracking-widest uppercase ${text3}`}>{products.length} products</span>
+          <span className={`text-xs tracking-widest uppercase ${text3}`}>{[...flowerProducts, ...preRollProducts].length} products</span>
         </div>
 
         {/* FLOWER */}
