@@ -670,6 +670,29 @@ const preRollProducts = products.filter((p: any) => p.category === 'Pre-Rolls' &
           <h2 style={{fontFamily: 'Georgia, serif'}} className="text-2xl font-bold">The Menu</h2>
           <span className={`text-xs tracking-widest uppercase ${text3}`}>{[...flowerProducts, ...preRollProducts].length} products</span>
         </div>
+        {/* STORE CLOSED */}
+        {flowerProducts.length === 0 && preRollProducts.length === 0 && (
+          <div className="max-w-2xl mx-auto text-center py-20">
+            <div className="text-7xl mb-6 animate-bounce">🌿</div>
+            <h2 style={{fontFamily: 'Georgia, serif'}} className={`text-3xl font-bold mb-3 ${text}`}>We're Closed Right Now</h2>
+            <p className={`text-base mb-2 ${text2}`}>The plug is resting. Check back soon.</p>
+            <p className={`text-sm mb-8 ${text3}`}>Follow us on Instagram for restock updates.</p>
+            <div className="flex flex-col gap-3 items-center">
+              <a href="https://instagram.com/lucky_dayze" target="_blank" rel="noopener noreferrer"
+                className="bg-[#1a1a1a] text-[#f5f0e8] font-bold px-8 py-3 rounded-full hover:bg-[#333] transition-all flex items-center gap-2">
+                📸 Follow @lucky_dayze
+              </a>
+              <a href="/rewards" className={`border font-bold px-8 py-3 rounded-full transition-all ${dark ? 'border-white/20 text-[#f5f0e8]' : 'border-[#1a1a1a]/30 text-[#1a1a1a]'}`}>
+                Check Your Rewards
+              </a>
+            </div>
+            <div className="mt-12 flex justify-center gap-6">
+              {['🌿', '💨', '🔥', '✨', '🌿'].map((emoji, i) => (
+                <span key={i} className="text-2xl opacity-30 animate-pulse" style={{ animationDelay: `${i * 0.3}s` }}>{emoji}</span>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* FLOWER */}
         {flowerProducts.length > 0 && (
