@@ -423,10 +423,13 @@ const preRollProducts = products.filter((p: any) => p.category === 'Pre-Rolls' &
     const maxQty = isFlower ? Math.floor((product.stock_grams || 0) / parseFloat(selected.weight)) : 99
     const [photoIndex, setPhotoIndex] = useState(0)
     const imageUrls = product.image_urls || (product.image_url ? [product.image_url] : [])
+    const [lightboxOpen, setLightboxOpen] = useState(false)
+    const [lightboxIndex, setLightboxIndex] = useState(0)
 
     return (
       <div className={`${bg2} border ${border} rounded-2xl overflow-hidden ${borderHover} transition-all group flex flex-col`}>
-       <div className={`h-28 ${bg3} flex items-center justify-center text-4xl group-hover:opacity-90 transition-all relative overflow-hidden`}>
+       <div className={`h-28 ${bg3} flex items-center justify-center text-4xl group-hover:opacity-90 transition-all relative overflow-hidden cursor-pointer`}
+          onClick={() => { if (imageUrls.length > 0) { setLightboxIndex(photoIndex); setLightboxOpen(true) } }}>
           {imageUrls.length > 0 ? (
             <img src={imageUrls[photoIndex]} alt={product.name} className="w-full h-full object-cover transition-all" />
           ) : (
@@ -450,7 +453,47 @@ const preRollProducts = products.filter((p: any) => p.category === 'Pre-Rolls' &
               </div>
             </>
           )}
+          {imageUrls.length > 0 && (
+            <div className="absolute bottom-1 right-1 bg-black/30 rounded-full p-1">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="white"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+            </div>
+          )}
         </div>
+
+        {/* LIGHTBOX */}
+        {lightboxOpen && (
+          <div className="fixed inset-0 z-[100] bg-black/95 flex flex-col items-center justify-center"
+            onClick={() => setLightboxOpen(false)}>
+            <button onClick={e => { e.stopPropagation(); setLightboxOpen(false) }}
+              className="absolute top-4 right-4 text-white text-2xl font-bold bg-white/10 w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/20">×</button>
+            <div className="relative w-full max-w-lg px-4" onClick={e => e.stopPropagation()}>
+              <img src={imageUrls[lightboxIndex]} alt={product.name}
+                className="w-full max-h-[70vh] object-contain rounded-2xl" />
+              {imageUrls.length > 1 && (
+                <>
+                  <button onClick={() => setLightboxIndex(prev => (prev - 1 + imageUrls.length) % imageUrls.length)}
+                    className="absolute left-6 top-1/2 -translate-y-1/2 bg-white/20 text-white text-2xl font-bold w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/40">‹</button>
+                  <button onClick={() => setLightboxIndex(prev => (prev + 1) % imageUrls.length)}
+                    className="absolute right-6 top-1/2 -translate-y-1/2 bg-white/20 text-white text-2xl font-bold w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/40">›</button>
+                </>
+              )}
+            </div>
+            <div className="mt-4">
+              <p className="text-white font-bold text-center">{product.name}</p>
+              {imageUrls.length > 1 && (
+                <div className="flex justify-center gap-2 mt-3">
+                  {imageUrls.map((_: string, i: number) => (
+                    <button key={i} onClick={() => setLightboxIndex(i)}
+                      className={`w-12 h-12 rounded-xl overflow-hidden border-2 transition-all ${i === lightboxIndex ? 'border-[#c9a84c]' : 'border-transparent opacity-50'}`}>
+                      <img src={imageUrls[i]} alt="" className="w-full h-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+              )}
+              <p className="text-white/40 text-xs text-center mt-3">Tap outside to close</p>
+            </div>
+          </div>
+        )}
         <div className="p-3 flex flex-col flex-1">
           <div className="flex items-start justify-between gap-1 mb-1">
             <p style={{fontFamily: 'Georgia, serif'}} className="font-bold text-sm leading-tight">{product.name}</p>
