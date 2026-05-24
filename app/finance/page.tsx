@@ -785,6 +785,50 @@ export default function FinancePage() {
               className="w-full border border-dashed border-[#c9a84c] text-[#c9a84c] font-bold py-2 rounded-xl text-sm hover:bg-[#c9a84c]/5 transition-all mb-4">
               + Add New Strain
             </button>
+            {/* PRE-ROLL PHOTOS */}
+            <div className="bg-[#1a1a1a] text-[#f5f0e8] rounded-2xl p-4 mb-4">
+              <div className="text-xs tracking-widest uppercase text-[#c9a84c] mb-3">Pre-Roll Photos</div>
+              <div className="flex flex-col gap-3">
+                {products.filter((p: any) => p.category === 'Pre-Rolls').map((product: any) => (
+                  <div key={product.id}>
+                    <div className="text-sm font-bold mb-2">{product.name}</div>
+                    <div className="flex gap-2 flex-wrap">
+                      {((product.image_urls && product.image_urls.length > 0) ? product.image_urls : product.image_url ? [product.image_url] : []).map((url: string, photoIdx: number) => (
+                        <div key={photoIdx} className="relative w-14 h-14">
+                          <img src={url} alt="Product" className="w-14 h-14 object-cover rounded-xl" />
+                          <button onClick={async () => {
+                            const newUrls = ((product.image_urls && product.image_urls.length > 0) ? product.image_urls : [product.image_url]).filter((_: string, pi: number) => pi !== photoIdx)
+                            await supabase.from('products').update({ image_urls: newUrls, image_url: newUrls[0] || null }).eq('id', product.id)
+                            setProducts(prev => prev.map((p: any) => p.id === product.id ? { ...p, image_urls: newUrls, image_url: newUrls[0] || null } : p))
+                          }} className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold w-4 h-4 rounded-full flex items-center justify-center">✕</button>
+                        </div>
+                      ))}
+                      <label className="w-14 h-14 border border-dashed border-white/20 rounded-xl flex flex-col items-center justify-center gap-1 cursor-pointer hover:border-[#c9a84c] transition-all">
+                        <span className="text-lg">📷</span>
+                        <span className="text-xs text-white/50 font-bold">Add</span>
+                        <input type="file" accept="image/*" multiple className="hidden"
+                          onChange={async e => {
+                            const files = Array.from(e.target.files || [])
+                            const urls: string[] = []
+                            for (const file of files) {
+                              const ext = file.name.split('.').pop()
+                              const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${ext}`
+                              const { error } = await supabase.storage.from('products').upload(fileName, file, { upsert: true })
+                              if (error) { alert('Upload failed: ' + error.message); continue }
+                              const { data: urlData } = supabase.storage.from('products').getPublicUrl(fileName)
+                              urls.push(urlData.publicUrl)
+                            }
+                            const existingUrls = (product.image_urls && product.image_urls.length > 0) ? product.image_urls : product.image_url ? [product.image_url] : []
+                            const newUrls = [...existingUrls, ...urls]
+                            await supabase.from('products').update({ image_urls: newUrls, image_url: newUrls[0] || null }).eq('id', product.id)
+                            setProducts(prev => prev.map((p: any) => p.id === product.id ? { ...p, image_urls: newUrls, image_url: newUrls[0] || null } : p))
+                          }} />
+                      </label>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
 
             <div className="bg-white border border-[#e0d9cc] rounded-xl p-4 mb-4">
               <div className="text-xs uppercase tracking-wider text-[#999] mb-3">Inventory Breakdown</div>
