@@ -420,17 +420,39 @@ const preRollProducts = products.filter((p: any) => p.category === 'Pre-Rolls' &
     const selectedPrice = isFlower ? (weightPrices[selected.weight] || product.price) : product.price
     const isLowStock = isFlower && (product.stock_grams || 0) < 14
     const maxQty = isFlower ? Math.floor((product.stock_grams || 0) / parseFloat(selected.weight)) : 99
+    const [photoIndex, setPhotoIndex] = useState(0)
+    const imageUrls = product.image_urls || (product.image_url ? [product.image_url] : [])
 
     return (
       <div className={`${bg2} border ${border} rounded-2xl overflow-hidden ${borderHover} transition-all group flex flex-col`}>
-        <div className={`h-28 ${bg3} flex items-center justify-center text-4xl group-hover:opacity-90 transition-all relative overflow-hidden`}>
-          {product.image_url ? (
-            <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
+        <div className={`h-28 ${bg3} flex items-center justify-center text-4xl group-hover:opacity-90 transition-all relative overflow-hidden`}
+          onTouchStart={e => {
+            const touch = e.touches[0]
+            ;(e.currentTarget as any)._touchX = touch.clientX
+          }}
+          onTouchEnd={e => {
+            const startX = (e.currentTarget as any)._touchX
+            const endX = e.changedTouches[0].clientX
+            const diff = startX - endX
+            if (Math.abs(diff) > 30 && imageUrls.length > 1) {
+              if (diff > 0) setPhotoIndex(prev => (prev + 1) % imageUrls.length)
+              else setPhotoIndex(prev => (prev - 1 + imageUrls.length) % imageUrls.length)
+            }
+          }}>
+          {imageUrls.length > 0 ? (
+            <img src={imageUrls[photoIndex]} alt={product.name} className="w-full h-full object-cover transition-all" />
           ) : (
             <span>{product.emoji}</span>
           )}
           {product.is_popular && (
             <span className="absolute top-2 left-2 bg-[#c9a84c] text-[#1a1a1a] text-xs font-bold px-2 py-0.5 rounded-full">🔥 Popular</span>
+          )}
+          {imageUrls.length > 1 && (
+            <div className="absolute bottom-1 left-0 right-0 flex justify-center gap-1">
+              {imageUrls.map((_: string, i: number) => (
+                <div key={i} className={`w-1.5 h-1.5 rounded-full transition-all ${i === photoIndex ? 'bg-white' : 'bg-white/40'}`} />
+              ))}
+            </div>
           )}
         </div>
         <div className="p-3 flex flex-col flex-1">
