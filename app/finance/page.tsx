@@ -29,7 +29,7 @@ export default function FinancePage() {
   const [weekHistory, setWeekHistory] = useState<any[]>([])
   const [weekPayouts, setWeekPayouts] = useState<any[]>([])
   const [loadingData, setLoadingData] = useState(true)
-  const [tab, setTab] = useState<'overview' | 'week' | 'history' | 'simulator'>('overview')
+  const [tab, setTab] = useState<'overview' | 'week' | 'history'>('overview')
   const [showCloseWeek, setShowCloseWeek] = useState(false)
   const [showNewWeek, setShowNewWeek] = useState(false)
   const [carryoverGrams, setCarryoverGrams] = useState(0)
@@ -284,7 +284,7 @@ export default function FinancePage() {
       </nav>
 
       <div className="flex gap-2 px-6 py-4 border-b border-[#1a1a1a]/10 overflow-x-auto">
-        {(['overview', 'week', 'history', 'simulator'] as const).map(t => (
+        {(['overview', 'week', 'history'] as const).map(t => (
           <button key={t} onClick={() => setTab(t)}
             className={`flex-shrink-0 px-5 py-2 rounded-full text-sm font-bold transition-all capitalize ${tab === t ? 'bg-[#1a1a1a] text-[#f5f0e8]' : 'border border-[#1a1a1a]/20 text-[#666]'}`}>
             {t === 'week' ? 'This Week' : t}
@@ -600,57 +600,7 @@ export default function FinancePage() {
           </>
         )}
 
-        {/* SIMULATOR TAB */}
-        {tab === 'simulator' && (
-          <>
-            <div className="bg-white border border-[#e0d9cc] rounded-2xl p-6 mb-6">
-              <h2 style={{fontFamily: 'Georgia, serif'}} className="text-lg font-bold mb-4">Sale Simulator</h2>
-              <div className="grid grid-cols-3 gap-4 mb-6">
-                <div><label className="text-xs uppercase tracking-wider text-[#999] block mb-2">Grams Sold</label><input type="number" value={saleGrams} onChange={e => setSaleGrams(Number(e.target.value))} className="w-full bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl px-3 py-2 text-sm outline-none focus:border-[#c9a84c]" /></div>
-                <div><label className="text-xs uppercase tracking-wider text-[#999] block mb-2">Sale Price ($)</label><input type="number" value={salePrice} onChange={e => setSalePrice(Number(e.target.value))} className="w-full bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl px-3 py-2 text-sm outline-none focus:border-[#c9a84c]" /></div>
-                <div><label className="text-xs uppercase tracking-wider text-[#999] block mb-2">Delivery Cost ($)</label><input type="number" value={deliveryCost} onChange={e => setDeliveryCost(Number(e.target.value))} className="w-full bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl px-3 py-2 text-sm outline-none focus:border-[#c9a84c]" /></div>
-              </div>
-              <div className="bg-[#f5f0e8] rounded-xl p-4 mb-4">
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div className="flex justify-between"><span className="text-[#999]">Gross Revenue</span><span className="font-bold">${grossRevenue.toFixed(2)}</span></div>
-                  <div className="flex justify-between"><span className="text-[#999]">Inventory Cost</span><span className="font-bold text-red-500">−${inventoryCost.toFixed(2)}</span></div>
-                  <div className="flex justify-between"><span className="text-[#999]">Delivery Cost</span><span className="font-bold text-red-500">−${totalDeliveryCost.toFixed(2)}</span></div>
-                  <div className="flex justify-between"><span className="text-[#999]">Profit Margin</span><span className="font-bold text-green-600">{profitMargin}%</span></div>
-                </div>
-                <div className="border-t border-[#e0d9cc] mt-3 pt-3 flex justify-between font-bold">
-                  <span>Net Profit</span><span className="text-[#c9a84c] text-lg">${netProfit.toFixed(2)}</span>
-                </div>
-              </div>
-              <h3 className="font-bold text-sm mb-3">Individual Payouts</h3>
-              <div className="flex flex-col gap-2">
-                {ROLES.map(role => (
-                  <div key={role.key} className="flex items-center justify-between py-2 border-b border-[#e0d9cc] last:border-0">
-                    <span className="font-bold text-sm">{role.label}</span>
-                    <span className="font-bold text-green-600">${simPayouts[role.key].toFixed(2)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="bg-white border border-[#e0d9cc] rounded-2xl p-6 mb-6">
-              <h2 style={{fontFamily: 'Georgia, serif'}} className="text-lg font-bold mb-4">Price Point Analysis</h2>
-              <div className="flex flex-col gap-3">
-                {priceAnalysis.map(pp => (
-                  <div key={pp.label} className="flex items-center gap-3">
-                    <div className="w-20 text-sm font-bold">{pp.label}</div>
-                    <input type="number" value={prices[pp.label]} onChange={e => setPrices(prev => ({ ...prev, [pp.label]: Number(e.target.value) }))} className="w-24 bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl px-3 py-2 text-sm outline-none focus:border-[#c9a84c]" />
-                    <div className="flex-1 h-2 bg-[#f0ebe0] rounded-full overflow-hidden">
-                      <div className="h-full bg-[#c9a84c] rounded-full" style={{ width: `${Math.max(0, Math.min(100, parseFloat(pp.margin)))}%` }} />
-                    </div>
-                    <div className="text-right min-w-[80px]">
-                      <div className={`text-sm font-bold ${parseFloat(pp.margin) > 40 ? 'text-green-600' : parseFloat(pp.margin) > 20 ? 'text-amber-600' : 'text-red-500'}`}>{pp.margin}%</div>
-                      <div className="text-xs text-[#999]">${pp.profit.toFixed(0)} profit</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </>
-        )}
+
       </div>
 
       {/* NEW WEEK MODAL */}
