@@ -423,8 +423,12 @@ const preRollProducts = products.filter((p: any) => p.category === 'Pre-Rolls' &
 
     return (
       <div className={`${bg2} border ${border} rounded-2xl overflow-hidden ${borderHover} transition-all group flex flex-col`}>
-        <div className={`h-28 ${bg3} flex items-center justify-center text-4xl group-hover:opacity-90 transition-all relative`}>
-          {product.emoji}
+        <div className={`h-28 ${bg3} flex items-center justify-center text-4xl group-hover:opacity-90 transition-all relative overflow-hidden`}>
+          {product.image_url ? (
+            <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
+          ) : (
+            <span>{product.emoji}</span>
+          )}
           {product.is_popular && (
             <span className="absolute top-2 left-2 bg-[#c9a84c] text-[#1a1a1a] text-xs font-bold px-2 py-0.5 rounded-full">🔥 Popular</span>
           )}

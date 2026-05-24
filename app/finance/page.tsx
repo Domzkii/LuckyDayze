@@ -94,7 +94,8 @@ export default function FinancePage() {
           name: newStrain.name, category: 'Flower', price: 40, thc: '—',
           strain_type: 'Hybrid', description: 'New strain', emoji: '🌿',
           in_stock: true, stock_grams: Number(newStrain.grams),
-          weight_prices: newStrain.weight_prices || {"3.5": 30, "7": 70, "14": 130, "28": 240}
+          weight_prices: newStrain.weight_prices || {"3.5": 30, "7": 70, "14": 130, "28": 240},
+          image_url: newStrain.image_url || null
         }).select().single()
         if (inserted) productGrams[inserted.id] = Number(newStrain.grams)
       }
@@ -714,6 +715,34 @@ export default function FinancePage() {
                 <input type="text" placeholder="Strain name" value={strain.name}
                   onChange={e => setNewStrains(prev => prev.map((s, i) => i === idx ? { ...s, name: e.target.value } : s))}
                   className="w-full bg-[#f5f0e8] border border-[#e0d9cc] rounded-xl px-3 py-2 text-sm mb-2 outline-none focus:border-[#c9a84c]" />
+                  {/* PHOTO UPLOAD */}
+                <div className="mb-2">
+                  {strain.image_url ? (
+                    <div className="relative">
+                      <img src={strain.image_url} alt="Product" className="w-full h-24 object-cover rounded-xl mb-1" />
+                      <button onClick={() => setNewStrains(prev => prev.map((s, i) => i === idx ? { ...s, image_url: '' } : s))}
+                        className="absolute top-1 right-1 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">✕</button>
+                    </div>
+                  ) : (
+                    <label className="w-full border border-dashed border-[#e0d9cc] rounded-xl py-3 flex items-center justify-center gap-2 cursor-pointer hover:border-[#c9a84c] transition-all">
+                      <span className="text-sm">📷</span>
+                      <span className="text-xs text-[#999] font-bold">Add Photo</span>
+                      <input type="file" accept="image/*" className="hidden"
+                        onChange={async e => {
+                          const file = e.target.files?.[0]
+                          if (!file) return
+                          const ext = file.name.split('.').pop()
+                          const fileName = `${Date.now()}.${ext}`
+                          const { data, error } = await supabase.storage
+                            .from('products')
+                            .upload(fileName, file, { upsert: true })
+                          if (error) { alert('Upload failed: ' + error.message); return }
+                          const { data: urlData } = supabase.storage.from('products').getPublicUrl(fileName)
+                          setNewStrains(prev => prev.map((s, i) => i === idx ? { ...s, image_url: urlData.publicUrl } : s))
+                        }} />
+                    </label>
+                  )}
+                </div>
                 <div className="flex items-center gap-2">
                   <input type="number" placeholder="Ounces" step="0.5"
                     value={strain.grams ? Number(strain.grams) / 28 : ''}
