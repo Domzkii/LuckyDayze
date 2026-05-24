@@ -411,7 +411,8 @@ const [pullDistance, setPullDistance] = useState(0)
   const [welcomeMessage] = useState(() => welcomeMessages[Math.floor(Math.random() * welcomeMessages.length)])
 
   const flowerProducts = products.filter((p: any) => p.category === 'Flower' && !p.archived && p.in_stock)
-const preRollProducts = products.filter((p: any) => p.category === 'Pre-Rolls' && !p.archived && p.in_stock)
+const totalFlowerGrams = products.filter((p: any) => p.category === 'Flower' && !p.archived).reduce((sum: number, p: any) => sum + (p.stock_grams || 0), 0)
+const preRollProducts = products.filter((p: any) => p.category === 'Pre-Rolls' && !p.archived && p.in_stock && totalFlowerGrams > 0)
 
   function ProductCard({ product }: { product: any }) {
     const isFlower = product.category === 'Flower'
@@ -425,20 +426,7 @@ const preRollProducts = products.filter((p: any) => p.category === 'Pre-Rolls' &
 
     return (
       <div className={`${bg2} border ${border} rounded-2xl overflow-hidden ${borderHover} transition-all group flex flex-col`}>
-        <div className={`h-28 ${bg3} flex items-center justify-center text-4xl group-hover:opacity-90 transition-all relative overflow-hidden`}
-          onTouchStart={e => {
-            const touch = e.touches[0]
-            ;(e.currentTarget as any)._touchX = touch.clientX
-          }}
-          onTouchEnd={e => {
-            const startX = (e.currentTarget as any)._touchX
-            const endX = e.changedTouches[0].clientX
-            const diff = startX - endX
-            if (Math.abs(diff) > 30 && imageUrls.length > 1) {
-              if (diff > 0) setPhotoIndex(prev => (prev + 1) % imageUrls.length)
-              else setPhotoIndex(prev => (prev - 1 + imageUrls.length) % imageUrls.length)
-            }
-          }}>
+       <div className={`h-28 ${bg3} flex items-center justify-center text-4xl group-hover:opacity-90 transition-all relative overflow-hidden`}>
           {imageUrls.length > 0 ? (
             <img src={imageUrls[photoIndex]} alt={product.name} className="w-full h-full object-cover transition-all" />
           ) : (
@@ -448,11 +436,19 @@ const preRollProducts = products.filter((p: any) => p.category === 'Pre-Rolls' &
             <span className="absolute top-2 left-2 bg-[#c9a84c] text-[#1a1a1a] text-xs font-bold px-2 py-0.5 rounded-full">🔥 Popular</span>
           )}
           {imageUrls.length > 1 && (
-            <div className="absolute bottom-1 left-0 right-0 flex justify-center gap-1">
-              {imageUrls.map((_: string, i: number) => (
-                <div key={i} className={`w-1.5 h-1.5 rounded-full transition-all ${i === photoIndex ? 'bg-white' : 'bg-white/40'}`} />
-              ))}
-            </div>
+            <>
+              <button
+                onClick={e => { e.stopPropagation(); setPhotoIndex(prev => (prev - 1 + imageUrls.length) % imageUrls.length) }}
+                className="absolute left-1 top-1/2 -translate-y-1/2 bg-black/40 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center hover:bg-black/60 transition-all">‹</button>
+              <button
+                onClick={e => { e.stopPropagation(); setPhotoIndex(prev => (prev + 1) % imageUrls.length) }}
+                className="absolute right-1 top-1/2 -translate-y-1/2 bg-black/40 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center hover:bg-black/60 transition-all">›</button>
+              <div className="absolute bottom-1 left-0 right-0 flex justify-center gap-1">
+                {imageUrls.map((_: string, i: number) => (
+                  <div key={i} className={`w-1.5 h-1.5 rounded-full transition-all ${i === photoIndex ? 'bg-white' : 'bg-white/40'}`} />
+                ))}
+              </div>
+            </>
           )}
         </div>
         <div className="p-3 flex flex-col flex-1">

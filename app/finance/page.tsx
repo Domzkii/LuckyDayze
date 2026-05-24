@@ -113,8 +113,13 @@ export default function FinancePage() {
     }).select().single()
 
     for (const product of products.filter((p: any) => p.category !== 'Pre-Rolls' && !deletedProducts.includes(p.id))) {
-      await supabase.from('products').update({ stock_grams: Number(productGrams[product.id]) || 0 }).eq('id', product.id)
+      await supabase.from('products').update({ 
+        stock_grams: Number(productGrams[product.id]) || 0,
+        in_stock: Number(productGrams[product.id]) > 0
+      }).eq('id', product.id)
     }
+    // Always set pre-rolls in stock when week starts
+    await supabase.from('products').update({ in_stock: true }).eq('category', 'Pre-Rolls')
 
     if (reupFund) {
       await supabase.from('reup_fund').update({
