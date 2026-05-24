@@ -193,7 +193,7 @@ async function searchCustomers() {
       if (Array.isArray(selectedOrder.items)) {
         for (const item of selectedOrder.items) {
           const { data: product } = await supabase
-            .from('products').select('grams, stock_grams').eq('name', item.name).single()
+            .from('products').select('id, grams, stock_grams').eq('name', item.name).single()
 
           const isPreRoll = item.category === 'Pre-Rolls'
           const grams = isPreRoll ? 1 : (product?.grams || 3.5)
@@ -202,6 +202,15 @@ async function searchCustomers() {
           const revenue = item.price * item.qty
           const itemDeliveryCost = actualDeliveryCost / selectedOrder.items.length
           const netProfit = revenue - inventoryCost - itemDeliveryCost
+
+          // Deduct inventory and auto set out of stock when grams hit 0
+          if (product?.id && !isPreRoll) {
+            const newGrams = Math.max(0, (product.stock_grams || 0) - gramsSold)
+            await supabase.from('products').update({
+              stock_grams: newGrams,
+              in_stock: newGrams > 0
+            }).eq('id', product.id)
+          }
 
           const roleSplits: Record<string, number> = { ceo: 35, cfo: 20, acquisitions: 25, delivery: 20 }
           const roleDeliveryShares: Record<string, number> = {}
