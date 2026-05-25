@@ -705,7 +705,7 @@ export default function Home() {
             <div className={`${bg2} border ${border} rounded-2xl p-5 mb-6`}>
               <h3 className="font-bold mb-4">How would you like to receive your order?</h3>
               <div className="flex flex-col gap-3">
-                {(['delivery', 'pickup', ...(hasOrdered ? ['scheduled'] : [])] as string[]).map(method => (
+                {(['delivery', 'pickup', 'scheduled'] as string[]).map(method => (
                   <div key={method} onClick={() => setDeliveryMethod(method as any)}
                     className={`flex items-center gap-4 p-4 rounded-xl border cursor-pointer transition-all ${deliveryMethod === method ? 'border-[#c9a84c] bg-[#c9a84c]/5' : border}`}>
                     <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${deliveryMethod === method ? 'border-[#c9a84c]' : 'border-[#888]'}`}>
