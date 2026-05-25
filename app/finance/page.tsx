@@ -653,11 +653,25 @@ export default function FinancePage() {
             </button>
 
             <div className="bg-[#1a1a1a] text-[#f5f0e8] rounded-2xl p-4 mb-4">
-              <div className="text-xs tracking-widest uppercase text-[#c9a84c] mb-3">Pre-Roll Photos</div>
+              <div className="text-xs tracking-widest uppercase text-[#c9a84c] mb-3">Pre-Roll Settings</div>
               <div className="flex flex-col gap-3">
                 {products.filter((p: any) => p.category === 'Pre-Rolls').map((product: any) => (
                   <div key={product.id}>
                     <div className="text-sm font-bold mb-2">{product.name}</div>
+                    <div className="mb-2">
+                      <label className="text-xs text-white/50 block mb-1">Strain Type</label>
+                      <div className="flex gap-2">
+                        {['Hybrid', 'Sativa', 'Indica'].map(type => (
+                          <button key={type} onClick={async () => {
+                            await supabase.from('products').update({ strain_type: type }).eq('id', product.id)
+                            setProducts(prev => prev.map((p: any) => p.id === product.id ? { ...p, strain_type: type } : p))
+                          }}
+                            className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-all ${product.strain_type === type ? 'bg-[#c9a84c] text-[#1a1a1a] border-[#c9a84c]' : 'border-white/20 text-white/50'}`}>
+                            {type}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                     <div className="flex gap-2 flex-wrap">
                       {((product.image_urls && product.image_urls.length > 0) ? product.image_urls : product.image_url ? [product.image_url] : []).map((url: string, photoIdx: number) => (
                         <div key={photoIdx} className="relative w-14 h-14">
