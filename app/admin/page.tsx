@@ -54,7 +54,7 @@ export default function AdminPage() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [filter, setFilter] = useState('all')
   const [membershipRequests, setMembershipRequests] = useState<any[]>([])
-  const [activeTab, setActiveTab] = useState<'orders' | 'scheduled' | 'members' | 'customers'>('orders')
+  const [activeTab, setActiveTab] = useState<'orders' | 'scheduled' | 'sales' | 'members' | 'customers'>('orders')
   const [customerSearch, setCustomerSearch] = useState('')
   const [customers, setCustomers] = useState<any[]>([])
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null)
@@ -62,12 +62,20 @@ export default function AdminPage() {
   const [loadingCustomers, setLoadingCustomers] = useState(false)
   const [scheduledOrders, setScheduledOrders] = useState<any[]>([])
   const [loadingScheduled, setLoadingScheduled] = useState(false)
+  const [salesEvents, setSalesEvents] = useState<any[]>([])
+  const [showNewSale, setShowNewSale] = useState(false)
+  const [saleTitle, setSaleTitle] = useState('')
+  const [saleDiscountType, setSaleDiscountType] = useState<'percent' | 'dollar'>('percent')
+  const [saleDiscountValue, setSaleDiscountValue] = useState('')
+  const [saleAppliesTo, setSaleAppliesTo] = useState<'all' | 'flower' | 'prerolls'>('all')
+  const [savingSale, setSavingSale] = useState(false)
 
   useEffect(() => {
     if (authenticated) {
       loadOrders()
       loadRequests()
       loadScheduledOrders()
+      loadSalesEvents()
       Notification.requestPermission()
       const channel = supabase.channel('orders')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => { loadOrders(true) })
@@ -102,6 +110,10 @@ export default function AdminPage() {
     const { data } = await supabase.from('scheduled_orders').select('*').order('delivery_date', { ascending: true })
     setScheduledOrders(data || [])
     setLoadingScheduled(false)
+  }
+  async function loadSalesEvents() {
+    const { data } = await supabase.from('sales_events').select('*').order('created_at', { ascending: false })
+    setSalesEvents(data || [])
   }
 
   async function searchCustomers() {
@@ -291,20 +303,24 @@ export default function AdminPage() {
       </nav>
 
       <div className={`flex gap-2 px-4 py-4 border-b ${border} max-w-2xl mx-auto overflow-x-auto`}>
-        {(['orders', 'scheduled', 'members', 'customers'] as const).map(t => (
+        {(['orders', 'scheduled', 'sales', 'members', 'customers'] as const).map(t => (
           <button key={t} onClick={() => {
             setActiveTab(t)
             if (t === 'members') loadRequests()
             if (t === 'scheduled') loadScheduledOrders()
+            if (t === 'sales') loadSalesEvents()
             if (t === 'customers') { setCustomers([]); setSelectedCustomer(null) }
           }}
             className={`flex-shrink-0 px-5 py-2 rounded-full text-sm font-bold transition-all relative ${activeTab === t ? 'bg-[#1a1a1a] text-[#f5f0e8]' : `border ${border} ${text2}`}`}>
-            {t === 'members' ? 'Membership' : t === 'scheduled' ? 'Scheduled' : t.charAt(0).toUpperCase() + t.slice(1)}
+            {t === 'members' ? 'Membership' : t === 'scheduled' ? 'Scheduled' : t === 'sales' ? 'Sales' : t.charAt(0).toUpperCase() + t.slice(1)}
             {t === 'members' && pendingRequests > 0 && (
               <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold w-4 h-4 rounded-full flex items-center justify-center">{pendingRequests}</span>
             )}
             {t === 'scheduled' && dueTodayCount > 0 && (
               <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold w-4 h-4 rounded-full flex items-center justify-center">{dueTodayCount}</span>
+            )}
+            {t === 'sales' && salesEvents.some((s: any) => s.is_active) && (
+              <span className="absolute -top-1 -right-1 bg-green-500 text-white text-xs font-bold w-4 h-4 rounded-full flex items-center justify-center">🔥</span>
             )}
           </button>
         ))}
@@ -467,44 +483,132 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* MEMBERS TAB */}
-      {activeTab === 'members' && (
+      {/* SALES TAB */}
+      {activeTab === 'sales' && (
         <div className="px-4 pb-24 max-w-2xl mx-auto pt-6">
-          <h2 style={{fontFamily: 'Georgia, serif'}} className="text-xl font-bold mb-4">Membership Requests</h2>
-          {membershipRequests.length === 0 ? (
+          <div className="flex items-center justify-between mb-4">
+            <h2 style={{fontFamily: 'Georgia, serif'}} className="text-xl font-bold">Sale Events</h2>
+            <button onClick={() => setShowNewSale(true)}
+              className="bg-[#c9a84c] text-[#1a1a1a] font-bold px-4 py-2 rounded-full text-sm hover:bg-[#e8c97a] transition-all">
+              + New Sale
+            </button>
+          </div>
+
+          {salesEvents.length === 0 ? (
             <div className={`text-center ${text3} py-20`}>
-              <div className="text-4xl mb-3">👥</div>
-              <p>No membership requests yet</p>
+              <div className="text-4xl mb-3">🏷️</div>
+              <p>No sales created yet</p>
             </div>
           ) : (
             <div className="flex flex-col gap-3">
-              {membershipRequests.map(req => (
-                <div key={req.id} className={`${bg2} border ${border} rounded-2xl p-5`}>
+              {salesEvents.map((sale: any) => (
+                <div key={sale.id} className={`${bg2} border ${sale.is_active ? 'border-[#c9a84c]' : border} rounded-2xl p-5`}>
                   <div className="flex items-start justify-between mb-3">
                     <div>
-                      <div style={{fontFamily: 'Georgia, serif'}} className="font-bold text-base">{req.customer_name}</div>
-                      <div className={`${text3} text-xs`}>{req.customer_phone}</div>
+                      <div style={{fontFamily: 'Georgia, serif'}} className="font-bold text-base">{sale.title}</div>
+                      <div className={`${text3} text-xs mt-1`}>
+                        {sale.discount_type === 'percent' ? `${sale.discount_value}% off` : `$${sale.discount_value} off`} · {sale.applies_to === 'all' ? 'Entire order' : sale.applies_to === 'flower' ? 'Flower only' : 'Pre-Rolls only'}
+                      </div>
                     </div>
-                    <span className={`text-xs font-bold px-3 py-1 rounded-full ${req.status === 'pending' ? 'bg-amber-100 text-amber-700' : req.status === 'approved' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
-                      {req.status === 'pending' ? 'Pending' : req.status === 'approved' ? 'Approved ✓' : 'Declined'}
-                    </span>
-                  </div>
-                  <div className={`flex flex-col gap-1 text-sm ${text2} mb-4`}>
-                    <span>📧 {req.customer_email || '—'}</span>
-                    <span>🎂 {req.customer_birthday || '—'}</span>
-                    <span>🏷️ Requesting: <span className={`font-bold ${req.requested_tier === 'house' ? 'text-[#c9a84c]' : 'text-green-500'}`}>{req.requested_tier === 'house' ? 'The House' : 'Member'}</span></span>
-                    <span className={`text-xs ${text3}`}>Submitted {new Date(req.created_at).toLocaleDateString()}</span>
-                  </div>
-                  {req.status === 'pending' && (
-                    <div className="flex gap-2">
-                      <button onClick={() => handleMembership(req.id, req.customer_phone, req.requested_tier, true)}
-                        className="flex-1 bg-[#1a1a1a] text-[#f5f0e8] font-bold py-2 rounded-xl text-sm hover:bg-[#333] transition-all">✓ Approve</button>
-                      <button onClick={() => handleMembership(req.id, req.customer_phone, req.requested_tier, false)}
-                        className="flex-1 border border-red-400 text-red-400 font-bold py-2 rounded-xl text-sm hover:bg-red-500/10 transition-all">✗ Decline</button>
+                    <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold ${sale.is_active ? 'bg-green-100 text-green-700' : `${dark ? 'bg-[#333] text-[#666]' : 'bg-gray-100 text-gray-500'}`}`}>
+                      {sale.is_active ? '🔥 Active' : 'Inactive'}
                     </div>
-                  )}
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={async () => {
+                      await supabase.from('sales_events').update({ is_active: false }).neq('id', sale.id)
+                      await supabase.from('sales_events').update({ is_active: !sale.is_active }).eq('id', sale.id)
+                      loadSalesEvents()
+                    }} className={`flex-1 font-bold py-2 rounded-xl text-sm transition-all ${sale.is_active ? `border ${border} ${text2} hover:border-red-400 hover:text-red-400` : 'bg-[#c9a84c] text-[#1a1a1a] hover:bg-[#e8c97a]'}`}>
+                      {sale.is_active ? 'Deactivate' : '🔥 Activate'}
+                    </button>
+                    <button onClick={async () => {
+                      await supabase.from('sales_events').delete().eq('id', sale.id)
+                      loadSalesEvents()
+                    }} className="border border-red-400 text-red-400 font-bold py-2 px-4 rounded-xl text-sm hover:bg-red-500/10 transition-all">
+                      Delete
+                    </button>
+                  </div>
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* NEW SALE MODAL */}
+          {showNewSale && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center px-6">
+              <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowNewSale(false)} />
+              <div className={`relative w-full max-w-sm ${bg} border ${border} rounded-2xl p-6`}>
+                <h2 style={{fontFamily: 'Georgia, serif'}} className="text-xl font-bold mb-5">Create Sale Event</h2>
+
+                <div className="mb-4">
+                  <label className={`text-xs font-bold ${text3} block mb-1 uppercase tracking-wider`}>Sale Title</label>
+                  <input type="text" placeholder="e.g. Memorial Day Sale 🇺🇸" value={saleTitle}
+                    onChange={e => setSaleTitle(e.target.value)}
+                    className={`w-full border rounded-xl px-4 py-3 text-sm outline-none focus:border-[#c9a84c] ${input}`} />
+                </div>
+
+                <div className="mb-4">
+                  <label className={`text-xs font-bold ${text3} block mb-2 uppercase tracking-wider`}>Discount Type</label>
+                  <div className="flex gap-2">
+                    {[{label: '% Percent Off', value: 'percent'}, {label: '$ Dollar Off', value: 'dollar'}].map(opt => (
+                      <button key={opt.value} onClick={() => setSaleDiscountType(opt.value as any)}
+                        className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-all ${saleDiscountType === opt.value ? 'bg-[#1a1a1a] text-[#f5f0e8] border-[#1a1a1a]' : `${border} ${text2}`}`}>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mb-4">
+                  <label className={`text-xs font-bold ${text3} block mb-1 uppercase tracking-wider`}>
+                    {saleDiscountType === 'percent' ? 'Percentage Off' : 'Dollar Amount Off'}
+                  </label>
+                  <div className="relative">
+                    <span className={`absolute left-4 top-1/2 -translate-y-1/2 font-bold ${text3}`}>{saleDiscountType === 'percent' ? '%' : '$'}</span>
+                    <input type="number" placeholder="10" value={saleDiscountValue}
+                      onChange={e => setSaleDiscountValue(e.target.value)}
+                      className={`w-full border rounded-xl pl-8 pr-4 py-3 text-sm outline-none focus:border-[#c9a84c] ${input}`} />
+                  </div>
+                </div>
+
+                <div className="mb-6">
+                  <label className={`text-xs font-bold ${text3} block mb-2 uppercase tracking-wider`}>Applies To</label>
+                  <div className="flex gap-2">
+                    {[{label: 'Entire Order', value: 'all'}, {label: '🌿 Flower', value: 'flower'}, {label: '🚬 Pre-Rolls', value: 'prerolls'}].map(opt => (
+                      <button key={opt.value} onClick={() => setSaleAppliesTo(opt.value as any)}
+                        className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-all ${saleAppliesTo === opt.value ? 'bg-[#1a1a1a] text-[#f5f0e8] border-[#1a1a1a]' : `${border} ${text2}`}`}>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <button onClick={() => setShowNewSale(false)} className={`flex-1 border ${border} ${text2} font-bold py-3 rounded-xl hover:border-[#c9a84c] transition-all`}>Cancel</button>
+                  <button disabled={!saleTitle || !saleDiscountValue || savingSale}
+                    onClick={async () => {
+                      setSavingSale(true)
+                      await supabase.from('sales_events').insert({
+                        title: saleTitle,
+                        discount_type: saleDiscountType,
+                        discount_value: Number(saleDiscountValue),
+                        applies_to: saleAppliesTo,
+                        is_active: false
+                      })
+                      setSaleTitle('')
+                      setSaleDiscountValue('')
+                      setSaleDiscountType('percent')
+                      setSaleAppliesTo('all')
+                      setSavingSale(false)
+                      setShowNewSale(false)
+                      loadSalesEvents()
+                    }}
+                    className="flex-1 bg-[#1a1a1a] text-[#f5f0e8] font-bold py-3 rounded-xl hover:bg-[#333] transition-all disabled:opacity-50">
+                    {savingSale ? 'Saving...' : 'Create Sale'}
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </div>

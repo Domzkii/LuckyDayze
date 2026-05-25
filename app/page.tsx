@@ -60,11 +60,14 @@ export default function Home() {
   const [scheduledTimeWindow, setScheduledTimeWindow] = useState('')
   const [scheduledFrequency, setScheduledFrequency] = useState('once')
   const [hasOrdered, setHasOrdered] = useState(false)
+  const [activeSale, setActiveSale] = useState<any>(null)
 
   useEffect(() => {
     async function loadProducts() {
       const { data } = await supabase.from('products').select('*')
       setProducts(data || [])
+      const { data: activeSale } = await supabase.from('sales_events').select('*').eq('is_active', true).maybeSingle()
+      setActiveSale(activeSale || null)
     }
     loadProducts()
 
@@ -211,7 +214,16 @@ export default function Home() {
       setCheckoutReferralChecked(true)
     }
   }
-
+  const saleDiscount = activeSale ? (() => {
+      const eligibleItems = cart.filter((i: any) => {
+        if (activeSale.applies_to === 'all') return !i.isReward
+        if (activeSale.applies_to === 'flower') return i.category === 'Flower' && !i.isReward
+        if (activeSale.applies_to === 'prerolls') return i.category === 'Pre-Rolls' && !i.isReward
+        return false
+      })
+      const eligibleTotal = eligibleItems.reduce((sum: number, i: any) => sum + i.price * i.qty, 0)
+      return activeSale.discount_type === 'percent' ? eligibleTotal * (activeSale.discount_value / 100) : Math.min(activeSale.discount_value, eligibleTotal)
+    })() : 0
   async function placeOrder() {
     if (!name || !phone) { alert('Please fill in your name and phone number.'); return }
     if (deliveryMethod === 'delivery' && !address) { alert('Please fill in your delivery address.'); return }
@@ -227,7 +239,7 @@ export default function Home() {
 
     const isScheduled = deliveryMethod === 'scheduled'
     const scheduledDiscount = isScheduled && scheduledDate && (new Date(scheduledDate).getTime() - Date.now()) / (1000 * 60 * 60) >= 24 ? total * 0.05 : 0
-    const orderTotal = isScheduled ? total - scheduledDiscount : total
+    const orderTotal = (isScheduled ? total - scheduledDiscount : total) - saleDiscount
 
     const nextDueDate = scheduledFrequency !== 'once' && scheduledDate ? (() => {
       const d = new Date(scheduledDate)
@@ -577,7 +589,20 @@ export default function Home() {
           <a href="/rewards" className={`border font-bold px-8 py-3 rounded-full transition-all ${dark ? 'border-white/20 text-[#f5f0e8] hover:border-white/40' : 'border-[#1a1a1a]/30 text-[#1a1a1a] hover:border-[#1a1a1a]'}`}>Rewards</a>
         </div>
       </section>
-
+          {activeSale && (
+        <div className="mx-auto mt-4 max-w-2xl px-6">
+          <div className="bg-[#c9a84c] text-[#1a1a1a] rounded-2xl px-6 py-4 flex items-center gap-3">
+            <span className="text-2xl">🔥</span>
+            <div>
+              <p className="font-bold text-sm">{activeSale.title}</p>
+              <p className="text-xs font-semibold">
+                {activeSale.discount_type === 'percent' ? `${activeSale.discount_value}% off` : `$${activeSale.discount_value} off`}
+                {activeSale.applies_to === 'flower' ? ' flower' : activeSale.applies_to === 'prerolls' ? ' pre-rolls' : ' your entire order'}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="mx-auto mt-8 bg-[#1a1a1a] rounded-2xl px-6 py-4 flex items-center gap-4 max-w-2xl">
         <span className="text-2xl">🚗</span>
         <div>
@@ -740,27 +765,26 @@ export default function Home() {
                 </div>
               ))}
               <div className={`border-t ${border} mt-3 pt-3`}>
-                {scheduledDiscount > 0 ? (
-                  <>
-                    <div className="flex justify-between text-sm mb-1">
-                      <span className={text2}>Subtotal</span>
-                      <span>${total.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm mb-2">
-                      <span className="text-green-500 font-bold">5% Scheduled Discount</span>
-                      <span className="text-green-500 font-bold">−${scheduledDiscount.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between font-bold">
-                      <span>Total</span>
-                      <span className="text-[#c9a84c] text-lg">${discountedTotal.toFixed(2)}</span>
-                    </div>
-                  </>
-                ) : (
-                  <div className="flex justify-between font-bold">
-                    <span>Total</span>
-                    <span className="text-[#c9a84c] text-lg">${total.toFixed(2)}</span>
+                <div className="flex justify-between text-sm mb-1">
+                  <span className={text2}>Subtotal</span>
+                  <span>${total.toFixed(2)}</span>
+                </div>
+                {scheduledDiscount > 0 && (
+                  <div className="flex justify-between text-sm mb-1">
+                    <span className="text-green-500 font-bold">📅 5% Scheduled Discount</span>
+                    <span className="text-green-500 font-bold">−${scheduledDiscount.toFixed(2)}</span>
                   </div>
                 )}
+                {saleDiscount > 0 && (
+                  <div className="flex justify-between text-sm mb-1">
+                    <span className="text-[#c9a84c] font-bold">🔥 {activeSale.title}</span>
+                    <span className="text-[#c9a84c] font-bold">−${saleDiscount.toFixed(2)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between font-bold mt-2 pt-2 border-t ${border}">
+                  <span>Total</span>
+                  <span className="text-[#c9a84c] text-lg">${(total - scheduledDiscount - saleDiscount).toFixed(2)}</span>
+                </div>
               </div>
             </div>
 
@@ -847,7 +871,7 @@ export default function Home() {
 
             <div className={`${bg2} border ${border} rounded-2xl p-5 mb-6`}>
               <h3 className="font-bold mb-2">Send Payment</h3>
-              <p className={`text-sm mb-5 ${text2}`}>Send <span className="text-[#c9a84c] font-bold">${discountedTotal.toFixed(2)}</span> to our Cash App then tap confirm.</p>
+              <p className={`text-sm mb-5 ${text2}`}>Send <span className="text-[#c9a84c] font-bold">${(total - scheduledDiscount - saleDiscount).toFixed(2)}</span> to our Cash App then tap confirm.</p>
               <div className={`border rounded-xl p-6 text-center mb-4 ${dark ? 'bg-[#222] border-[#444]' : 'bg-[#f5f0e8] border-[#e0d9cc]'}`}>
                 <div className="text-5xl mb-3">💚</div>
                 <p style={{fontFamily: 'Georgia, serif'}} className="font-bold text-lg mb-1">Cash App</p>
