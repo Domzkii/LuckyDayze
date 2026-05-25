@@ -589,13 +589,14 @@ export default function AdminPage() {
                   <button disabled={!saleTitle || !saleDiscountValue || savingSale}
                     onClick={async () => {
                       setSavingSale(true)
-                      await supabase.from('sales_events').insert({
+                      const { error } = await supabase.from('sales_events').insert({
                         title: saleTitle,
                         discount_type: saleDiscountType,
                         discount_value: Number(saleDiscountValue),
                         applies_to: saleAppliesTo,
                         is_active: false
                       })
+                      if (error) { alert('Error: ' + error.message); setSavingSale(false); return }
                       setSaleTitle('')
                       setSaleDiscountValue('')
                       setSaleDiscountType('percent')
