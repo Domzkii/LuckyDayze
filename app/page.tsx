@@ -434,7 +434,9 @@ export default function Home() {
               'bg-green-100 text-green-700'
             }`}>{product.strain_type}</span>
           </div>
-          <p className={`text-xs mb-1 ${text3}`}>{product.thc} THC</p>
+          {product.description && product.description !== 'New strain' && (
+  <p className={`text-xs mb-2 ${text3} leading-tight`}>{product.description}</p>
+)}
           {isLowStock && <p className="text-amber-500 text-xs font-bold mb-1">⚠ Low Stock</p>}
           {!isFlower && product.price < 15 && <p className="text-green-500 text-xs font-bold mb-1">🎉 4 for $20</p>}
           {!isFlower && product.price >= 15 && <p className="text-green-500 text-xs font-bold mb-1">🎉 2 for $25</p>}
