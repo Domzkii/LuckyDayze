@@ -54,25 +54,28 @@ export default function AdminPage() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [filter, setFilter] = useState('all')
   const [membershipRequests, setMembershipRequests] = useState<any[]>([])
-  const [activeTab, setActiveTab] = useState<'orders' | 'members' | 'customers'>('orders')
+  const [activeTab, setActiveTab] = useState<'orders' | 'scheduled' | 'members' | 'customers'>('orders')
   const [customerSearch, setCustomerSearch] = useState('')
   const [customers, setCustomers] = useState<any[]>([])
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null)
   const [customerOrders, setCustomerOrders] = useState<any[]>([])
   const [loadingCustomers, setLoadingCustomers] = useState(false)
+  const [scheduledOrders, setScheduledOrders] = useState<any[]>([])
+  const [loadingScheduled, setLoadingScheduled] = useState(false)
 
   useEffect(() => {
     if (authenticated) {
       loadOrders()
       loadRequests()
+      loadScheduledOrders()
       Notification.requestPermission()
-      const channel = supabase
-        .channel('orders')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
-          loadOrders(true)
-        })
+      const channel = supabase.channel('orders')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => { loadOrders(true) })
         .subscribe()
-      return () => { supabase.removeChannel(channel) }
+      const scheduledChannel = supabase.channel('scheduled_orders')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'scheduled_orders' }, () => { loadScheduledOrders() })
+        .subscribe()
+      return () => { supabase.removeChannel(channel); supabase.removeChannel(scheduledChannel) }
     }
   }, [authenticated])
 
@@ -82,10 +85,7 @@ export default function AdminPage() {
     if (notify && newOrders.length > orders.length) {
       const latest = newOrders[0]
       if (Notification.permission === 'granted') {
-        new Notification('New LuckyDayze Order!', {
-          body: `${latest.customer_name} ordered $${latest.total}`,
-          icon: '/favicon.ico'
-        })
+        new Notification('New LuckyDayze Order!', { body: `${latest.customer_name} ordered $${latest.total}`, icon: '/favicon.ico' })
       }
     }
     setOrders(newOrders)
@@ -95,6 +95,13 @@ export default function AdminPage() {
   async function loadRequests() {
     const { data } = await supabase.from('membership_requests').select('*').order('created_at', { ascending: false })
     setMembershipRequests(data || [])
+  }
+
+  async function loadScheduledOrders() {
+    setLoadingScheduled(true)
+    const { data } = await supabase.from('scheduled_orders').select('*').order('delivery_date', { ascending: true })
+    setScheduledOrders(data || [])
+    setLoadingScheduled(false)
   }
 
   async function searchCustomers() {
@@ -132,19 +139,17 @@ export default function AdminPage() {
 
   async function updateStatus(orderId: string, status: string) {
     if (status === 'delivered' && selectedOrder) {
-      const input = window.prompt('Enter actual delivery cost for this order ($):', '10')
-      if (input === null) return
-      const actualDeliveryCost = parseFloat(input) || 10
+      const inp = window.prompt('Enter actual delivery cost for this order ($):', '10')
+      if (inp === null) return
+      const actualDeliveryCost = parseFloat(inp) || 10
       await supabase.from('orders').update({ status }).eq('id', orderId)
       const { data: activeWeek } = await supabase.from('weeks').select('id').eq('status', 'active').single()
       const costPerGram = 400 / 112
-
       const { data: loyaltyRecord } = await supabase.from('loyalty').select('*').eq('customer_phone', selectedOrder.customer_phone).single()
       const orderTotal = selectedOrder.total
       const currentTier = loyaltyRecord?.membership_tier || 'guest'
       const isHighSpend = orderTotal >= 50
-      const pointsToAdd = (currentTier === 'member' && isHighSpend) || currentTier === 'house'
-        ? Math.floor(orderTotal) * 2 : Math.floor(orderTotal)
+      const pointsToAdd = (currentTier === 'member' && isHighSpend) || currentTier === 'house' ? Math.floor(orderTotal) * 2 : Math.floor(orderTotal)
 
       if (loyaltyRecord) {
         const isFirstPurchase = (loyaltyRecord.purchase_count || 0) === 0
@@ -164,8 +169,7 @@ export default function AdminPage() {
         }
       } else {
         await supabase.from('loyalty').insert({
-          customer_phone: selectedOrder.customer_phone,
-          customer_name: selectedOrder.customer_name,
+          customer_phone: selectedOrder.customer_phone, customer_name: selectedOrder.customer_name,
           purchase_count: 1, total_spent: orderTotal, points: pointsToAdd,
           membership_tier: 'guest', membership_status: 'active',
           referral_code: Math.random().toString(36).substring(2, 8).toUpperCase()
@@ -182,28 +186,23 @@ export default function AdminPage() {
           const revenue = item.price * item.qty
           const itemDeliveryCost = actualDeliveryCost / selectedOrder.items.length
           const netProfit = revenue - inventoryCost - itemDeliveryCost
-
           if (product?.id && !isPreRoll) {
             const newGrams = Math.max(0, (product.stock_grams || 0) - gramsSold)
             await supabase.from('products').update({ stock_grams: newGrams, in_stock: newGrams > 0 }).eq('id', product.id)
           }
-
           const roleSplits: Record<string, number> = { ceo: 35, cfo: 20, acquisitions: 25, delivery: 20 }
           const roleDeliveryShares: Record<string, number> = {}
           Object.keys(roleSplits).forEach(role => {
             roleDeliveryShares[role] = parseFloat((itemDeliveryCost * (roleSplits[role] / 100)).toFixed(2))
           })
-
           await supabase.from('sales').insert({
             order_id: orderId, product_name: item.name, category: item.category,
             grams_sold: gramsSold, revenue, inventory_cost: inventoryCost,
             delivery_cost: itemDeliveryCost, net_profit: netProfit,
             delivery_shares: roleDeliveryShares, status: 'delivered', week_id: activeWeek?.id || null
           })
-
           if (isPreRoll) {
-            const { data: flowerProducts } = await supabase.from('products').select('id, stock_grams')
-              .eq('category', 'Flower').order('stock_grams', { ascending: false }).limit(1)
+            const { data: flowerProducts } = await supabase.from('products').select('id, stock_grams').eq('category', 'Flower').order('stock_grams', { ascending: false }).limit(1)
             if (flowerProducts && flowerProducts.length > 0) {
               const newStock = Math.max(0, (flowerProducts[0].stock_grams || 0) - gramsSold)
               await supabase.from('products').update({ stock_grams: newStock }).eq('id', flowerProducts[0].id)
@@ -217,7 +216,6 @@ export default function AdminPage() {
     } else {
       await supabase.from('orders').update({ status }).eq('id', orderId)
     }
-
     const { data: topStrain } = await supabase.from('sales').select('product_name, grams_sold').eq('category', 'Flower')
       .then(async ({ data }) => {
         if (!data) return { data: null }
@@ -234,12 +232,8 @@ export default function AdminPage() {
     loadOrders()
   }
 
-  function getStatusStyle(status: string) {
-    return STATUSES.find(s => s.value === status)?.color || 'bg-gray-100 text-gray-600'
-  }
-  function getStatusLabel(status: string) {
-    return STATUSES.find(s => s.value === status)?.label || status
-  }
+  function getStatusStyle(status: string) { return STATUSES.find(s => s.value === status)?.color || 'bg-gray-100 text-gray-600' }
+  function getStatusLabel(status: string) { return STATUSES.find(s => s.value === status)?.label || status }
   function formatTime(ts: string) {
     return new Date(ts).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
   }
@@ -250,6 +244,7 @@ export default function AdminPage() {
   const delivered = orders.filter(o => o.status === 'delivered').length
   const revenue = orders.filter(o => o.status !== 'cancelled').reduce((sum, o) => sum + (o.total || 0), 0)
   const pendingRequests = membershipRequests.filter(r => r.status === 'pending').length
+  const dueTodayCount = scheduledOrders.filter((o: any) => new Date(o.delivery_date) <= new Date() && o.status === 'pending').length
 
   if (!authenticated) {
     return (
@@ -296,21 +291,26 @@ export default function AdminPage() {
       </nav>
 
       <div className={`flex gap-2 px-4 py-4 border-b ${border} max-w-2xl mx-auto overflow-x-auto`}>
-        {(['orders', 'members', 'customers'] as const).map(t => (
+        {(['orders', 'scheduled', 'members', 'customers'] as const).map(t => (
           <button key={t} onClick={() => {
             setActiveTab(t)
             if (t === 'members') loadRequests()
+            if (t === 'scheduled') loadScheduledOrders()
             if (t === 'customers') { setCustomers([]); setSelectedCustomer(null) }
           }}
-            className={`flex-shrink-0 px-5 py-2 rounded-full text-sm font-bold transition-all relative capitalize ${activeTab === t ? 'bg-[#1a1a1a] text-[#f5f0e8]' : `border ${border} ${text2}`}`}>
-            {t === 'members' ? 'Membership' : t.charAt(0).toUpperCase() + t.slice(1)}
+            className={`flex-shrink-0 px-5 py-2 rounded-full text-sm font-bold transition-all relative ${activeTab === t ? 'bg-[#1a1a1a] text-[#f5f0e8]' : `border ${border} ${text2}`}`}>
+            {t === 'members' ? 'Membership' : t === 'scheduled' ? 'Scheduled' : t.charAt(0).toUpperCase() + t.slice(1)}
             {t === 'members' && pendingRequests > 0 && (
               <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold w-4 h-4 rounded-full flex items-center justify-center">{pendingRequests}</span>
+            )}
+            {t === 'scheduled' && dueTodayCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold w-4 h-4 rounded-full flex items-center justify-center">{dueTodayCount}</span>
             )}
           </button>
         ))}
       </div>
 
+      {/* ORDERS TAB */}
       {activeTab === 'orders' && (
         <>
           <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-4 max-w-2xl mx-auto">
@@ -326,7 +326,6 @@ export default function AdminPage() {
               </div>
             ))}
           </div>
-
           <div className="flex gap-2 px-4 pb-4 overflow-x-auto max-w-2xl mx-auto">
             {['all', 'pending_payment', 'confirmed', 'preparing', 'out_for_delivery', 'delivered'].map(f => (
               <button key={f} onClick={() => setFilter(f)}
@@ -335,7 +334,6 @@ export default function AdminPage() {
               </button>
             ))}
           </div>
-
           <div className="px-4 pb-24 max-w-2xl mx-auto">
             {loading ? (
               <div className={`text-center ${text3} py-20`}>Loading orders...</div>
@@ -369,6 +367,107 @@ export default function AdminPage() {
         </>
       )}
 
+      {/* SCHEDULED TAB */}
+      {activeTab === 'scheduled' && (
+        <div className="px-4 pb-24 max-w-2xl mx-auto pt-6">
+          <h2 style={{fontFamily: 'Georgia, serif'}} className="text-xl font-bold mb-4">Scheduled Orders</h2>
+          {loadingScheduled ? (
+            <div className={`text-center ${text3} py-20`}>Loading...</div>
+          ) : scheduledOrders.length === 0 ? (
+            <div className={`text-center ${text3} py-20`}>
+              <div className="text-4xl mb-3">📅</div>
+              <p>No scheduled orders yet</p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {scheduledOrders.map((order: any) => {
+                const isToday = new Date(order.delivery_date).toDateString() === new Date().toDateString()
+                const isOverdue = new Date(order.delivery_date) < new Date() && order.status === 'pending'
+                const isRecurring = order.frequency !== 'once'
+                return (
+                  <div key={order.id} className={`${bg2} border ${isOverdue ? 'border-red-500' : isToday ? 'border-[#c9a84c]' : border} rounded-2xl p-5`}>
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <div style={{fontFamily: 'Georgia, serif'}} className="font-bold text-base">{order.customer_name}</div>
+                        <div className={`${text3} text-xs`}>{order.customer_phone}</div>
+                      </div>
+                      <div className="flex flex-col items-end gap-1">
+                        {isOverdue && <span className="text-xs bg-red-100 text-red-600 font-bold px-2 py-0.5 rounded-full">⚠ Overdue</span>}
+                        {isToday && !isOverdue && <span className="text-xs bg-[#c9a84c]/20 text-[#c9a84c] font-bold px-2 py-0.5 rounded-full">📅 Today</span>}
+                        {isRecurring && <span className="text-xs bg-blue-100 text-blue-700 font-bold px-2 py-0.5 rounded-full">🔄 {order.frequency}</span>}
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${order.status === 'confirmed' ? 'bg-green-100 text-green-700' : order.status === 'cancelled' ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-700'}`}>
+                          {order.status}
+                        </span>
+                      </div>
+                    </div>
+                    <div className={`${text2} text-sm mb-2`}>📍 {order.customer_address}</div>
+                    <div className={`${text3} text-xs mb-2`}>
+                      🗓 {order.delivery_date}{order.delivery_time_window ? ` · ${order.delivery_time_window}` : ''}
+                      {order.discount_pct > 0 && <span className="text-green-500 font-bold ml-2">({order.discount_pct}% off)</span>}
+                    </div>
+                    <div className={`${text3} text-xs mb-3`}>
+                      {Array.isArray(order.items) ? order.items.map((i: any) => `${i.emoji} ${i.name} x${i.qty}`).join(', ') : ''}
+                    </div>
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="font-bold text-[#c9a84c]">${order.total?.toFixed(2)}</span>
+                      {isRecurring && order.next_due_date && <span className={`text-xs ${text3}`}>Next: {order.next_due_date}</span>}
+                    </div>
+                    {order.status === 'pending' && (
+                      <div className="flex gap-2">
+                        <button onClick={async () => {
+                          const { error } = await supabase.from('orders').insert({
+                            customer_name: order.customer_name,
+                            customer_phone: order.customer_phone,
+                            customer_address: order.customer_address,
+                            order_notes: order.order_notes,
+                            items: order.items,
+                            total: order.total,
+                            status: 'confirmed',
+                            referral_code: order.referral_code,
+                            referral_reward: order.referral_reward
+                          })
+                          if (!error) {
+                            const nextDue = order.frequency !== 'once' && order.next_due_date ? (() => {
+                              const d = new Date(order.next_due_date)
+                              if (order.frequency === 'weekly') d.setDate(d.getDate() + 7)
+                              else if (order.frequency === 'biweekly') d.setDate(d.getDate() + 14)
+                              else if (order.frequency === 'monthly') d.setMonth(d.getMonth() + 1)
+                              return d.toISOString().split('T')[0]
+                            })() : null
+                            await supabase.from('scheduled_orders').update({
+                              status: 'confirmed',
+                              recurring_count: (order.recurring_count || 0) + 1,
+                              next_due_date: nextDue,
+                              delivery_date: order.next_due_date || order.delivery_date
+                            }).eq('id', order.id)
+                            if (order.frequency !== 'once' && (order.recurring_count || 0) + 1 >= 3) {
+                              const { data: loyalty } = await supabase.from('loyalty').select('*').eq('customer_phone', order.customer_phone).maybeSingle()
+                              if (loyalty && loyalty.membership_tier === 'guest') {
+                                await supabase.from('loyalty').update({ membership_requested: 'member' }).eq('customer_phone', order.customer_phone)
+                              }
+                            }
+                            loadScheduledOrders()
+                          }
+                        }} className="flex-1 bg-[#1a1a1a] text-[#f5f0e8] font-bold py-2 rounded-xl text-sm hover:bg-[#333] transition-all">
+                          ✓ Confirm & Queue Order
+                        </button>
+                        <button onClick={async () => {
+                          await supabase.from('scheduled_orders').update({ status: 'cancelled' }).eq('id', order.id)
+                          loadScheduledOrders()
+                        }} className="border border-red-400 text-red-400 font-bold py-2 px-4 rounded-xl text-sm hover:bg-red-500/10 transition-all">
+                          Cancel
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* MEMBERS TAB */}
       {activeTab === 'members' && (
         <div className="px-4 pb-24 max-w-2xl mx-auto pt-6">
           <h2 style={{fontFamily: 'Georgia, serif'}} className="text-xl font-bold mb-4">Membership Requests</h2>
@@ -411,6 +510,7 @@ export default function AdminPage() {
         </div>
       )}
 
+      {/* CUSTOMERS TAB */}
       {activeTab === 'customers' && (
         <div className="px-4 pb-24 max-w-2xl mx-auto pt-6">
           <h2 style={{fontFamily: 'Georgia, serif'}} className="text-xl font-bold mb-4">Customer Lookup</h2>
@@ -424,7 +524,6 @@ export default function AdminPage() {
               {loadingCustomers ? '...' : 'Search'}
             </button>
           </div>
-
           {!selectedCustomer ? (
             <div className="flex flex-col gap-3">
               {customers.length === 0 && customerSearch && !loadingCustomers && (
@@ -441,10 +540,7 @@ export default function AdminPage() {
                       <div style={{fontFamily: 'Georgia, serif'}} className="font-bold">{c.customer_name}</div>
                       <div className={`${text3} text-xs`}>{c.customer_phone}</div>
                     </div>
-                    <span className={`text-xs font-bold px-3 py-1 rounded-full ${
-                      c.membership_tier === 'house' ? 'bg-[#1a1a1a] text-[#c9a84c]' :
-                      c.membership_tier === 'member' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
-                    }`}>
+                    <span className={`text-xs font-bold px-3 py-1 rounded-full ${c.membership_tier === 'house' ? 'bg-[#1a1a1a] text-[#c9a84c]' : c.membership_tier === 'member' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
                       {c.membership_tier === 'house' ? 'The House' : c.membership_tier === 'member' ? 'Member' : 'Guest'}
                     </span>
                   </div>
@@ -467,26 +563,14 @@ export default function AdminPage() {
                     <div style={{fontFamily: 'Georgia, serif'}} className="text-xl font-bold">{selectedCustomer.customer_name}</div>
                     <a href={`tel:${selectedCustomer.customer_phone}`} className="text-[#c9a84c] text-sm font-bold">📞 {selectedCustomer.customer_phone}</a>
                   </div>
-                  <span className={`text-xs font-bold px-3 py-1 rounded-full ${
-                    selectedCustomer.membership_tier === 'house' ? 'bg-[#c9a84c]/20 text-[#c9a84c]' :
-                    selectedCustomer.membership_tier === 'member' ? 'bg-green-900/30 text-green-400' : 'bg-white/10 text-[#999]'
-                  }`}>
+                  <span className={`text-xs font-bold px-3 py-1 rounded-full ${selectedCustomer.membership_tier === 'house' ? 'bg-[#c9a84c]/20 text-[#c9a84c]' : selectedCustomer.membership_tier === 'member' ? 'bg-green-900/30 text-green-400' : 'bg-white/10 text-[#999]'}`}>
                     {selectedCustomer.membership_tier === 'house' ? '👑 The House' : selectedCustomer.membership_tier === 'member' ? '✓ Member' : 'Guest'}
                   </span>
                 </div>
                 <div className="grid grid-cols-3 gap-3 mb-4">
-                  <div className="bg-white/5 rounded-xl p-3 text-center">
-                    <div className="text-[#c9a84c] text-xl font-bold">{selectedCustomer.points || 0}</div>
-                    <div className="text-[#999] text-xs">Points</div>
-                  </div>
-                  <div className="bg-white/5 rounded-xl p-3 text-center">
-                    <div className="text-xl font-bold">{selectedCustomer.purchase_count || 0}</div>
-                    <div className="text-[#999] text-xs">Orders</div>
-                  </div>
-                  <div className="bg-white/5 rounded-xl p-3 text-center">
-                    <div className="text-xl font-bold">${(selectedCustomer.total_spent || 0).toFixed(0)}</div>
-                    <div className="text-[#999] text-xs">Spent</div>
-                  </div>
+                  <div className="bg-white/5 rounded-xl p-3 text-center"><div className="text-[#c9a84c] text-xl font-bold">{selectedCustomer.points || 0}</div><div className="text-[#999] text-xs">Points</div></div>
+                  <div className="bg-white/5 rounded-xl p-3 text-center"><div className="text-xl font-bold">{selectedCustomer.purchase_count || 0}</div><div className="text-[#999] text-xs">Orders</div></div>
+                  <div className="bg-white/5 rounded-xl p-3 text-center"><div className="text-xl font-bold">${(selectedCustomer.total_spent || 0).toFixed(0)}</div><div className="text-[#999] text-xs">Spent</div></div>
                 </div>
                 <div className="flex flex-col gap-1 text-xs text-[#999]">
                   {selectedCustomer.referral_code && <span>🔗 Referral code: <span className="text-[#c9a84c] font-mono font-bold">{selectedCustomer.referral_code}</span></span>}
@@ -498,7 +582,6 @@ export default function AdminPage() {
                   {selectedCustomer.house_paid_until && <span>💳 House paid until: {selectedCustomer.house_paid_until}</span>}
                 </div>
               </div>
-
               <h3 style={{fontFamily: 'Georgia, serif'}} className="text-lg font-bold mb-3">Order History</h3>
               {customerOrders.length === 0 ? (
                 <div className={`text-center ${text3} py-8 ${bg2} border ${border} rounded-2xl`}><p>No orders yet</p></div>
@@ -508,14 +591,9 @@ export default function AdminPage() {
                     <div key={order.id} className={`${bg2} border ${border} rounded-2xl p-4`}>
                       <div className="flex items-center justify-between mb-2">
                         <div className={`text-xs ${text3}`}>{new Date(order.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
-                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                          order.status === 'delivered' ? 'bg-green-100 text-green-700' :
-                          order.status === 'cancelled' ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-700'
-                        }`}>{order.status.replace(/_/g, ' ')}</span>
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${order.status === 'delivered' ? 'bg-green-100 text-green-700' : order.status === 'cancelled' ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-700'}`}>{order.status.replace(/_/g, ' ')}</span>
                       </div>
-                      <div className={`text-xs ${text2} mb-2`}>
-                        {Array.isArray(order.items) ? order.items.map((i: any) => `${i.emoji} ${i.name} x${i.qty}`).join(', ') : ''}
-                      </div>
+                      <div className={`text-xs ${text2} mb-2`}>{Array.isArray(order.items) ? order.items.map((i: any) => `${i.emoji} ${i.name} x${i.qty}`).join(', ') : ''}</div>
                       <div className="flex justify-between items-center">
                         <span className={`text-xs ${text3}`}>{order.customer_address === 'PICKUP' ? '📍 Pickup' : '🚗 Delivery'}</span>
                         <span className="font-bold text-[#c9a84c]">${order.total}</span>
@@ -529,6 +607,7 @@ export default function AdminPage() {
         </div>
       )}
 
+      {/* ORDER DETAIL MODAL */}
       {selectedOrder && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setSelectedOrder(null)} />
@@ -551,16 +630,11 @@ export default function AdminPage() {
                   <div className="mt-2 bg-green-500/10 border border-green-500/30 rounded-xl p-3 text-sm text-green-400">
                     <p className="font-bold mb-1">🎁 Referral code: <span className="font-mono">{(selectedOrder as any).referral_code}</span></p>
                     {(selectedOrder as any).referral_reward && (
-                      <p className="text-xs">
-                        {(selectedOrder as any).referral_reward === 'Claim Later'
-                          ? '⏳ Customer chose to claim their free mini pre-roll later via Rewards page'
-                          : `✓ Include in this order: ${(selectedOrder as any).referral_reward}`}
-                      </p>
+                      <p className="text-xs">{(selectedOrder as any).referral_reward === 'Claim Later' ? '⏳ Customer chose to claim their free mini pre-roll later via Rewards page' : `✓ Include in this order: ${(selectedOrder as any).referral_reward}`}</p>
                     )}
                   </div>
                 )}
               </div>
-
               <div className={`${bg2} border ${border} rounded-2xl p-4 mb-4`}>
                 <div className={`${text3} text-xs font-bold uppercase tracking-wider mb-3`}>Items Ordered</div>
                 {Array.isArray(selectedOrder.items) && selectedOrder.items.map((item, i) => (
@@ -574,7 +648,6 @@ export default function AdminPage() {
                   <span className="text-[#c9a84c]">${selectedOrder.total}</span>
                 </div>
               </div>
-
               <div className={`${bg2} border ${border} rounded-2xl p-4 mb-4`}>
                 <div className={`${text3} text-xs font-bold uppercase tracking-wider mb-3`}>Update Status</div>
                 <div className="flex flex-col gap-2">
