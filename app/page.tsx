@@ -61,11 +61,14 @@ export default function Home() {
   const [scheduledFrequency, setScheduledFrequency] = useState('once')
   const [hasOrdered, setHasOrdered] = useState(false)
   const [activeSale, setActiveSale] = useState<any>(null)
+  const [storeIsOpen, setStoreIsOpen] = useState(true)
 
   useEffect(() => {
     async function loadProducts() {
       const { data } = await supabase.from('products').select('*')
       setProducts(data || [])
+      const { data: settings } = await supabase.from('store_settings').select('is_open').eq('id', 1).single()
+      if (settings) setStoreIsOpen(settings.is_open)
       const { data: activeSale } = await supabase.from('sales_events').select('*').eq('is_active', true).maybeSingle()
       setActiveSale(activeSale || null)
     }
@@ -589,6 +592,17 @@ export default function Home() {
           <a href="/rewards" className={`border font-bold px-8 py-3 rounded-full transition-all ${dark ? 'border-white/20 text-[#f5f0e8] hover:border-white/40' : 'border-[#1a1a1a]/30 text-[#1a1a1a] hover:border-[#1a1a1a]'}`}>Rewards</a>
         </div>
       </section>
+      {!storeIsOpen && (
+        <div className="mx-auto mt-4 max-w-2xl px-6">
+          <div className={`${dark ? 'bg-[#1a1a1a] border-[#333]' : 'bg-white border-[#e0d9cc]'} border rounded-2xl px-6 py-4 flex items-center gap-3`}>
+            <span className="text-2xl">🕐</span>
+            <div>
+              <p className="font-bold text-sm">Delivery & Pickup Unavailable</p>
+              <p className={`text-xs ${text3}`}>We're not available for immediate orders right now — but you can still schedule a future delivery!</p>
+            </div>
+          </div>
+        </div>
+      )}
           {activeSale && (
         <div className="mx-auto mt-4 max-w-2xl px-6">
           <div className="bg-[#c9a84c] text-[#1a1a1a] rounded-2xl px-6 py-4 flex items-center gap-3">
@@ -732,7 +746,7 @@ export default function Home() {
             <div className={`${bg2} border ${border} rounded-2xl p-5 mb-6`}>
               <h3 className="font-bold mb-4">How would you like to receive your order?</h3>
               <div className="flex flex-col gap-3">
-                {(['delivery', 'pickup', 'scheduled'] as string[]).map(method => (
+                {(['scheduled', ...(storeIsOpen ? ['delivery', 'pickup'] : [])] as string[]).map(method => (
                   <div key={method} onClick={() => setDeliveryMethod(method as any)}
                     className={`flex items-center gap-4 p-4 rounded-xl border cursor-pointer transition-all ${deliveryMethod === method ? 'border-[#c9a84c] bg-[#c9a84c]/5' : border}`}>
                     <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${deliveryMethod === method ? 'border-[#c9a84c]' : 'border-[#888]'}`}>

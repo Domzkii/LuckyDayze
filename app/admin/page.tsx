@@ -69,6 +69,8 @@ export default function AdminPage() {
   const [saleDiscountValue, setSaleDiscountValue] = useState('')
   const [saleAppliesTo, setSaleAppliesTo] = useState<'all' | 'flower' | 'prerolls'>('all')
   const [savingSale, setSavingSale] = useState(false)
+  const [storeOpen, setStoreOpen] = useState(true)
+  const [togglingStore, setTogglingStore] = useState(false)
 
   useEffect(() => {
     if (authenticated) {
@@ -76,6 +78,7 @@ export default function AdminPage() {
       loadRequests()
       loadScheduledOrders()
       loadSalesEvents()
+      loadStoreStatus()
       Notification.requestPermission()
       const channel = supabase.channel('orders')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => { loadOrders(true) })
@@ -114,6 +117,18 @@ export default function AdminPage() {
   async function loadSalesEvents() {
     const { data } = await supabase.from('sales_events').select('*').order('created_at', { ascending: false })
     setSalesEvents(data || [])
+  }
+  async function loadStoreStatus() {
+    const { data } = await supabase.from('store_settings').select('is_open').eq('id', 1).single()
+    if (data) setStoreOpen(data.is_open)
+  }
+
+  async function toggleStore() {
+    setTogglingStore(true)
+    const newStatus = !storeOpen
+    await supabase.from('store_settings').update({ is_open: newStatus, updated_at: new Date().toISOString() }).eq('id', 1)
+    setStoreOpen(newStatus)
+    setTogglingStore(false)
   }
 
   async function searchCustomers() {
@@ -296,6 +311,10 @@ export default function AdminPage() {
             </div>
             <button onClick={toggle} className="text-lg px-2" aria-label="Toggle dark mode">{dark ? '☀️' : '🌙'}</button>
             <button onClick={() => loadOrders()} className={`border ${border} ${text2} text-xs font-bold px-3 py-1.5 rounded-full hover:border-[#c9a84c] transition-all`}>Refresh</button>
+            <button onClick={toggleStore} disabled={togglingStore}
+              className={`text-xs font-bold px-3 py-1.5 rounded-full transition-all disabled:opacity-50 ${storeOpen ? 'bg-green-500 text-white hover:bg-green-600' : 'bg-red-500 text-white hover:bg-red-600'}`}>
+              {togglingStore ? '...' : storeOpen ? '🟢 Open' : '🔴 Closed'}
+            </button>
             <a href="/finance" className="bg-[#1a1a1a] text-[#f5f0e8] text-xs font-bold px-3 py-1.5 rounded-full hover:bg-[#333] transition-all">Finance</a>
             <a href="/" className={`border ${border} ${text2} text-xs font-bold px-3 py-1.5 rounded-full hover:border-[#c9a84c] transition-all`}>Store</a>
           </div>
