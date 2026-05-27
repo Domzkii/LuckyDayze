@@ -62,6 +62,8 @@ export default function Home() {
   const [hasOrdered, setHasOrdered] = useState(false)
   const [activeSale, setActiveSale] = useState<any>(null)
   const [storeIsOpen, setStoreIsOpen] = useState(true)
+  const [pickupLocations, setPickupLocations] = useState<any[]>([])
+  const [selectedPickupLocation, setSelectedPickupLocation] = useState<any>(null)
 
   useEffect(() => {
     async function loadProducts() {
@@ -69,6 +71,8 @@ export default function Home() {
       setProducts(data || [])
       const { data: settings } = await supabase.from('store_settings').select('is_open').eq('id', 1).single()
       if (settings) setStoreIsOpen(settings.is_open)
+      const { data: locations } = await supabase.from('pickup_locations').select('*').eq('is_active', true).order('borough').order('created_at')
+      setPickupLocations(locations || [])
       const { data: activeSale } = await supabase.from('sales_events').select('*').eq('is_active', true).maybeSingle()
       setActiveSale(activeSale || null)
     }
@@ -283,7 +287,9 @@ export default function Home() {
       const { error } = await supabase.from('orders').insert({
         customer_name: name,
         customer_phone: phone,
-        customer_address: deliveryMethod === 'delivery' ? address : 'PICKUP',
+        customer_address: deliveryMethod === 'delivery' ? address : selectedPickupLocation ? `PICKUP — ${selectedPickupLocation.address}` : 'PICKUP',
+              pickup_location_id: deliveryMethod === 'pickup' && selectedPickupLocation ? selectedPickupLocation.id : null,
+              pickup_location_address: deliveryMethod === 'pickup' && selectedPickupLocation ? selectedPickupLocation.address : null,
         order_notes: notes,
         items: orderItems,
         total,
@@ -603,6 +609,16 @@ export default function Home() {
           </div>
         </div>
       )}
+      {storeIsOpen && (
+        <div className="mx-auto mt-4 max-w-2xl px-6">
+          <div className={`${dark ? 'bg-[#1a1a1a] border-[#333]' : 'bg-white border-[#e0d9cc]'} border rounded-2xl px-6 py-3 flex items-center gap-3`}>
+            <span className="text-xl">🗺️</span>
+            <p className={`text-xs ${text2}`}>
+              <span className="font-bold">Now serving Manhattan & Brooklyn</span> — more boroughs coming soon as we grow! Share with friends to help us expand 🌿
+            </p>
+          </div>
+        </div>
+      )}
           {activeSale && (
         <div className="mx-auto mt-4 max-w-2xl px-6">
           <div className="bg-[#c9a84c] text-[#1a1a1a] rounded-2xl px-6 py-4 flex items-center gap-3">
@@ -810,7 +826,28 @@ export default function Home() {
                 <input type="text" placeholder="Delivery address *" value={address} onChange={e => setAddress(e.target.value)} className={`w-full border rounded-xl px-4 py-3 text-sm mb-3 outline-none focus:border-[#c9a84c] ${input}`} />
               )}
               {deliveryMethod === 'pickup' && (
-                <div className={`border rounded-xl px-4 py-3 text-sm mb-3 ${text3} ${dark ? 'bg-[#222] border-[#444]' : 'bg-[#f5f0e8] border-[#e0d9cc]'}`}>📍 After your order is confirmed we will text you a pickup location in one of the 5 boroughs.</div>
+                <div className={`border ${border} rounded-xl p-4 mb-3 ${dark ? 'bg-[#111]' : 'bg-[#f5f0e8]'}`}>
+                  <p className={`text-xs font-bold ${text3} mb-3 uppercase tracking-wider`}>Choose Pickup Location</p>
+                  {['Manhattan', 'Brooklyn'].map(borough => {
+                    const locs = pickupLocations.filter(l => l.borough === borough)
+                    if (locs.length === 0) return null
+                    return (
+                      <div key={borough} className="mb-3">
+                        <p className={`text-xs font-bold ${text3} mb-2`}>{borough}</p>
+                        <div className="flex flex-col gap-2">
+                          {locs.map(loc => (
+                            <div key={loc.id} onClick={() => setSelectedPickupLocation(loc)}
+                              className={`p-3 rounded-xl border cursor-pointer transition-all ${selectedPickupLocation?.id === loc.id ? 'border-[#c9a84c] bg-[#c9a84c]/5' : border}`}>
+                              <p className="font-bold text-sm">{loc.address}</p>
+                              {loc.description && <p className={`text-xs ${text3} mt-0.5`}>{loc.description}</p>}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })}
+                  <p className={`text-xs ${text3} mt-2`}>📱 Stay on your tracking page for live updates once confirmed.</p>
+                </div>
               )}
               {deliveryMethod === 'scheduled' && (
                 <div className={`border ${border} rounded-xl p-4 mb-3 ${dark ? 'bg-[#111]' : 'bg-[#f5f0e8]'}`}>

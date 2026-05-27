@@ -145,8 +145,8 @@ export default function TrackPage() {
                 <span className="font-bold">{order.customer_name}</span>
               </div>
               <div className="flex justify-between text-sm mb-2">
-                <span className={text2}>Delivering to</span>
-                <span className="font-bold text-right max-w-[60%]">{order.customer_address === 'PICKUP' ? '📍 Pickup' : order.customer_address}</span>
+                <span className={text2}>{order.customer_address?.startsWith('PICKUP') ? 'Pickup at' : 'Delivering to'}</span>
+                <span className="font-bold text-right max-w-[60%]">{order.customer_address?.startsWith('PICKUP') ? (order as any).pickup_location_address || '📍 Pickup' : order.customer_address}</span>
               </div>
               <div className="flex justify-between text-sm mb-4">
                 <span className={text2}>Order placed</span>
@@ -165,6 +165,26 @@ export default function TrackPage() {
                 </div>
               </div>
             </div>
+
+            {order.status === 'confirmed' || order.status === 'preparing' || order.status === 'out_for_delivery' ? (
+              <div className={`${bg2} border ${border} rounded-2xl p-5 mb-6`}>
+                <div className={`text-xs uppercase tracking-wider ${text3} mb-3`}>📱 Stay on this page</div>
+                <p className={`text-sm ${text2} mb-4`}>Keep this page open for the most live updates on your order. Your pickup location and status update in real time.</p>
+                {order.customer_address?.startsWith('PICKUP') && !(order as any).customer_arrived && (
+                  <button onClick={async () => {
+                    await supabase.from('orders').update({ customer_arrived: true }).eq('id', order.id)
+                    setOrder((prev: any) => ({ ...prev, customer_arrived: true }))
+                  }} className="w-full bg-[#c9a84c] text-[#1a1a1a] font-bold py-3 rounded-xl hover:bg-[#e8c97a] transition-all">
+                    📍 I've Arrived at the Pickup Location
+                  </button>
+                )}
+                {(order as any).customer_arrived && (
+                  <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-3 text-center">
+                    <p className="text-green-500 font-bold text-sm">✓ Staff has been notified you've arrived!</p>
+                  </div>
+                )}
+              </div>
+            ) : null}
 
             <div className="flex gap-3">
               <a href="/" className={`flex-1 border ${border} ${text2} font-bold py-3 rounded-xl text-center text-sm hover:border-[#c9a84c] transition-all`}>Back to Store</a>

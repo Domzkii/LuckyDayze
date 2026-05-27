@@ -71,6 +71,13 @@ export default function AdminPage() {
   const [savingSale, setSavingSale] = useState(false)
   const [storeOpen, setStoreOpen] = useState(true)
   const [togglingStore, setTogglingStore] = useState(false)
+  const [pickupLocations, setPickupLocations] = useState<any[]>([])
+  const [showPickupManager, setShowPickupManager] = useState(false)
+  const [newBorough, setNewBorough] = useState('Manhattan')
+  const [newAddress, setNewAddress] = useState('')
+  const [newDescription, setNewDescription] = useState('')
+  const [savingLocation, setSavingLocation] = useState(false)
+  const [arrivedOrders, setArrivedOrders] = useState<string[]>([])
 
   useEffect(() => {
     if (authenticated) {
@@ -79,6 +86,22 @@ export default function AdminPage() {
       loadScheduledOrders()
       loadSalesEvents()
       loadStoreStatus()
+      loadPickupLocations()
+
+      const arrivedChannel = supabase.channel('arrived_orders')
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, payload => {
+          if (payload.new.customer_arrived && !payload.old.customer_arrived) {
+            if (Notification.permission === 'granted') {
+              new Notification('🚨 Customer Arrived!', {
+                body: `${payload.new.customer_name} has arrived at the pickup location!`,
+                icon: '/favicon.ico'
+              })
+            }
+            setArrivedOrders(prev => [...prev, payload.new.id])
+            loadOrders()
+          }
+        })
+        .subscribe()
       Notification.requestPermission()
       const channel = supabase.channel('orders')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => { loadOrders(true) })
@@ -121,6 +144,10 @@ export default function AdminPage() {
   async function loadStoreStatus() {
     const { data } = await supabase.from('store_settings').select('is_open').eq('id', 1).single()
     if (data) setStoreOpen(data.is_open)
+  }
+async function loadPickupLocations() {
+    const { data } = await supabase.from('pickup_locations').select('*').order('borough').order('created_at')
+    setPickupLocations(data || [])
   }
 
   async function toggleStore() {
@@ -315,6 +342,10 @@ export default function AdminPage() {
               className={`text-xs font-bold px-3 py-1.5 rounded-full transition-all disabled:opacity-50 ${storeOpen ? 'bg-green-500 text-white hover:bg-green-600' : 'bg-red-500 text-white hover:bg-red-600'}`}>
               {togglingStore ? '...' : storeOpen ? '🟢 Open' : '🔴 Closed'}
             </button>
+            <button onClick={() => setShowPickupManager(true)}
+              className={`border ${border} ${text2} text-xs font-bold px-3 py-1.5 rounded-full hover:border-[#c9a84c] transition-all`}>
+              📍 Locations
+            </button>
             <a href="/finance" className="bg-[#1a1a1a] text-[#f5f0e8] text-xs font-bold px-3 py-1.5 rounded-full hover:bg-[#333] transition-all">Finance</a>
             <a href="/" className={`border ${border} ${text2} text-xs font-bold px-3 py-1.5 rounded-full hover:border-[#c9a84c] transition-all`}>Store</a>
           </div>
@@ -387,7 +418,12 @@ export default function AdminPage() {
                         <div style={{fontFamily: 'Georgia, serif'}} className="font-bold text-base">{order.customer_name}</div>
                         <div className={`${text3} text-xs mt-0.5`}>{formatTime(order.created_at)}</div>
                       </div>
-                      <span className={`text-xs font-bold px-3 py-1 rounded-full ${getStatusStyle(order.status)}`}>{getStatusLabel(order.status)}</span>
+                      <div className="flex flex-col items-end gap-1">
+                        <span className={`text-xs font-bold px-3 py-1 rounded-full ${getStatusStyle(order.status)}`}>{getStatusLabel(order.status)}</span>
+                        {(arrivedOrders.includes(order.id) || (order as any).customer_arrived) && (
+                          <span className="text-xs bg-red-500 text-white font-bold px-2 py-0.5 rounded-full animate-pulse">🚨 Arrived!</span>
+                        )}
+                      </div>
                     </div>
                     <div className={`${text2} text-sm mb-3`}>{order.customer_address}</div>
                     <div className="flex items-center justify-between">
@@ -728,6 +764,83 @@ export default function AdminPage() {
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* PICKUP LOCATION MANAGER */}
+      {showPickupManager && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowPickupManager(false)} />
+          <div className={`relative w-full max-w-md ${bg} border ${border} rounded-2xl max-h-[90vh] overflow-y-auto`}>
+            <div className={`flex items-center justify-between px-6 py-5 border-b ${border}`}>
+              <h2 style={{fontFamily: 'Georgia, serif'}} className="font-bold text-lg">Pickup Locations</h2>
+              <button onClick={() => setShowPickupManager(false)} className={`${text3} text-2xl leading-none`}>×</button>
+            </div>
+            <div className="p-5">
+              {/* EXISTING LOCATIONS */}
+              {['Manhattan', 'Brooklyn'].map(borough => (
+                <div key={borough} className="mb-5">
+                  <div className={`text-xs font-bold uppercase tracking-widest ${text3} mb-2`}>{borough}</div>
+                  <div className="flex flex-col gap-2">
+                    {pickupLocations.filter(l => l.borough === borough).map(loc => (
+                      <div key={loc.id} className={`${bg2} border ${loc.is_active ? 'border-[#c9a84c]/40' : border} rounded-xl p-3 flex items-start justify-between gap-2`}>
+                        <div className="flex-1">
+                          <p className="font-bold text-sm">{loc.address}</p>
+                          {loc.description && <p className={`text-xs ${text3}`}>{loc.description}</p>}
+                        </div>
+                        <div className="flex gap-2 flex-shrink-0">
+                          <button onClick={async () => {
+                            await supabase.from('pickup_locations').update({ is_active: !loc.is_active }).eq('id', loc.id)
+                            loadPickupLocations()
+                          }} className={`text-xs font-bold px-2 py-1 rounded-lg border transition-all ${loc.is_active ? 'border-green-400 text-green-500' : `${border} ${text3}`}`}>
+                            {loc.is_active ? '✓ On' : 'Off'}
+                          </button>
+                          <button onClick={async () => {
+                            await supabase.from('pickup_locations').delete().eq('id', loc.id)
+                            loadPickupLocations()
+                          }} className="text-xs font-bold px-2 py-1 rounded-lg border border-red-400 text-red-400 hover:bg-red-500/10 transition-all">
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    {pickupLocations.filter(l => l.borough === borough).length === 0 && (
+                      <p className={`text-xs ${text3}`}>No locations for {borough} yet</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+
+              {/* ADD NEW LOCATION */}
+              <div className={`border-t ${border} pt-4 mt-4`}>
+                <p className={`text-xs font-bold uppercase tracking-widest ${text3} mb-3`}>Add New Location</p>
+                <div className="flex gap-2 mb-3">
+                  {['Manhattan', 'Brooklyn'].map(b => (
+                    <button key={b} onClick={() => setNewBorough(b)}
+                      className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-all ${newBorough === b ? 'bg-[#1a1a1a] text-[#f5f0e8] border-[#1a1a1a]' : `${border} ${text2}`}`}>
+                      {b}
+                    </button>
+                  ))}
+                </div>
+                <input type="text" placeholder="Address (e.g. 125th St & Lex)" value={newAddress}
+                  onChange={e => setNewAddress(e.target.value)}
+                  className={`w-full border rounded-xl px-4 py-3 text-sm mb-2 outline-none focus:border-[#c9a84c] ${input}`} />
+                <input type="text" placeholder="Description (e.g. Near 4/5/6 train)" value={newDescription}
+                  onChange={e => setNewDescription(e.target.value)}
+                  className={`w-full border rounded-xl px-4 py-3 text-sm mb-3 outline-none focus:border-[#c9a84c] ${input}`} />
+                <button disabled={!newAddress || savingLocation} onClick={async () => {
+                  setSavingLocation(true)
+                  await supabase.from('pickup_locations').insert({ borough: newBorough, address: newAddress, description: newDescription, is_active: true })
+                  setNewAddress('')
+                  setNewDescription('')
+                  setSavingLocation(false)
+                  loadPickupLocations()
+                }} className="w-full bg-[#c9a84c] text-[#1a1a1a] font-bold py-3 rounded-xl text-sm hover:bg-[#e8c97a] transition-all disabled:opacity-50">
+                  {savingLocation ? 'Saving...' : '+ Add Location'}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
