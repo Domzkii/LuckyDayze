@@ -46,7 +46,12 @@ export default function AdminPage() {
   const border = dark ? 'border-[#333]' : 'border-[#e0d9cc]'
   const input = dark ? 'bg-[#222] border-[#444] text-[#f5f0e8] placeholder-[#555]' : 'bg-white border-[#e0d9cc] text-[#1a1a1a] placeholder-[#bbb]'
 
-  const [authenticated, setAuthenticated] = useState(false)
+  const [authenticated, setAuthenticated] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('ld_admin_auth') === 'true'
+    }
+    return false
+  })
   const [password, setPassword] = useState('')
   const [wrongPassword, setWrongPassword] = useState(false)
   const [orders, setOrders] = useState<Order[]>([])
@@ -312,10 +317,10 @@ async function loadPickupLocations() {
             <h2 className="font-bold text-lg mb-6">Enter Password</h2>
             <input type="password" placeholder="Password" value={password}
               onChange={e => setPassword(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') { if (password === 'luckydayze2025') { setAuthenticated(true); setWrongPassword(false) } else setWrongPassword(true) } }}
+              onKeyDown={e => { if (e.key === 'Enter') { if (password === 'luckydayze2025') { setAuthenticated(true); setWrongPassword(false); localStorage.setItem('ld_admin_auth', 'true') } else setWrongPassword(true) } }}
               className={`w-full border rounded-xl px-4 py-3 text-sm mb-3 outline-none focus:border-[#c9a84c] ${input}`} />
             {wrongPassword && <p className="text-red-500 text-xs mb-3">Incorrect password.</p>}
-            <button onClick={() => { if (password === 'luckydayze2025') { setAuthenticated(true); setWrongPassword(false) } else setWrongPassword(true) }}
+            <button onClick={() => { if (password === 'luckydayze2025') { setAuthenticated(true); setWrongPassword(false); localStorage.setItem('ld_admin_auth', 'true') } else setWrongPassword(true) }}
               className="w-full bg-[#1a1a1a] text-[#f5f0e8] font-bold py-3 rounded-xl hover:bg-[#333] transition-all">Login</button>
           </div>
         </div>
@@ -337,7 +342,13 @@ async function loadPickupLocations() {
               <span className={`${text3} text-xs hidden sm:block`}>Live</span>
             </div>
             <button onClick={toggle} className="text-lg px-2" aria-label="Toggle dark mode">{dark ? '☀️' : '🌙'}</button>
-            <button onClick={() => loadOrders()} className={`border ${border} ${text2} text-xs font-bold px-3 py-1.5 rounded-full hover:border-[#c9a84c] transition-all`}>Refresh</button>
+            <button onClick={async () => {
+              await loadOrders()
+              await loadScheduledOrders()
+              await loadSalesEvents()
+              await loadStoreStatus()
+              await loadPickupLocations()
+            }} className={`border ${border} ${text2} text-xs font-bold px-3 py-1.5 rounded-full hover:border-[#c9a84c] transition-all`}>🔄 Refresh</button>
             <button onClick={toggleStore} disabled={togglingStore}
               className={`text-xs font-bold px-3 py-1.5 rounded-full transition-all disabled:opacity-50 ${storeOpen === null ? 'bg-gray-400 text-white' : storeOpen ? 'bg-green-500 text-white hover:bg-green-600' : 'bg-red-500 text-white hover:bg-red-600'}`}>
               {togglingStore ? '...' : storeOpen === null ? '...' : storeOpen ? '🟢 Open' : '🔴 Closed'}
@@ -348,6 +359,8 @@ async function loadPickupLocations() {
             </button>
             <a href="/finance" className="bg-[#1a1a1a] text-[#f5f0e8] text-xs font-bold px-3 py-1.5 rounded-full hover:bg-[#333] transition-all">Finance</a>
             <a href="/" className={`border ${border} ${text2} text-xs font-bold px-3 py-1.5 rounded-full hover:border-[#c9a84c] transition-all`}>Store</a>
+            <button onClick={() => { localStorage.removeItem('ld_admin_auth'); setAuthenticated(false) }}
+              className="border border-red-400 text-red-400 text-xs font-bold px-3 py-1.5 rounded-full hover:bg-red-500/10 transition-all">Logout</button>
           </div>
         </div>
       </nav>

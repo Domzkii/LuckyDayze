@@ -24,7 +24,12 @@ export default function FinancePage() {
   const input = dark ? 'bg-[#222] border-[#444] text-[#f5f0e8] placeholder-[#555]' : 'bg-white border-[#e0d9cc] text-[#1a1a1a] placeholder-[#bbb]'
   const inputLight = dark ? 'bg-[#222] border-[#444] text-[#f5f0e8]' : 'bg-[#f5f0e8] border-[#e0d9cc] text-[#1a1a1a]'
 
-  const [authenticated, setAuthenticated] = useState(false)
+  const [authenticated, setAuthenticated] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('ld_finance_auth') === 'true'
+    }
+    return false
+  })
   const [password, setPassword] = useState('')
   const [wrongPassword, setWrongPassword] = useState(false)
   const [sales, setSales] = useState<any[]>([])
@@ -208,10 +213,10 @@ export default function FinancePage() {
             <h2 className="font-bold text-lg mb-6">Enter Password</h2>
             <input type="password" placeholder="Password" value={password}
               onChange={e => setPassword(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') { if (password === 'luckypayze2025') { setAuthenticated(true); setWrongPassword(false) } else setWrongPassword(true) } }}
+              onKeyDown={e => { if (e.key === 'Enter') { if (password === 'luckypayze2025') { setAuthenticated(true); setWrongPassword(false); localStorage.setItem('ld_finance_auth', 'true') } else setWrongPassword(true) } }}
               className={`w-full border rounded-xl px-4 py-3 text-sm mb-3 outline-none focus:border-[#c9a84c] ${input}`} />
             {wrongPassword && <p className="text-red-500 text-xs mb-3">Incorrect password.</p>}
-            <button onClick={() => { if (password === 'luckypayze2025') { setAuthenticated(true); setWrongPassword(false) } else setWrongPassword(true) }}
+            <button onClick={() => { if (password === 'luckypayze2025') { setAuthenticated(true); setWrongPassword(false); localStorage.setItem('ld_finance_auth', 'true') } else setWrongPassword(true) }}
               className="w-full bg-[#1a1a1a] text-[#f5f0e8] font-bold py-3 rounded-xl hover:bg-[#333] transition-all">Login</button>
           </div>
         </div>
@@ -230,7 +235,9 @@ export default function FinancePage() {
           <button onClick={toggle} className="text-lg" aria-label="Toggle dark mode">{dark ? '☀️' : '🌙'}</button>
           <button onClick={loadData} className={`border ${border} ${text2} text-sm font-bold px-4 py-2 rounded-full hover:border-[#c9a84c] transition-all`}>Refresh</button>
           <a href="/admin" className="bg-[#1a1a1a] text-[#f5f0e8] text-sm font-bold px-5 py-2 rounded-full hover:bg-[#333] transition-all">Admin</a>
-          <a href="/" className={`border ${border} ${text2} text-sm font-bold px-4 py-2 rounded-full hover:border-[#c9a84c] transition-all`}>Store</a>
+          <a href="/" className={`border ${border} ${text2} text-xs font-bold px-3 py-1.5 rounded-full hover:border-[#c9a84c] transition-all`}>Store</a>
+            <button onClick={() => { localStorage.removeItem('ld_finance_auth'); setAuthenticated(false) }}
+              className="border border-red-400 text-red-400 text-xs font-bold px-3 py-1.5 rounded-full hover:bg-red-500/10 transition-all">Logout</button>
         </div>
       </nav>
 
