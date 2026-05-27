@@ -69,7 +69,7 @@ export default function AdminPage() {
   const [saleDiscountValue, setSaleDiscountValue] = useState('')
   const [saleAppliesTo, setSaleAppliesTo] = useState<'all' | 'flower' | 'prerolls'>('all')
   const [savingSale, setSavingSale] = useState(false)
-  const [storeOpen, setStoreOpen] = useState(true)
+  const [storeOpen, setStoreOpen] = useState<boolean | null>(null)
   const [togglingStore, setTogglingStore] = useState(false)
   const [pickupLocations, setPickupLocations] = useState<any[]>([])
   const [showPickupManager, setShowPickupManager] = useState(false)
@@ -339,8 +339,8 @@ async function loadPickupLocations() {
             <button onClick={toggle} className="text-lg px-2" aria-label="Toggle dark mode">{dark ? '☀️' : '🌙'}</button>
             <button onClick={() => loadOrders()} className={`border ${border} ${text2} text-xs font-bold px-3 py-1.5 rounded-full hover:border-[#c9a84c] transition-all`}>Refresh</button>
             <button onClick={toggleStore} disabled={togglingStore}
-              className={`text-xs font-bold px-3 py-1.5 rounded-full transition-all disabled:opacity-50 ${storeOpen ? 'bg-green-500 text-white hover:bg-green-600' : 'bg-red-500 text-white hover:bg-red-600'}`}>
-              {togglingStore ? '...' : storeOpen ? '🟢 Open' : '🔴 Closed'}
+              className={`text-xs font-bold px-3 py-1.5 rounded-full transition-all disabled:opacity-50 ${storeOpen === null ? 'bg-gray-400 text-white' : storeOpen ? 'bg-green-500 text-white hover:bg-green-600' : 'bg-red-500 text-white hover:bg-red-600'}`}>
+              {togglingStore ? '...' : storeOpen === null ? '...' : storeOpen ? '🟢 Open' : '🔴 Closed'}
             </button>
             <button onClick={() => setShowPickupManager(true)}
               className={`border ${border} ${text2} text-xs font-bold px-3 py-1.5 rounded-full hover:border-[#c9a84c] transition-all`}>

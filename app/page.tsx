@@ -8,6 +8,12 @@ const WEIGHT_LABELS: Record<string, string> = {
   '3.5': '1/8', '7': '1/4', '14': '1/2', '28': '1oz'
 }
 
+function formatPhone(phone: string) {
+  const clean = (phone || '').replace(/\D/g, '').replace(/^1/, '')
+  if (clean.length !== 10) return phone
+  return `(${clean.slice(0, 3)}) ${clean.slice(3, 6)}-${clean.slice(6)}`
+}
+
 function fireConfetti() {
   const colors = ['#c9a84c', '#1a1a1a', '#f5f0e8', '#e8c97a', '#4caf50']
   const container = document.body
@@ -59,7 +65,6 @@ export default function Home() {
   const [scheduledDate, setScheduledDate] = useState('')
   const [scheduledTimeWindow, setScheduledTimeWindow] = useState('')
   const [scheduledFrequency, setScheduledFrequency] = useState('once')
-  const [hasOrdered, setHasOrdered] = useState(false)
   const [activeSale, setActiveSale] = useState<any>(null)
   const [storeIsOpen, setStoreIsOpen] = useState(true)
   const [pickupLocations, setPickupLocations] = useState<any[]>([])
@@ -82,7 +87,7 @@ export default function Home() {
     const savedPhone = localStorage.getItem('ld_phone')
     if (savedPhone) {
       supabase.from('loyalty').select('purchase_count').eq('customer_phone', savedPhone).maybeSingle().then(({ data: loyalty }) => {
-        if (loyalty && (loyalty.purchase_count || 0) > 0) setHasOrdered(true)
+        if (loyalty && (loyalty.purchase_count || 0) > 0) return
       })
     }
 
@@ -214,31 +219,43 @@ export default function Home() {
     if (!referrer) {
       setCheckoutReferralError('Invalid code. Please check and try again.')
       setCheckoutReferralValid(false)
-    } else if (referrer.customer_phone === phone.replace(/\D/g, '')) {
-      setCheckoutReferralError('You cannot use your own referral code.')
-      setCheckoutReferralValid(false)
     } else {
-      setCheckoutReferralValid(true)
-      setCheckoutReferralChecked(true)
+      const rawPhone = phone.replace(/\D/g, '')
+      const cleanPhone = rawPhone.length === 11 && rawPhone.startsWith('1') ? rawPhone.slice(1) : rawPhone
+      if (referrer.customer_phone === cleanPhone) {
+        setCheckoutReferralError('You cannot use your own referral code.')
+        setCheckoutReferralValid(false)
+      } else {
+        setCheckoutReferralValid(true)
+        setCheckoutReferralChecked(true)
+      }
     }
   }
+
   const saleDiscount = activeSale ? (() => {
-      const eligibleItems = cart.filter((i: any) => {
-        if (activeSale.applies_to === 'all') return !i.isReward
-        if (activeSale.applies_to === 'flower') return i.category === 'Flower' && !i.isReward
-        if (activeSale.applies_to === 'prerolls') return i.category === 'Pre-Rolls' && !i.isReward
-        return false
-      })
-      const eligibleTotal = eligibleItems.reduce((sum: number, i: any) => sum + i.price * i.qty, 0)
-      return activeSale.discount_type === 'percent' ? eligibleTotal * (activeSale.discount_value / 100) : Math.min(activeSale.discount_value, eligibleTotal)
-    })() : 0
+    const eligibleItems = cart.filter((i: any) => {
+      if (activeSale.applies_to === 'all') return !i.isReward
+      if (activeSale.applies_to === 'flower') return i.category === 'Flower' && !i.isReward
+      if (activeSale.applies_to === 'prerolls') return i.category === 'Pre-Rolls' && !i.isReward
+      return false
+    })
+    const eligibleTotal = eligibleItems.reduce((sum: number, i: any) => sum + i.price * i.qty, 0)
+    return activeSale.discount_type === 'percent' ? eligibleTotal * (activeSale.discount_value / 100) : Math.min(activeSale.discount_value, eligibleTotal)
+  })() : 0
+
   async function placeOrder() {
     if (!name || !phone) { alert('Please fill in your name and phone number.'); return }
     if (!cashTag) { alert('Please enter your Cash App $CashTag so we can verify your payment.'); return }
+
+    const rawPhone = phone.replace(/\D/g, '')
+    const cleanPhone = rawPhone.length === 11 && rawPhone.startsWith('1') ? rawPhone.slice(1) : rawPhone
+    if (cleanPhone.length !== 10) { alert('Please enter a valid 10-digit US phone number.'); return }
+
     if (deliveryMethod === 'delivery' && !address) { alert('Please fill in your delivery address.'); return }
     if (deliveryMethod === 'delivery' && total < 25) { alert('Minimum order for delivery is $25. Add more items or select pickup!'); return }
     if (deliveryMethod === 'scheduled' && !scheduledDate) { alert('Please select a delivery date.'); return }
     if (deliveryMethod === 'scheduled' && !address) { alert('Please fill in your delivery address.'); return }
+    if (deliveryMethod === 'pickup' && !selectedPickupLocation) { alert('Please select a pickup location.'); return }
 
     setLoading(true)
     const orderItems = cart.map((i: any) => ({
@@ -261,7 +278,7 @@ export default function Home() {
     if (isScheduled) {
       const { error } = await supabase.from('scheduled_orders').insert({
         customer_name: name,
-        customer_phone: phone.replace(/\D/g, ''),
+        customer_phone: cleanPhone,
         customer_address: address,
         order_notes: notes,
         items: orderItems,
@@ -284,18 +301,18 @@ export default function Home() {
       fetch('/api/notify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customerName: name, customerPhone: phone, customerAddress: address, total: orderTotal, items: orderItems, scheduled: true, deliveryDate: scheduledDate, timeWindow: scheduledTimeWindow, frequency: scheduledFrequency })
+        body: JSON.stringify({ customerName: name, customerPhone: cleanPhone, customerAddress: address, total: orderTotal, items: orderItems, scheduled: true, deliveryDate: scheduledDate, timeWindow: scheduledTimeWindow, frequency: scheduledFrequency })
       })
     } else {
       const { error } = await supabase.from('orders').insert({
         customer_name: name,
-        customer_phone: phone,
+        customer_phone: cleanPhone,
         customer_address: deliveryMethod === 'delivery' ? address : selectedPickupLocation ? `PICKUP — ${selectedPickupLocation.address}` : 'PICKUP',
-              pickup_location_id: deliveryMethod === 'pickup' && selectedPickupLocation ? selectedPickupLocation.id : null,
-              pickup_location_address: deliveryMethod === 'pickup' && selectedPickupLocation ? selectedPickupLocation.address : null,
+        pickup_location_id: deliveryMethod === 'pickup' && selectedPickupLocation ? selectedPickupLocation.id : null,
+        pickup_location_address: deliveryMethod === 'pickup' && selectedPickupLocation ? selectedPickupLocation.address : null,
         order_notes: notes,
         items: orderItems,
-        total,
+        total: orderTotal,
         status: 'pending_payment',
         cash_tag: cashTag,
         referral_code: checkoutReferralValid ? checkoutReferral.toUpperCase() : null,
@@ -308,11 +325,10 @@ export default function Home() {
       fetch('/api/notify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customerName: name, customerPhone: phone, customerAddress: address, total, items: orderItems })
+        body: JSON.stringify({ customerName: name, customerPhone: cleanPhone, customerAddress: address, total: orderTotal, items: orderItems })
       })
     }
 
-    const cleanPhone = phone.replace(/\D/g, '')
     localStorage.setItem('ld_phone', cleanPhone)
     const { data: existingLoyalty } = await supabase.from('loyalty').select('*').eq('customer_phone', cleanPhone).maybeSingle()
 
@@ -371,7 +387,6 @@ export default function Home() {
   const preRollProducts = products.filter((p: any) => p.category === 'Pre-Rolls' && !p.archived && p.in_stock && totalFlowerGrams > 0)
 
   const scheduledDiscount = deliveryMethod === 'scheduled' && scheduledDate && (new Date(scheduledDate).getTime() - Date.now()) / (1000 * 60 * 60) >= 24 ? total * 0.05 : 0
-  const discountedTotal = total - scheduledDiscount
 
   function ProductCard({ product }: { product: any }) {
     const isFlower = product.category === 'Flower'
@@ -460,8 +475,8 @@ export default function Home() {
             }`}>{product.strain_type}</span>
           </div>
           {product.description && product.description !== 'New strain' && (
-  <p className={`text-xs mb-2 ${text3} leading-tight`}>{product.description}</p>
-)}
+            <p className={`text-xs mb-2 ${text3} leading-tight`}>{product.description}</p>
+          )}
           {isLowStock && <p className="text-amber-500 text-xs font-bold mb-1">⚠ Low Stock</p>}
           {!isFlower && product.price < 15 && <p className="text-green-500 text-xs font-bold mb-1">🎉 4 for $20</p>}
           {!isFlower && product.price >= 15 && <p className="text-green-500 text-xs font-bold mb-1">🎉 2 for $25</p>}
@@ -530,21 +545,22 @@ export default function Home() {
         <p className="text-sm mb-8 max-w-sm opacity-50 animate-fade-in">
           {deliveryMethod === 'scheduled'
             ? `Your scheduled delivery is confirmed for ${scheduledDate}${scheduledTimeWindow ? ` during ${scheduledTimeWindow}` : ''}. We'll reach out to confirm!`
-            : `We are confirming your Cash App payment now. You will get a call or text at ${phone} once your order is on the way.`}
+            : `We are confirming your Cash App payment now. You will get a call or text at ${formatPhone(phone)} once your order is on the way.`}
         </p>
         <div className={`border rounded-2xl p-6 mb-8 max-w-sm w-full animate-fade-in ${dark ? 'bg-[#1a1a1a] border-[#333]' : 'bg-white border-[#e0d9cc]'}`}>
-          <p className="text-sm mb-1 opacity-50">{deliveryMethod === 'scheduled' ? 'Scheduled for' : 'Delivering to'}</p>
-          <p className="font-bold">{deliveryMethod === 'scheduled' ? scheduledDate : address || 'Pickup'}</p>
+          <p className="text-sm mb-1 opacity-50">{deliveryMethod === 'scheduled' ? 'Scheduled for' : deliveryMethod === 'pickup' ? 'Pickup at' : 'Delivering to'}</p>
+          <p className="font-bold">{deliveryMethod === 'scheduled' ? scheduledDate : deliveryMethod === 'pickup' ? selectedPickupLocation?.address : address || 'Pickup'}</p>
           <div className={`border-t mt-4 pt-4 ${dark ? 'border-[#333]' : 'border-[#e0d9cc]'}`}>
             <p className="text-sm mb-1 opacity-50">Amount</p>
             <p className="text-[#c9a84c] text-2xl font-bold">${finalTotal.toFixed(2)}</p>
             {scheduledDiscount > 0 && <p className="text-green-500 text-xs font-bold mt-1">5% scheduled discount applied!</p>}
+            {saleDiscount > 0 && <p className="text-[#c9a84c] text-xs font-bold mt-1">🔥 {activeSale?.title} applied!</p>}
           </div>
         </div>
         {deliveryMethod !== 'scheduled' && (
           <a href="/track" className="bg-[#c9a84c] text-[#1a1a1a] font-bold px-8 py-3 rounded-full hover:bg-[#e8c97a] transition-all mb-3 block text-center animate-fade-in">Track My Order →</a>
         )}
-        <button onClick={() => { setOrderPlaced(false); setName(''); setPhone(''); setAddress(''); setNotes(''); setCheckoutReferral(''); setCheckoutReferralValid(false); setCheckoutReferralChecked(false); setCheckoutReferralChoice(null); setScheduledDate(''); setScheduledTimeWindow(''); setScheduledFrequency('once') }}
+        <button onClick={() => { setOrderPlaced(false); setName(''); setPhone(''); setAddress(''); setNotes(''); setCashTag(''); setCheckoutReferral(''); setCheckoutReferralValid(false); setCheckoutReferralChecked(false); setCheckoutReferralChoice(null); setScheduledDate(''); setScheduledTimeWindow(''); setScheduledFrequency('once'); setSelectedPickupLocation(null) }}
           className="bg-[#1a1a1a] text-[#f5f0e8] font-bold px-8 py-3 rounded-full hover:bg-[#333] transition-all animate-fade-in">Back to Menu</button>
       </main>
     )
@@ -602,28 +618,22 @@ export default function Home() {
           <a href="/rewards" className={`border font-bold px-8 py-3 rounded-full transition-all ${dark ? 'border-white/20 text-[#f5f0e8] hover:border-white/40' : 'border-[#1a1a1a]/30 text-[#1a1a1a] hover:border-[#1a1a1a]'}`}>Rewards</a>
         </div>
       </section>
-      {!storeIsOpen && (
-        <div className="mx-auto mt-4 max-w-2xl px-6">
-          <div className={`${dark ? 'bg-[#1a1a1a] border-[#333]' : 'bg-white border-[#e0d9cc]'} border rounded-2xl px-6 py-4 flex items-center gap-3`}>
-            <span className="text-2xl">🕐</span>
-            <div>
-              <p className="font-bold text-sm">Delivery & Pickup Unavailable</p>
-              <p className={`text-xs ${text3}`}>We're not available for immediate orders right now — but you can still schedule a future delivery!</p>
-            </div>
-          </div>
-        </div>
-      )}
-      {storeIsOpen && (
-        <div className="mx-auto mt-4 max-w-2xl px-6">
-          <div className={`${dark ? 'bg-[#1a1a1a] border-[#333]' : 'bg-white border-[#e0d9cc]'} border rounded-2xl px-6 py-3 flex items-center gap-3`}>
-            <span className="text-xl">🗺️</span>
+
+      <div className="mx-auto mt-4 max-w-2xl px-6">
+        <div className={`${dark ? 'bg-[#1a1a1a] border-[#333]' : 'bg-white border-[#e0d9cc]'} border rounded-2xl px-6 py-3 flex items-center gap-3`}>
+          <span className="text-xl">{storeIsOpen ? '🗺️' : '🕐'}</span>
+          <div>
+            {!storeIsOpen && <p className="font-bold text-sm">Delivery & Pickup Unavailable</p>}
             <p className={`text-xs ${text2}`}>
-              <span className="font-bold">Now serving Manhattan & Brooklyn</span> — more boroughs coming soon as we grow! Share with friends to help us expand 🌿
+              {storeIsOpen
+                ? <><span className="font-bold">Now serving Manhattan & Brooklyn</span> — more boroughs coming soon as we grow! Share with friends to help us expand 🌿</>
+                : "We're not available for immediate orders right now — but you can still schedule a future delivery!"}
             </p>
           </div>
         </div>
-      )}
-          {activeSale && (
+      </div>
+
+      {activeSale && (
         <div className="mx-auto mt-4 max-w-2xl px-6">
           <div className="bg-[#c9a84c] text-[#1a1a1a] rounded-2xl px-6 py-4 flex items-center gap-3">
             <span className="text-2xl">🔥</span>
@@ -637,14 +647,17 @@ export default function Home() {
           </div>
         </div>
       )}
-      <div className="mx-auto mt-8 bg-[#1a1a1a] rounded-2xl px-6 py-4 flex items-center gap-4 max-w-2xl">
-        <span className="text-2xl">🚗</span>
-        <div>
-          <p className="font-semibold text-[#f5f0e8]">Delivering to NYC</p>
-          <p className="text-[#f5f0e8]/50 text-sm">Reliable delivery · All 5 boroughs</p>
+
+      {storeIsOpen && (
+        <div className="mx-auto mt-8 bg-[#1a1a1a] rounded-2xl px-6 py-4 flex items-center gap-4 max-w-2xl">
+          <span className="text-2xl">🚗</span>
+          <div>
+            <p className="font-semibold text-[#f5f0e8]">Delivering to NYC</p>
+            <p className="text-[#f5f0e8]/50 text-sm">Reliable delivery · Manhattan & Brooklyn</p>
+          </div>
+          <div className="ml-auto bg-[#c9a84c]/20 text-[#c9a84c] text-sm font-bold px-4 py-1 rounded-full">✓ Live</div>
         </div>
-        <div className="ml-auto bg-[#c9a84c]/20 text-[#c9a84c] text-sm font-bold px-4 py-1 rounded-full">✓ Reliable</div>
-      </div>
+      )}
 
       <section className="px-6 py-12 pb-16 max-w-2xl mx-auto">
         <div className="flex items-baseline justify-between mb-8">
@@ -778,7 +791,7 @@ export default function Home() {
                       </div>
                       <div className={`text-xs ${text3}`}>
                         {method === 'delivery' ? 'We come to you · $25 minimum order' :
-                         method === 'pickup' ? "No minimum · We'll send you a location in one of the 5 boroughs" :
+                         method === 'pickup' ? 'Choose a pickup spot near a train station' :
                          'Pick a date · 5% off when 24hrs+ in advance · Recurring available'}
                       </div>
                     </div>
@@ -815,7 +828,7 @@ export default function Home() {
                     <span className="text-[#c9a84c] font-bold">−${saleDiscount.toFixed(2)}</span>
                   </div>
                 )}
-                <div className="flex justify-between font-bold mt-2 pt-2 border-t ${border}">
+                <div className={`flex justify-between font-bold mt-2 pt-2 border-t ${border}`}>
                   <span>Total</span>
                   <span className="text-[#c9a84c] text-lg">${(total - scheduledDiscount - saleDiscount).toFixed(2)}</span>
                 </div>
@@ -827,7 +840,7 @@ export default function Home() {
               <input type="text" placeholder="Your full name *" value={name} onChange={e => setName(e.target.value)} className={`w-full border rounded-xl px-4 py-3 text-sm mb-3 outline-none focus:border-[#c9a84c] ${input}`} />
               <input type="tel" placeholder="Phone number *" value={phone} onChange={e => setPhone(e.target.value)} className={`w-full border rounded-xl px-4 py-3 text-sm mb-3 outline-none focus:border-[#c9a84c] ${input}`} />
               <div className="relative mb-3">
-                <span className={`absolute left-4 top-1/2 -translate-y-1/2 font-bold text-green-500`}>$</span>
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-green-500">$</span>
                 <input type="text" placeholder="Your CashTag (e.g. JohnDoe) *" value={cashTag}
                   onChange={e => setCashTag(e.target.value.replace('$', ''))}
                   className={`w-full border rounded-xl pl-8 pr-4 py-3 text-sm outline-none focus:border-[#c9a84c] ${input}`} />
@@ -947,7 +960,7 @@ export default function Home() {
               {loading ? 'Placing Order...' : deliveryMethod === 'scheduled' ? '📅 Schedule My Order ✓' : "I've Sent Payment ✓"}
             </button>
             <p className={`text-xs text-center mt-4 ${text3}`}>
-              {deliveryMethod === 'scheduled' ? 'We will confirm your scheduled delivery via text.' : 'Your order will be confirmed once payment is verified.'}
+              {deliveryMethod === 'scheduled' ? 'We will confirm your scheduled delivery via text.' : 'Your order will be confirmed once payment is verified. Average delivery 30–45 min.'}
             </p>
           </div>
         </div>
