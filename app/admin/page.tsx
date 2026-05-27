@@ -116,7 +116,7 @@ export default function AdminPage() {
       const scheduledChannel = supabase.channel('scheduled_orders')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'scheduled_orders' }, () => { loadScheduledOrders() })
         .subscribe()
-      return () => { supabase.removeChannel(channel); supabase.removeChannel(scheduledChannel) }
+      return () => { supabase.removeChannel(channel); supabase.removeChannel(scheduledChannel); supabase.removeChannel(arrivedChannel) }
     }
   }, [authenticated])
 
