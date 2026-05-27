@@ -791,7 +791,7 @@ export default function Home() {
                       </div>
                       <div className={`text-xs ${text3}`}>
                         {method === 'delivery' ? 'We come to you · $25 minimum order' :
-                         method === 'pickup' ? 'Meet us at a spot near a train station · Manhattan & Brooklyn only · Share the app to help us expand! 🌿' :
+                         method === 'pickup' ? 'Currently serving Manhattan & Brooklyn · Share the app to help us expand to more boroughs! 🌿' :
                          'Pick a date · 5% off when 24hrs+ in advance · Recurring available'}
                       </div>
                     </div>

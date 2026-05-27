@@ -74,7 +74,13 @@ export default function AdminPage() {
   const [saleDiscountValue, setSaleDiscountValue] = useState('')
   const [saleAppliesTo, setSaleAppliesTo] = useState<'all' | 'flower' | 'prerolls'>('all')
   const [savingSale, setSavingSale] = useState(false)
-  const [storeOpen, setStoreOpen] = useState<boolean | null>(null)
+  const [storeOpen, setStoreOpen] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const cached = localStorage.getItem('ld_store_open')
+      return cached !== null ? cached === 'true' : true
+    }
+    return true
+  })
   const [togglingStore, setTogglingStore] = useState(false)
   const [pickupLocations, setPickupLocations] = useState<any[]>([])
   const [showPickupManager, setShowPickupManager] = useState(false)
@@ -148,7 +154,10 @@ export default function AdminPage() {
   }
   async function loadStoreStatus() {
     const { data } = await supabase.from('store_settings').select('is_open').eq('id', 1).single()
-    if (data) setStoreOpen(data.is_open)
+    if (data) {
+      setStoreOpen(data.is_open)
+      localStorage.setItem('ld_store_open', String(data.is_open))
+    }
   }
 async function loadPickupLocations() {
     const { data } = await supabase.from('pickup_locations').select('*').order('borough').order('created_at')
@@ -160,6 +169,7 @@ async function loadPickupLocations() {
     const newStatus = !storeOpen
     await supabase.from('store_settings').update({ is_open: newStatus, updated_at: new Date().toISOString() }).eq('id', 1)
     setStoreOpen(newStatus)
+    localStorage.setItem('ld_store_open', String(newStatus))
     setTogglingStore(false)
   }
 
@@ -350,8 +360,8 @@ async function loadPickupLocations() {
               await loadPickupLocations()
             }} className={`border ${border} ${text2} text-xs font-bold px-3 py-1.5 rounded-full hover:border-[#c9a84c] transition-all`}>🔄 Refresh</button>
             <button onClick={toggleStore} disabled={togglingStore}
-              className={`text-xs font-bold px-3 py-1.5 rounded-full transition-all disabled:opacity-50 ${storeOpen === null ? 'bg-gray-400 text-white' : storeOpen ? 'bg-green-500 text-white hover:bg-green-600' : 'bg-red-500 text-white hover:bg-red-600'}`}>
-              {togglingStore ? '...' : storeOpen === null ? '...' : storeOpen ? '🟢 Open' : '🔴 Closed'}
+              className={`text-xs font-bold px-3 py-1.5 rounded-full transition-all disabled:opacity-50 ${storeOpen ? 'bg-green-500 text-white hover:bg-green-600' : 'bg-red-500 text-white hover:bg-red-600'}`}>
+              {togglingStore ? '...' : storeOpen ? '🟢 Open' : '🔴 Closed'}
             </button>
             <button onClick={() => setShowPickupManager(true)}
               className={`border ${border} ${text2} text-xs font-bold px-3 py-1.5 rounded-full hover:border-[#c9a84c] transition-all`}>
