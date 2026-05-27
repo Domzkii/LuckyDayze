@@ -619,19 +619,28 @@ export default function Home() {
         </div>
       </section>
 
-      <div className="mx-auto mt-4 max-w-2xl px-6">
-        <div className={`${dark ? 'bg-[#1a1a1a] border-[#333]' : 'bg-white border-[#e0d9cc]'} border rounded-2xl px-6 py-3 flex items-center gap-3`}>
-          <span className="text-xl">{storeIsOpen ? '🗺️' : '🕐'}</span>
-          <div>
-            {!storeIsOpen && <p className="font-bold text-sm">Delivery & Pickup Unavailable</p>}
+      {storeIsOpen && (
+        <div className="mx-auto mt-4 max-w-2xl px-6">
+          <div className={`${dark ? 'bg-[#1a1a1a] border-[#333]' : 'bg-white border-[#e0d9cc]'} border rounded-2xl px-6 py-3 flex items-center gap-3`}>
+            <span className="text-xl">🗺️</span>
             <p className={`text-xs ${text2}`}>
-              {storeIsOpen
-                ? <><span className="font-bold">Now serving Manhattan & Brooklyn</span> — more boroughs coming soon as we grow! Share with friends to help us expand 🌿</>
-                : "We're not available for immediate orders right now — but you can still schedule a future delivery!"}
+              <span className="font-bold">Now serving Manhattan & Brooklyn</span> — more boroughs coming soon as we grow! Share with friends to help us expand 🌿
             </p>
           </div>
         </div>
-      </div>
+      )}
+
+      {!storeIsOpen && (
+        <div className="mx-auto mt-4 max-w-2xl px-6">
+          <div className={`${dark ? 'bg-[#1a1a1a] border-[#333]' : 'bg-white border-[#e0d9cc]'} border rounded-2xl px-6 py-3 flex items-center gap-3`}>
+            <span className="text-xl">🕐</span>
+            <div>
+              <p className="font-bold text-sm">Delivery Unavailable</p>
+              <p className={`text-xs ${text2}`}>Pickup available in Manhattan & Brooklyn — share the app to help us expand! 🌿</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {activeSale && (
         <div className="mx-auto mt-4 max-w-2xl px-6">
