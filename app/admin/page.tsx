@@ -49,9 +49,10 @@ export default function AdminPage() {
   const [authenticated, setAuthenticated] = useState(false)
 
   useEffect(() => {
-    if (localStorage.getItem('ld_admin_auth') === 'true') {
-      setAuthenticated(true)
-    }
+    const isAuth = localStorage.getItem('ld_admin_auth') === 'true'
+    setAuthenticated(isAuth)
+    const cached = localStorage.getItem('ld_store_open')
+    if (cached !== null) setStoreOpen(cached === 'true')
   }, [])
   const [password, setPassword] = useState('')
   const [wrongPassword, setWrongPassword] = useState(false)
@@ -75,13 +76,7 @@ export default function AdminPage() {
   const [saleDiscountValue, setSaleDiscountValue] = useState('')
   const [saleAppliesTo, setSaleAppliesTo] = useState<'all' | 'flower' | 'prerolls'>('all')
   const [savingSale, setSavingSale] = useState(false)
-  const [storeOpen, setStoreOpen] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      const cached = localStorage.getItem('ld_store_open')
-      return cached !== null ? cached === 'true' : true
-    }
-    return true
-  })
+  const [storeOpen, setStoreOpen] = useState(true)
   const [togglingStore, setTogglingStore] = useState(false)
   const [pickupLocations, setPickupLocations] = useState<any[]>([])
   const [showPickupManager, setShowPickupManager] = useState(false)
@@ -370,7 +365,7 @@ async function loadPickupLocations() {
             </button>
             <a href="/finance" className="bg-[#1a1a1a] text-[#f5f0e8] text-xs font-bold px-3 py-1.5 rounded-full hover:bg-[#333] transition-all">Finance</a>
             <a href="/" className={`border ${border} ${text2} text-xs font-bold px-3 py-1.5 rounded-full hover:border-[#c9a84c] transition-all`}>Store</a>
-            <button onClick={() => { localStorage.removeItem('ld_admin_auth'); setAuthenticated(false) }}
+            <button onClick={() => { localStorage.removeItem('ld_admin_auth'); localStorage.removeItem('ld_store_open'); setAuthenticated(false); setPassword('') }}
               className="border border-red-400 text-red-400 text-xs font-bold px-3 py-1.5 rounded-full hover:bg-red-500/10 transition-all">Logout</button>
           </div>
         </div>
