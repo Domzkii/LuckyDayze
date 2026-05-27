@@ -64,6 +64,7 @@ export default function Home() {
   const [storeIsOpen, setStoreIsOpen] = useState(true)
   const [pickupLocations, setPickupLocations] = useState<any[]>([])
   const [selectedPickupLocation, setSelectedPickupLocation] = useState<any>(null)
+  const [cashTag, setCashTag] = useState('')
 
   useEffect(() => {
     async function loadProducts() {
@@ -233,6 +234,7 @@ export default function Home() {
     })() : 0
   async function placeOrder() {
     if (!name || !phone) { alert('Please fill in your name and phone number.'); return }
+    if (!cashTag) { alert('Please enter your Cash App $CashTag so we can verify your payment.'); return }
     if (deliveryMethod === 'delivery' && !address) { alert('Please fill in your delivery address.'); return }
     if (deliveryMethod === 'delivery' && total < 25) { alert('Minimum order for delivery is $25. Add more items or select pickup!'); return }
     if (deliveryMethod === 'scheduled' && !scheduledDate) { alert('Please select a delivery date.'); return }
@@ -271,6 +273,7 @@ export default function Home() {
         frequency: scheduledFrequency,
         next_due_date: nextDueDate,
         status: 'pending',
+        cash_tag: cashTag,
         referral_code: checkoutReferralValid ? checkoutReferral.toUpperCase() : null,
         referral_reward: checkoutReferralValid && checkoutReferralChoice
           ? checkoutReferralChoice === 'grabba' ? 'Mini Grabba Pre-Roll'
@@ -294,6 +297,7 @@ export default function Home() {
         items: orderItems,
         total,
         status: 'pending_payment',
+        cash_tag: cashTag,
         referral_code: checkoutReferralValid ? checkoutReferral.toUpperCase() : null,
         referral_reward: checkoutReferralValid && checkoutReferralChoice
           ? checkoutReferralChoice === 'grabba' ? 'Mini Grabba Pre-Roll'
@@ -822,6 +826,12 @@ export default function Home() {
               <h3 className="font-bold mb-4">Your Info</h3>
               <input type="text" placeholder="Your full name *" value={name} onChange={e => setName(e.target.value)} className={`w-full border rounded-xl px-4 py-3 text-sm mb-3 outline-none focus:border-[#c9a84c] ${input}`} />
               <input type="tel" placeholder="Phone number *" value={phone} onChange={e => setPhone(e.target.value)} className={`w-full border rounded-xl px-4 py-3 text-sm mb-3 outline-none focus:border-[#c9a84c] ${input}`} />
+              <div className="relative mb-3">
+                <span className={`absolute left-4 top-1/2 -translate-y-1/2 font-bold text-green-500`}>$</span>
+                <input type="text" placeholder="Your CashTag (e.g. JohnDoe) *" value={cashTag}
+                  onChange={e => setCashTag(e.target.value.replace('$', ''))}
+                  className={`w-full border rounded-xl pl-8 pr-4 py-3 text-sm outline-none focus:border-[#c9a84c] ${input}`} />
+              </div>
               {(deliveryMethod === 'delivery' || deliveryMethod === 'scheduled') && (
                 <input type="text" placeholder="Delivery address *" value={address} onChange={e => setAddress(e.target.value)} className={`w-full border rounded-xl px-4 py-3 text-sm mb-3 outline-none focus:border-[#c9a84c] ${input}`} />
               )}

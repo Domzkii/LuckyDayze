@@ -426,6 +426,9 @@ async function loadPickupLocations() {
                       </div>
                     </div>
                     <div className={`${text2} text-sm mb-3`}>{order.customer_address}</div>
+                    {(order as any).cash_tag && (
+                    <div className="text-green-500 text-xs font-bold mb-2">💚 ${(order as any).cash_tag}</div>
+                  )}
                     <div className="flex items-center justify-between">
                       <div className={`${text3} text-xs`}>{Array.isArray(order.items) ? order.items.map(i => `${i.emoji} ${i.name} x${i.qty}`).join(', ') : ''}</div>
                       <div className="text-[#c9a84c] font-bold">${order.total}</div>
@@ -858,6 +861,12 @@ async function loadPickupLocations() {
                 <div className={`${text3} text-xs font-bold uppercase tracking-wider mb-3`}>Customer</div>
                 <div style={{fontFamily: 'Georgia, serif'}} className="font-bold text-lg mb-1">{selectedOrder.customer_name}</div>
                 <a href={`tel:${selectedOrder.customer_phone}`} className="text-[#c9a84c] text-sm mb-1 block font-bold">📞 {selectedOrder.customer_phone}</a>
+                {(selectedOrder as any).cash_tag && (
+                  <a href={`https://cash.app/$${(selectedOrder as any).cash_tag}`} target="_blank" rel="noopener noreferrer"
+                    className="text-green-500 text-sm font-bold block mb-1">
+                    💚 ${(selectedOrder as any).cash_tag}
+                  </a>
+                )}
                 {selectedOrder.customer_address === 'PICKUP' ? (
                   <div className={`${text2} text-sm`}>📍 Pickup order — send them location</div>
                 ) : (
