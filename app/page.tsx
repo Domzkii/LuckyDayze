@@ -84,6 +84,15 @@ export default function Home() {
     }
     loadProducts()
 
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        supabase.from('store_settings').select('is_open').eq('id', 1).single().then(({ data }) => {
+          if (data) setStoreIsOpen(data.is_open)
+        })
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
     const savedPhone = localStorage.getItem('ld_phone')
     if (savedPhone) {
       supabase.from('loyalty').select('purchase_count').eq('customer_phone', savedPhone).maybeSingle().then(({ data: loyalty }) => {
@@ -116,6 +125,7 @@ export default function Home() {
         localStorage.removeItem('luckydayze_reward')
       } catch (e) {}
     }
+  return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
   }, [])
 
   useEffect(() => {
