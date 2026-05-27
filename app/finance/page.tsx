@@ -24,12 +24,13 @@ export default function FinancePage() {
   const input = dark ? 'bg-[#222] border-[#444] text-[#f5f0e8] placeholder-[#555]' : 'bg-white border-[#e0d9cc] text-[#1a1a1a] placeholder-[#bbb]'
   const inputLight = dark ? 'bg-[#222] border-[#444] text-[#f5f0e8]' : 'bg-[#f5f0e8] border-[#e0d9cc] text-[#1a1a1a]'
 
-  const [authenticated, setAuthenticated] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('ld_finance_auth') === 'true'
+  const [authenticated, setAuthenticated] = useState(false)
+
+  useEffect(() => {
+    if (localStorage.getItem('ld_finance_auth') === 'true') {
+      setAuthenticated(true)
     }
-    return false
-  })
+  }, [])
   const [password, setPassword] = useState('')
   const [wrongPassword, setWrongPassword] = useState(false)
   const [sales, setSales] = useState<any[]>([])

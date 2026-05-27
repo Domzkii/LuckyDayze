@@ -46,12 +46,13 @@ export default function AdminPage() {
   const border = dark ? 'border-[#333]' : 'border-[#e0d9cc]'
   const input = dark ? 'bg-[#222] border-[#444] text-[#f5f0e8] placeholder-[#555]' : 'bg-white border-[#e0d9cc] text-[#1a1a1a] placeholder-[#bbb]'
 
-  const [authenticated, setAuthenticated] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('ld_admin_auth') === 'true'
+  const [authenticated, setAuthenticated] = useState(false)
+
+  useEffect(() => {
+    if (localStorage.getItem('ld_admin_auth') === 'true') {
+      setAuthenticated(true)
     }
-    return false
-  })
+  }, [])
   const [password, setPassword] = useState('')
   const [wrongPassword, setWrongPassword] = useState(false)
   const [orders, setOrders] = useState<Order[]>([])
