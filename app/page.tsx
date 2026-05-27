@@ -648,16 +648,14 @@ export default function Home() {
         </div>
       )}
 
-      {storeIsOpen && (
-        <div className="mx-auto mt-8 bg-[#1a1a1a] rounded-2xl px-6 py-4 flex items-center gap-4 max-w-2xl">
-          <span className="text-2xl">🚗</span>
-          <div>
-            <p className="font-semibold text-[#f5f0e8]">Delivering to NYC</p>
-            <p className="text-[#f5f0e8]/50 text-sm">Reliable delivery · Manhattan & Brooklyn</p>
-          </div>
-          <div className="ml-auto bg-[#c9a84c]/20 text-[#c9a84c] text-sm font-bold px-4 py-1 rounded-full">✓ Live</div>
+      <div className="mx-auto mt-8 bg-[#1a1a1a] rounded-2xl px-6 py-4 flex items-center gap-4 max-w-2xl">
+        <span className="text-2xl">{storeIsOpen ? '🚗' : '📍'}</span>
+        <div>
+          <p className="font-semibold text-[#f5f0e8]">{storeIsOpen ? 'Delivering to NYC' : 'Pickup Available'}</p>
+          <p className="text-[#f5f0e8]/50 text-sm">{storeIsOpen ? 'Reliable delivery · Manhattan & Brooklyn' : 'Manhattan & Brooklyn — more boroughs coming soon! Share to help us expand 🌿'}</p>
         </div>
-      )}
+        <div className="ml-auto bg-[#c9a84c]/20 text-[#c9a84c] text-sm font-bold px-4 py-1 rounded-full">{storeIsOpen ? '✓ Live' : '📅 Schedule'}</div>
+      </div>
 
       <section className="px-6 py-12 pb-16 max-w-2xl mx-auto">
         <div className="flex items-baseline justify-between mb-8">
