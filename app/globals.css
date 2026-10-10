@@ -1,56 +1,201 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+  LuckyDayze — New York Cannabis House.
+  Cream paper, warm ink, one gold. Gold fills carry ink text; gold *text* uses gold-ink,
+  which is darkened on cream so it passes contrast.
+*/
 :root {
-  --bg: #f5f0e8;
-  --bg2: #ffffff;
-  --bg3: #f0ebe0;
-  --bg4: #e8e0d0;
-  --text: #1a1a1a;
-  --text2: #666666;
-  --text3: #999999;
-  --border: #e0d9cc;
+  --canvas: #f4efe6;
+  --surface: #fbf8f2;
+  --sunken: #ece5d8;
+  --ink: #1a1814;
+  --muted: #6b6458;
+  --line: #ddd4c3;
+  --line-strong: #c4b9a5;
   --gold: #c9a84c;
-  --gold2: #e8c97a;
+  --gold-ink: #7d6219;
+  --on-gold: #1a1814;
+  --night: #1a1814;
+  --on-night: #f2ece1;
+  --on-night-muted: #b5ab9a;
+  --ok: #2f6b3a;
+  --ok-tint: #e3eedf;
+  --warn: #8a5a00;
+  --warn-tint: #f6ead0;
+  --danger: #a3321f;
+  --danger-tint: #f6e1db;
+  --indica: #5e3a6e;
+  --indica-tint: #ece2ef;
+  color-scheme: light;
 }
 
 .dark {
-  --bg: #0f0f0f;
-  --bg2: #1a1a1a;
-  --bg3: #222222;
-  --bg4: #2a2a2a;
-  --text: #f5f0e8;
-  --text2: #bbbbbb;
-  --text3: #777777;
-  --border: #333333;
+  --canvas: #0e0d0b;
+  --surface: #171513;
+  --sunken: #211e1a;
+  --ink: #f2ece1;
+  --muted: #a39a8b;
+  --line: #2e2a24;
+  --line-strong: #4a4237;
   --gold: #c9a84c;
-  --gold2: #e8c97a;
+  --gold-ink: #d4b45c;
+  --on-gold: #1a1814;
+  --night: #24201a;
+  --on-night: #f2ece1;
+  --on-night-muted: #b5ab9a;
+  --ok: #8fc79a;
+  --ok-tint: #18261a;
+  --warn: #e3b45c;
+  --warn-tint: #2b2213;
+  --danger: #f08a76;
+  --danger-tint: #2e1813;
+  --indica: #cfadd9;
+  --indica-tint: #2a2030;
+  color-scheme: dark;
 }
 
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: Arial, Helvetica, sans-serif;
-  transition: background 0.2s, color 0.2s;
-}
-@keyframes confettiFall {
-  0% { transform: translateY(0) rotate(0deg); opacity: 1; }
-  100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+@theme inline {
+  --font-display: var(--font-bodoni), "Didot", "Bodoni 72", serif;
+  --font-sans: var(--font-hanken), ui-sans-serif, system-ui, sans-serif;
+
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-sunken: var(--sunken);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-gold: var(--gold);
+  --color-gold-ink: var(--gold-ink);
+  --color-on-gold: var(--on-gold);
+  --color-night: var(--night);
+  --color-on-night: var(--on-night);
+  --color-on-night-muted: var(--on-night-muted);
+  --color-ok: var(--ok);
+  --color-ok-tint: var(--ok-tint);
+  --color-warn: var(--warn);
+  --color-warn-tint: var(--warn-tint);
+  --color-danger: var(--danger);
+  --color-danger-tint: var(--danger-tint);
+  --color-indica: var(--indica);
+  --color-indica-tint: var(--indica-tint);
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --shadow-lift: 0 1px 2px rgb(26 24 20 / 0.06), 0 8px 24px -12px rgb(26 24 20 / 0.22);
+  --shadow-sheet: 0 -8px 40px -12px rgb(0 0 0 / 0.35);
 }
 
-@keyframes slideIn {
-  from { opacity: 0; transform: translateX(20px); }
-  to { opacity: 1; transform: translateX(0); }
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    scrollbar-color: var(--line-strong) transparent;
+  }
+
+  body {
+    background: var(--canvas);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-feature-settings: "ss01";
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  ::selection {
+    background: color-mix(in oklab, var(--gold) 40%, transparent);
+    color: var(--ink);
+  }
+
+  input, textarea, select {
+    caret-color: var(--gold-ink);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--gold-ink);
+    outline-offset: 2px;
+  }
+
+  a {
+    text-underline-offset: 0.2em;
+    text-decoration-thickness: 1px;
+  }
+
+  h1, h2, h3 {
+    text-wrap: balance;
+  }
+
+  dialog::backdrop {
+    background: rgb(10 9 8 / 0.55);
+  }
+
+  html:has(dialog[open]) {
+    overflow: hidden;
+  }
+
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    opacity: 0.6;
+  }
+  .dark input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+  }
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(8px); }
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@utility display {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  letter-spacing: -0.01em;
+}
+
+@keyframes sheet-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+@keyframes sheet-left {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes rise {
+  from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: translateY(0); }
 }
-
-.animate-slide-in {
-  animation: slideIn 0.3s ease forwards;
+@keyframes draw {
+  to { stroke-dashoffset: 0; }
 }
 
-.animate-fade-in {
-  animation: fadeIn 0.4s ease forwards;
+@utility animate-sheet-up {
+  animation: sheet-up 420ms var(--ease-out-expo);
+}
+@utility animate-sheet-left {
+  animation: sheet-left 420ms var(--ease-out-expo);
+}
+@utility animate-fade {
+  animation: fade-in 240ms ease-out;
+}
+@utility animate-rise {
+  animation: rise 520ms var(--ease-out-expo) both;
+}
+
+/* Reduced motion keeps the state change, drops the travel: sheets and reveals fade in place. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-sheet-up,
+  .animate-sheet-left,
+  .animate-rise {
+    animation: fade-in 200ms ease-out both;
+  }
+  html {
+    scroll-behavior: auto;
+  }
+  * {
+    transition-property: color, background-color, border-color, opacity !important;
+  }
 }

@@ -1,426 +1,411 @@
 'use client'
 
-import { useState } from 'react'
-import { supabase } from '../supabase'
-import { useTheme } from '../theme'
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import { Check, Crown, Gift, Share2 } from 'lucide-react'
+import { CASHTAG, formatDay, normalizePhone } from '@/lib/format'
+import {
+  HOUSE_MIN_ORDERS, HOUSE_MIN_POINTS, HOUSE_MONTHLY_FEE, MEMBER_MIN_ORDERS, REFERRAL_BONUS_POINTS,
+  REFERRAL_REWARD_KEY, REWARDS, TIERS, tierName,
+} from '@/lib/rewards'
+import { savedCustomer } from '@/lib/local'
+import type { PublicRewards, Tier } from '@/lib/types'
+import { useCart } from '@/components/cart'
+import { SiteFooter, SiteHeader } from '@/components/site'
+import { Badge, Button, Dialog, Field, Notice, Segmented, cx, inputClass } from '@/components/ui'
+
+async function post<T>(url: string, body: unknown): Promise<T> {
+  const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.error || 'Something went wrong. Try again.')
+  return data as T
+}
 
 export default function RewardsPage() {
-  const { theme, toggle } = useTheme()
-  const dark = theme === 'dark'
-  const bg = dark ? 'bg-[#0f0f0f]' : 'bg-[#f5f0e8]'
-  const bg2 = dark ? 'bg-[#1a1a1a]' : 'bg-white'
-  const bg3 = dark ? 'bg-[#222]' : 'bg-[#f5f0e8]'
-  const text = dark ? 'text-[#f5f0e8]' : 'text-[#1a1a1a]'
-  const text2 = dark ? 'text-[#aaa]' : 'text-[#666]'
-  const text3 = dark ? 'text-[#777]' : 'text-[#999]'
-  const border = dark ? 'border-[#333]' : 'border-[#e0d9cc]'
-  const input = dark ? 'bg-[#222] border-[#444] text-[#f5f0e8] placeholder-[#555]' : 'bg-[#f5f0e8] border-[#e0d9cc] text-[#1a1a1a] placeholder-[#bbb]'
-
   const [phone, setPhone] = useState('')
-  const [customer, setCustomer] = useState<any>(null)
-  const [loading, setLoading] = useState(false)
-  const [notFound, setNotFound] = useState(false)
-  const [showMemberForm, setShowMemberForm] = useState(false)
-  const [showHouseForm, setShowHouseForm] = useState(false)
-  const [memberForm, setMemberForm] = useState({ name: '', email: '', birthday: '' })
-  const [submitted, setSubmitted] = useState(false)
-  const [referralChoice, setReferralChoice] = useState<'grabba' | 'vegan' | null>(null)
-  const [referralCode, setReferralCode] = useState('')
-  const [referralApplied, setReferralApplied] = useState(false)
-  const [referralError, setReferralError] = useState('')
+  const [account, setAccount] = useState<PublicRewards | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
 
-  async function lookup() {
-    if (!phone) return
-    setLoading(true)
-    setNotFound(false)
-    setCustomer(null)
-    const { data } = await supabase.from('loyalty').select('*').eq('customer_phone', phone.replace(/\D/g, '')).single()
-    setLoading(false)
-    if (data) setCustomer(data)
-    else setNotFound(true)
-  }
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- prefill from device storage
+    setPhone(savedCustomer().phone ?? '')
+  }, [])
 
-  async function submitRequest(tier: string) {
-    await supabase.from('membership_requests').insert({
-      customer_phone: customer.customer_phone,
-      customer_name: memberForm.name || customer.customer_name,
-      customer_email: memberForm.email,
-      customer_birthday: memberForm.birthday,
-      requested_tier: tier,
-      status: 'pending'
-    })
-    await supabase.from('loyalty').update({
-      membership_requested: tier,
-      email: memberForm.email,
-      birthday: memberForm.birthday
-    }).eq('customer_phone', customer.customer_phone)
-    setSubmitted(true)
-    setShowMemberForm(false)
-    setShowHouseForm(false)
-  }
-
-  async function claimReward(rewardName: string, pointsCost: number, rewardKey: string) {
-    const confirmed = window.confirm(`Use ${pointsCost} points to claim: ${rewardName}?\n\nYour points will be deducted immediately and the reward will be added to your cart.`)
-    if (!confirmed) return
-    if ((customer?.points || 0) < pointsCost) return
-    await supabase.from('loyalty').update({ points: (customer.points || 0) - pointsCost, claimed_reward: rewardKey }).eq('customer_phone', customer.customer_phone)
-    localStorage.setItem('luckydayze_reward', JSON.stringify({ name: rewardName, key: rewardKey, phone: customer.customer_phone }))
-    setCustomer((prev: any) => ({ ...prev, points: (prev.points || 0) - pointsCost, claimed_reward: rewardKey }))
-    window.location.href = '/?reward=claimed'
-  }
-
-  async function applyReferralCode() {
-    if (!referralCode) return
-    setReferralError('')
-    if (customer?.referred_by) { setReferralError('You have already used a referral code.'); return }
-    if ((customer?.purchase_count || 0) > 0) { setReferralError('Referral codes can only be used before your first order.'); return }
-    const { data: referrer } = await supabase.from('loyalty').select('*').eq('referral_code', referralCode.toUpperCase()).single()
-    if (!referrer) { setReferralError('Invalid referral code. Please check and try again.'); return }
-    if (referrer.customer_phone === customer.customer_phone) { setReferralError('You cannot use your own referral code.'); return }
-    await supabase.from('loyalty').update({ referred_by: referralCode.toUpperCase(), points: (customer.points || 0) + 25 }).eq('customer_phone', customer.customer_phone)
-    if (referralChoice) {
-      localStorage.setItem('luckydayze_referral_reward', JSON.stringify({
-        type: referralChoice === 'grabba' ? 'Mini Grabba Pre-Roll' : 'Mini Pre-Roll', key: 'referral_preroll'
-      }))
+  async function lookup(e: React.FormEvent) {
+    e.preventDefault()
+    const clean = normalizePhone(phone)
+    if (!clean) return setError('Enter a 10-digit US phone number.')
+    setBusy(true)
+    setError(null)
+    try {
+      setAccount(await post<PublicRewards>('/api/rewards', { phone: clean }))
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setBusy(false)
     }
-    setReferralApplied(true)
-    setCustomer((prev: any) => ({ ...prev, referred_by: referralCode.toUpperCase(), points: (prev.points || 0) + 25 }))
   }
-
-  const purchaseCount = customer?.purchase_count || 0
-  const points = customer?.points || 0
-  const tier = customer?.membership_tier || 'guest'
-  const isEligibleForMember = purchaseCount >= 3 && tier === 'guest' && !customer?.membership_requested
-  const isEligibleForHouse = tier === 'member' && purchaseCount >= 6 && points >= 500 && !customer?.membership_requested
-  const nextFreePreRoll = tier === 'house' ? 5 - (purchaseCount % 5) : null
-  const nextFreeEighth = tier === 'house' ? 10 - (purchaseCount % 10) : null
-
-  const tierColors: Record<string, string> = {
-    guest: 'bg-gray-100 text-gray-600',
-    member: 'bg-green-100 text-green-700',
-    house: 'bg-[#1a1a1a] text-[#c9a84c]'
-  }
-  const tierLabel: Record<string, string> = { guest: 'Guest', member: 'Member', house: 'The House' }
 
   return (
-    <main className={`min-h-screen ${bg} ${text} transition-colors`}>
-      <nav className={`flex items-center justify-between px-6 py-5 border-b ${border} sticky top-0 ${dark ? 'bg-[#0f0f0f]/95' : 'bg-[#f5f0e8]/95'} backdrop-blur z-40`}>
-        <div>
-          <div style={{fontFamily: 'Georgia, serif'}} className="text-xl font-bold tracking-wider">LUCKY DAYZE</div>
-          <div className={`text-xs tracking-widest uppercase ${text3}`}>Lucky Rewards</div>
-        </div>
-        <div className="flex items-center gap-3">
-          <button onClick={toggle} className="text-lg">{dark ? '☀️' : '🌙'}</button>
-          <a href="/house" className="bg-[#1a1a1a] text-[#c9a84c] text-sm font-bold px-4 py-2 rounded-full hover:bg-[#333] transition-all">👑 The House</a>
-          <a href="/" className={`border ${border} ${text2} text-sm font-bold px-4 py-2 rounded-full hover:border-[#c9a84c] transition-all`}>Store</a>
-        </div>
-      </nav>
-
-      <div className="max-w-md mx-auto px-6 py-10">
-        {!customer ? (
-          <>
-            <h1 style={{fontFamily: 'Georgia, serif'}} className="text-3xl font-bold mb-2">Lucky Rewards</h1>
-            <p className={`text-sm mb-8 ${text2}`}>Enter your phone number to check your points and membership status.</p>
-            <div className={`${bg2} border ${border} rounded-2xl p-6 mb-10`}>
-              <input type="tel" placeholder="Your phone number" value={phone} onChange={e => setPhone(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') lookup() }} className={`w-full border rounded-xl px-4 py-3 text-sm mb-3 outline-none focus:border-[#c9a84c] ${input}`} />
-              {notFound && <p className="text-red-500 text-xs mb-3">No account found. Place your first order to join Lucky Rewards!</p>}
-              <button onClick={lookup} disabled={loading} className="w-full bg-[#1a1a1a] text-[#f5f0e8] font-bold py-3 rounded-xl hover:bg-[#333] transition-all disabled:opacity-50">
-                {loading ? 'Looking up...' : 'Check My Rewards'}
-              </button>
-            </div>
-
-            <h2 style={{fontFamily: 'Georgia, serif'}} className="text-xl font-bold mb-4">Membership Tiers</h2>
-            <div className="flex flex-col gap-3">
-              <div className={`${bg2} border ${border} rounded-2xl p-5`}>
-                <div className="flex items-center justify-between mb-2">
-                  <span style={{fontFamily: 'Georgia, serif'}} className="font-bold text-lg">Guest</span>
-                  <span className="text-xs bg-gray-100 text-gray-600 font-bold px-3 py-1 rounded-full">Free — Auto</span>
-                </div>
-                <p className={`text-xs mb-3 ${text2}`}>Everyone starts here automatically on their first purchase.</p>
-                <div className={`flex flex-col gap-1 text-xs ${text2}`}>
-                  <span>✓ 1 point per $1 spent</span>
-                  <span>✓ 100 points = free gram or pre-roll (pickup only)</span>
-                </div>
-              </div>
-              <div className={`${bg2} border ${border} rounded-2xl p-5`}>
-                <div className="flex items-center justify-between mb-2">
-                  <span style={{fontFamily: 'Georgia, serif'}} className="font-bold text-lg text-green-600">Member</span>
-                  <span className="text-xs bg-green-100 text-green-700 font-bold px-3 py-1 rounded-full">Free — 3+ orders</span>
-                </div>
-                <p className={`text-xs mb-3 ${text2}`}>Opt in after 3 purchases. We review and approve each application.</p>
-                <div className={`flex flex-col gap-1 text-xs ${text2}`}>
-                  <span>✓ 2x points on orders $50+</span>
-                  <span>✓ 100 points = free pre-roll or gram</span>
-                  <span>✓ 300 points = free eighth</span>
-                  <span>✓ Unlock House eligibility at 500 points</span>
-                </div>
-              </div>
-              <div className="bg-[#1a1a1a] rounded-2xl p-5">
-                <div className="flex items-center justify-between mb-2">
-                  <span style={{fontFamily: 'Georgia, serif'}} className="font-bold text-lg text-[#c9a84c]">The House</span>
-                  <span className="text-xs bg-[#c9a84c]/20 text-[#c9a84c] font-bold px-3 py-1 rounded-full">$25/month</span>
-                </div>
-                <p className="text-[#999] text-xs mb-3">Member + 6 purchases + 500 points to unlock.</p>
-                <div className="flex flex-col gap-1 text-xs text-[#f5f0e8]/70">
-                  <span>✓ 2x points always</span>
-                  <span>✓ 10% off all orders over $50</span>
-                  <span>✓ Free pre-roll every 5th purchase</span>
-                  <span>✓ Free eighth every 10th purchase</span>
-                  <span>✓ Priority order processing</span>
-                  <span>✓ Event invites + surprise gifts</span>
-                  <span>✓ Monthly free oz raffle</span>
-                </div>
-              </div>
-            </div>
-          </>
+    <>
+      <SiteHeader back={{ href: '/', label: 'Menu' }} />
+      <main className="mx-auto max-w-3xl px-4 pb-24 pt-10 sm:px-6 sm:pt-14">
+        {account ? (
+          <Account account={account} phone={normalizePhone(phone)!} onUpdate={setAccount} onReset={() => setAccount(null)} />
         ) : (
           <>
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h1 style={{fontFamily: 'Georgia, serif'}} className="text-2xl font-bold">Hey, {customer.customer_name}!</h1>
-                <p className={`text-sm ${text3}`}>{customer.customer_phone}</p>
-              </div>
-              <span className={`text-xs font-bold px-3 py-1.5 rounded-full ${tierColors[tier]}`}>{tierLabel[tier]}</span>
-            </div>
-
-            {/* POINTS CARD */}
-            <div className={`${bg2} border ${border} rounded-2xl p-5 mb-4`}>
-              <div className={`text-xs uppercase tracking-wider ${text3} mb-2`}>Your Points</div>
-              <div style={{fontFamily: 'Georgia, serif'}} className="text-4xl font-bold text-[#c9a84c] mb-1">{points}</div>
-              <p className={`text-xs mb-4 ${text3}`}>{purchaseCount} total purchase{purchaseCount !== 1 ? 's' : ''}</p>
-
-              {/* PENDING REFERRAL REWARD */}
-              {customer.pending_referral_reward && (
-                <div className={`${dark ? 'bg-[#222] border-[#444]' : 'bg-[#f5f0e8] border-[#e0d9cc]'} border rounded-xl p-4 mb-4`}>
-                  <div className={`text-xs uppercase tracking-wider ${text3} mb-2`}>Your Referral Reward</div>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-bold text-sm">🎁 {customer.pending_referral_reward}</p>
-                      <p className={`text-xs ${text3} mt-1`}>Free mini pre-roll from your referral</p>
-                    </div>
-                    <button
-                      onClick={async () => {
-                        const confirmed = window.confirm(`Claim your free ${customer.pending_referral_reward}? It will be added to your cart!`)
-                        if (!confirmed) return
-                        await supabase.from('loyalty').update({ pending_referral_reward: null }).eq('customer_phone', customer.customer_phone)
-                        localStorage.setItem('luckydayze_reward', JSON.stringify({ name: customer.pending_referral_reward, key: 'referral_preroll', phone: customer.customer_phone }))
-                        setCustomer((prev: any) => ({ ...prev, pending_referral_reward: null }))
-                        window.location.href = '/?reward=claimed'
-                      }}
-                      className="text-xs bg-[#1a1a1a] text-[#f5f0e8] font-bold px-4 py-2 rounded-full hover:bg-[#333] transition-all"
-                    >Claim →</button>
-                  </div>
-                </div>
-              )}
-
-              {tier === 'guest' && (
-                <div className="flex flex-col gap-2">
-                  <div className={`flex justify-between items-center p-3 rounded-xl border ${points >= 100 ? 'border-green-200 bg-green-50' : `${border} ${bg3}`}`}>
-                    <div><div className="font-bold text-sm">Free Gram or Pre-Roll</div><div className={`text-xs ${text3}`}>100 points · Pickup only</div></div>
-                    {points >= 100
-                      ? <button onClick={() => claimReward('Free Pre-Roll (Pickup)', 100, 'free_preroll')} className="text-xs bg-green-600 text-white font-bold px-3 py-1.5 rounded-full">Claim →</button>
-                      : <span className={`text-xs font-bold ${text3}`}>{100 - points} pts away</span>}
-                  </div>
-                </div>
-              )}
-
-              {tier === 'member' && (
-                <div className="flex flex-col gap-2">
-                  <div className={`flex justify-between items-center p-3 rounded-xl border ${points >= 100 ? 'border-green-200 bg-green-50' : `${border} ${bg3}`}`}>
-                    <div><div className="font-bold text-sm">Free Pre-Roll or Gram</div><div className={`text-xs ${text3}`}>100 points</div></div>
-                    {points >= 100
-                      ? <button onClick={() => claimReward('Free Pre-Roll', 100, 'free_preroll')} className="text-xs bg-green-600 text-white font-bold px-3 py-1.5 rounded-full">Claim →</button>
-                      : <span className={`text-xs font-bold ${text3}`}>{100 - points} pts away</span>}
-                  </div>
-                  <div className={`flex justify-between items-center p-3 rounded-xl border ${points >= 300 ? 'border-green-200 bg-green-50' : `${border} ${bg3}`}`}>
-                    <div><div className="font-bold text-sm">Free Eighth</div><div className={`text-xs ${text3}`}>300 points</div></div>
-                    {points >= 300
-                      ? <button onClick={() => claimReward('Free Eighth', 300, 'free_eighth')} className="text-xs bg-green-600 text-white font-bold px-3 py-1.5 rounded-full">Claim →</button>
-                      : <span className={`text-xs font-bold ${text3}`}>{300 - points} pts away</span>}
-                  </div>
-                  <div className={`flex justify-between items-center p-3 rounded-xl border ${points >= 500 && purchaseCount >= 6 ? 'border-[#c9a84c]' : border} ${bg3}`}>
-                    <div><div className="font-bold text-sm">Unlock The House</div><div className={`text-xs ${text3}`}>500 points + 6 purchases</div></div>
-                    {points >= 500 && purchaseCount >= 6
-                      ? <span className="text-xs bg-[#c9a84c] text-[#1a1a1a] font-bold px-3 py-1 rounded-full">Unlocked!</span>
-                      : <span className={`text-xs font-bold ${text3}`}>{Math.max(0, 500 - points)} pts · {Math.max(0, 6 - purchaseCount)} orders</span>}
-                  </div>
-                </div>
-              )}
-
-              {tier === 'house' && (
-                <div className="flex flex-col gap-2">
-                  <div className={`flex justify-between items-center p-3 rounded-xl border ${points >= 100 ? 'border-green-200 bg-green-50' : `${border} ${bg3}`}`}>
-                    <div><div className="font-bold text-sm">Free Pre-Roll or Gram</div><div className={`text-xs ${text3}`}>100 points</div></div>
-                    {points >= 100
-                      ? <button onClick={() => claimReward('Free Pre-Roll', 100, 'free_preroll')} className="text-xs bg-green-600 text-white font-bold px-3 py-1.5 rounded-full">Claim →</button>
-                      : <span className={`text-xs font-bold ${text3}`}>{100 - points} pts away</span>}
-                  </div>
-                  <div className={`flex justify-between items-center p-3 rounded-xl border ${points >= 300 ? 'border-green-200 bg-green-50' : `${border} ${bg3}`}`}>
-                    <div><div className="font-bold text-sm">Free Eighth</div><div className={`text-xs ${text3}`}>300 points</div></div>
-                    {points >= 300
-                      ? <button onClick={() => claimReward('Free Eighth', 300, 'free_eighth')} className="text-xs bg-green-600 text-white font-bold px-3 py-1.5 rounded-full">Claim →</button>
-                      : <span className={`text-xs font-bold ${text3}`}>{300 - points} pts away</span>}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* HOUSE PERKS */}
-            {tier === 'house' && (
-              <div className="bg-[#1a1a1a] rounded-2xl p-5 mb-4">
-                <div className="text-xs uppercase tracking-wider text-[#c9a84c] mb-3">House Perks</div>
-                <div className="flex flex-col gap-2">
-                  <div className="flex justify-between items-center p-3 bg-white/5 rounded-xl">
-                    <div><div className="font-bold text-sm text-[#f5f0e8]">10% Off Orders $50+</div><div className="text-xs text-[#999]">Applied automatically</div></div>
-                    <span className="text-xs bg-[#c9a84c]/20 text-[#c9a84c] font-bold px-3 py-1 rounded-full">Active ✓</span>
-                  </div>
-                  <div className="flex justify-between items-center p-3 bg-white/5 rounded-xl">
-                    <div><div className="font-bold text-sm text-[#f5f0e8]">Free Pre-Roll</div><div className="text-xs text-[#999]">Every 5th purchase</div></div>
-                    <span className="text-xs text-[#c9a84c] font-bold">{nextFreePreRoll} order{nextFreePreRoll !== 1 ? 's' : ''} away</span>
-                  </div>
-                  <div className="flex justify-between items-center p-3 bg-white/5 rounded-xl">
-                    <div><div className="font-bold text-sm text-[#f5f0e8]">Free Eighth</div><div className="text-xs text-[#999]">Every 10th purchase</div></div>
-                    <span className="text-xs text-[#c9a84c] font-bold">{nextFreeEighth} order{nextFreeEighth !== 1 ? 's' : ''} away</span>
-                  </div>
-                  <div className="flex justify-between items-center p-3 bg-white/5 rounded-xl">
-                    <div><div className="font-bold text-sm text-[#f5f0e8]">Priority Processing</div><div className="text-xs text-[#999]">Your orders confirmed first</div></div>
-                    <span className="text-xs bg-[#c9a84c]/20 text-[#c9a84c] font-bold px-3 py-1 rounded-full">Active ✓</span>
-                  </div>
-                  <div className="flex justify-between items-center p-3 bg-white/5 rounded-xl">
-                    <div><div className="font-bold text-sm text-[#f5f0e8]">Event Invites + Surprise Gifts</div><div className="text-xs text-[#999]">Lighters, cannabis kits & more</div></div>
-                    <span className="text-xs bg-[#c9a84c]/20 text-[#c9a84c] font-bold px-3 py-1 rounded-full">Active ✓</span>
-                  </div>
-                  <div className="flex justify-between items-center p-3 bg-white/5 rounded-xl">
-                    <div><div className="font-bold text-sm text-[#f5f0e8]">Free Oz Raffle</div><div className="text-xs text-[#999]">Monthly giveaway</div></div>
-                    <span className="text-xs bg-[#c9a84c]/20 text-[#c9a84c] font-bold px-3 py-1 rounded-full">Entered ✓</span>
-                  </div>
-                </div>
-                {customer.house_paid_until && (
-                  <div className="mt-4 pt-4 border-t border-white/10 text-xs text-[#999] text-center">Membership active until {customer.house_paid_until}</div>
-                )}
-              </div>
-            )}
-
-            {isEligibleForMember && !submitted && (
-              <div className="bg-green-50 border border-green-200 rounded-2xl p-5 mb-4">
-                <div className="font-bold text-green-700 mb-1">🎉 You're eligible for Member status!</div>
-                <p className="text-green-600 text-sm mb-3">You've made {purchaseCount} purchases. Upgrade for 2x points on big orders — completely free.</p>
-                <button onClick={() => setShowMemberForm(true)} className="bg-green-700 text-white font-bold px-6 py-2 rounded-full text-sm hover:bg-green-800 transition-all">Apply for Member →</button>
-              </div>
-            )}
-
-            {isEligibleForHouse && !submitted && (
-              <div className="bg-[#1a1a1a] rounded-2xl p-5 mb-4">
-                <div className="font-bold text-[#c9a84c] mb-1">👑 You're invited to The House</div>
-                <p className="text-[#999] text-sm mb-3">You've earned your spot with {purchaseCount} purchases and {points} points.</p>
-                <button onClick={() => setShowHouseForm(true)} className="bg-[#c9a84c] text-[#1a1a1a] font-bold px-6 py-2 rounded-full text-sm hover:bg-[#e8c97a] transition-all">Join The House →</button>
-              </div>
-            )}
-
-            {submitted && (
-              <div className={`${bg2} border border-[#c9a84c] rounded-2xl p-5 mb-4`}>
-                <div className="font-bold text-[#c9a84c] mb-1">✓ Request submitted!</div>
-                <p className={`text-sm ${text2}`}>We'll reach out personally to confirm your membership.</p>
-              </div>
-            )}
-
-            {customer.membership_requested && !submitted && (
-              <div className={`${bg2} border ${border} rounded-2xl p-4 mb-4`}>
-                <p className={`text-sm ${text2}`}>✓ Membership request pending — we'll be in touch shortly.</p>
-              </div>
-            )}
-
-            {/* REFERRAL CODE */}
-            <div className={`${bg2} border ${border} rounded-2xl p-5 mb-4`}>
-              <div className={`text-xs uppercase tracking-wider ${text3} mb-3`}>Your Referral Code</div>
-              <div className={`${bg3} border ${border} rounded-xl p-4 text-center mb-3`}>
-                <div style={{fontFamily: 'Georgia, serif'}} className="text-2xl font-bold text-[#c9a84c] tracking-widest mb-1">{customer.referral_code || '——'}</div>
-                <p className={`text-xs ${text3}`}>Share this code with friends</p>
-              </div>
-              <p className={`text-xs ${text2} mb-3`}>When a friend uses your code they get <span className="font-bold">+25 bonus points</span> and a <span className="font-bold">free mini pre-roll</span>. You get <span className="font-bold">+50 points</span> when they place their first order.</p>
-              <button onClick={() => { navigator.clipboard.writeText(`Hey! Use my LuckyDayze referral code ${customer.referral_code} at lucky-dayze.vercel.app/rewards to get bonus points and a free mini pre-roll on your first order! 🌿`); alert('Referral message copied to clipboard!') }}
-                className="w-full border border-[#c9a84c] text-[#c9a84c] font-bold py-2 rounded-xl text-sm hover:bg-[#c9a84c]/5 transition-all">
-                📋 Copy Referral Message
-              </button>
-              {customer.referral_count > 0 && <p className="text-xs text-green-600 font-bold text-center mt-2">🎉 {customer.referral_count} successful referral{customer.referral_count !== 1 ? 's' : ''}!</p>}
-            </div>
-
-            {/* USE A REFERRAL CODE */}
-            {!customer.referred_by && (customer.purchase_count || 0) === 0 && (
-              <div className={`${bg2} border ${border} rounded-2xl p-5 mb-4`}>
-                <div className={`text-xs uppercase tracking-wider ${text3} mb-3`}>Have a Referral Code?</div>
-                {!referralApplied ? (
-                  <>
-                    <p className={`text-xs ${text2} mb-3`}>Enter a friend's code to get <span className="font-bold">+25 bonus points</span> and a <span className="font-bold">free mini pre-roll</span>!</p>
-                    <div className="flex flex-col gap-2 mb-3">
-                      <div onClick={() => setReferralChoice('grabba')}
-                        className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${referralChoice === 'grabba' ? 'border-[#c9a84c] bg-[#c9a84c]/5' : border}`}>
-                        <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${referralChoice === 'grabba' ? 'border-[#c9a84c]' : 'border-[#888]'}`}>
-                          {referralChoice === 'grabba' && <div className="w-2 h-2 rounded-full bg-[#c9a84c]" />}
-                        </div>
-                        <span className="text-sm font-bold">😮‍💨 Mini Grabba Pre-Roll</span>
-                      </div>
-                      <div onClick={() => setReferralChoice('vegan')}
-                        className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${referralChoice === 'vegan' ? 'border-[#c9a84c] bg-[#c9a84c]/5' : border}`}>
-                        <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${referralChoice === 'vegan' ? 'border-[#c9a84c]' : 'border-[#888]'}`}>
-                          {referralChoice === 'vegan' && <div className="w-2 h-2 rounded-full bg-[#c9a84c]" />}
-                        </div>
-                        <span className="text-sm font-bold">🥹 Mini Pre-Roll (Vegan)</span>
-                      </div>
-                    </div>
-                    <input type="text" placeholder="Enter referral code" value={referralCode} onChange={e => setReferralCode(e.target.value.toUpperCase())}
-                      className={`w-full border rounded-xl px-4 py-3 text-sm mb-2 outline-none focus:border-[#c9a84c] font-mono tracking-widest ${input}`} />
-                    {referralError && <p className="text-red-500 text-xs mb-2">{referralError}</p>}
-                    <button onClick={applyReferralCode} disabled={!referralChoice || !referralCode}
-                      className="w-full bg-[#1a1a1a] text-[#f5f0e8] font-bold py-3 rounded-xl hover:bg-[#333] transition-all disabled:opacity-50">Apply Code</button>
-                  </>
-                ) : (
-                  <div className="text-center py-2">
-                    <div className="text-3xl mb-2">🎉</div>
-                    <p className="font-bold text-green-600 mb-1">Referral applied!</p>
-                    <p className={`text-xs ${text2}`}>+25 points added. Your free mini pre-roll will be added to your first order automatically.</p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {customer.referred_by && (
-              <div className="bg-green-50 border border-green-200 rounded-2xl p-4 mb-4">
-                <p className="text-green-700 text-sm font-bold">✓ Referral code applied — {customer.referred_by}</p>
-                <p className="text-green-600 text-xs mt-1">Your free mini pre-roll will be added to your first order!</p>
-              </div>
-            )}
-
-            <div className="text-center mt-4">
-              <button onClick={() => { setCustomer(null); setPhone(''); setSubmitted(false) }} className={`text-sm hover:text-[#1a1a1a] ${text3}`}>
-                ← Look up different number
-              </button>
-            </div>
+            <h1 className="display text-4xl font-semibold sm:text-6xl">Lucky Rewards</h1>
+            <p className="mt-4 max-w-lg text-lg text-muted">Every dollar earns a point. Points turn into free pre-rolls and eighths, and regulars move up to The House.</p>
+            <form onSubmit={lookup} className="mt-10 flex max-w-lg flex-col gap-3 sm:flex-row sm:items-start">
+              <Field label="Your phone number" error={error} className="flex-1">
+                {p => <input {...p} type="tel" inputMode="tel" autoComplete="tel-national" value={phone} onChange={e => setPhone(e.target.value)} className={inputClass} />}
+              </Field>
+              <Button type="submit" size="lg" loading={busy} className="sm:mt-7">Check points</Button>
+            </form>
+            <TierLadder />
           </>
         )}
-      </div>
+      </main>
+      <SiteFooter />
+    </>
+  )
+}
 
-      {(showMemberForm || showHouseForm) && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-6">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => { setShowMemberForm(false); setShowHouseForm(false) }} />
-          <div className={`relative w-full max-w-sm ${bg} border ${border} rounded-2xl p-6`}>
-            <h2 style={{fontFamily: 'Georgia, serif'}} className="text-xl font-bold mb-1">{showHouseForm ? 'Join The House' : 'Apply for Member'}</h2>
-            <p className={`text-sm mb-6 ${text2}`}>We review every application personally and will reach out to confirm.</p>
-            <input type="text" placeholder="Full name" value={memberForm.name} onChange={e => setMemberForm(prev => ({ ...prev, name: e.target.value }))} className={`w-full border rounded-xl px-4 py-3 text-sm mb-3 outline-none focus:border-[#c9a84c] ${input}`} />
-            <input type="email" placeholder="Email address" value={memberForm.email} onChange={e => setMemberForm(prev => ({ ...prev, email: e.target.value }))} className={`w-full border rounded-xl px-4 py-3 text-sm mb-3 outline-none focus:border-[#c9a84c] ${input}`} />
-            <input type="text" placeholder="Birthday (MM/DD)" value={memberForm.birthday} onChange={e => setMemberForm(prev => ({ ...prev, birthday: e.target.value }))} className={`w-full border rounded-xl px-4 py-3 text-sm mb-4 outline-none focus:border-[#c9a84c] ${input}`} />
-            {showHouseForm && (
-              <div className="bg-[#1a1a1a] rounded-xl p-4 mb-4">
-                <p className="text-[#c9a84c] font-bold text-sm mb-1">House Membership — $25/month</p>
-                <p className="text-[#999] text-xs">Send $25 to <span className="text-[#c9a84c] font-bold">$Luckydayz3</span> on Cash App with your name in the note.</p>
+function TierLadder({ current }: { current?: Tier }) {
+  return (
+    <section aria-labelledby="tiers-title" className="mt-16">
+      <h2 id="tiers-title" className="display text-3xl font-semibold">How membership works</h2>
+      <ol className="mt-6 flex flex-col gap-3">
+        {TIERS.map(t => {
+          const house = t.key === 'house'
+          return (
+            <li
+              key={t.key}
+              className={cx(
+                'grid gap-4 rounded-3xl p-6 sm:grid-cols-[180px_1fr] sm:gap-8',
+                house ? 'bg-night text-on-night' : 'border border-line bg-surface',
+              )}
+            >
+              <div className="flex flex-col gap-1">
+                <p className={cx('display flex items-center gap-2 text-2xl font-semibold', house && 'text-gold')}>
+                  {house && <Crown size={20} strokeWidth={1.75} />}{t.name}
+                </p>
+                <p className={cx('text-sm font-semibold', house ? 'text-on-night-muted' : 'text-muted')}>{t.price}</p>
+                {current === t.key && <Badge tone={house ? 'gold' : 'ok'} className="mt-2 self-start">You’re here</Badge>}
               </div>
-            )}
-            <button onClick={() => submitRequest(showHouseForm ? 'house' : 'member')} className="w-full bg-[#1a1a1a] text-[#f5f0e8] font-bold py-3 rounded-xl hover:bg-[#333] transition-all">
-              {showHouseForm ? 'Submit & Send Payment' : 'Submit Application'}
-            </button>
+              <div className="flex flex-col gap-3">
+                <p className={house ? 'text-on-night-muted' : 'text-muted'}>{t.requirement}</p>
+                <ul className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
+                  {t.perks.map(p => (
+                    <li key={p} className="flex gap-2 text-[15px]">
+                      <Check size={16} strokeWidth={2} className={cx('mt-1 shrink-0', house ? 'text-gold' : 'text-ok')} />
+                      {p}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </li>
+          )
+        })}
+      </ol>
+    </section>
+  )
+}
+
+function Account({ account, phone, onUpdate, onReset }: {
+  account: PublicRewards; phone: string; onUpdate: (a: PublicRewards) => void; onReset: () => void
+}) {
+  const { add, lines } = useCart()
+  const [added, setAdded] = useState<string | null>(null)
+  const [applying, setApplying] = useState<'member' | 'house' | null>(null)
+  const { tier, points, purchase_count: orders } = account
+
+  const memberEligible = tier === 'guest' && orders >= MEMBER_MIN_ORDERS && !account.membership_requested
+  const houseEligible = tier === 'member' && orders >= HOUSE_MIN_ORDERS && points >= HOUSE_MIN_POINTS && !account.membership_requested
+  const rewardInCart = lines.some(l => l.rewardKey && l.rewardKey !== REFERRAL_REWARD_KEY)
+
+  function addReward(key: string, name: string, category: 'Flower' | 'Pre-Rolls') {
+    add({ productId: null, name, category, weight: null, qty: 1, image: null, rewardKey: key })
+    setAdded(name)
+  }
+
+  return (
+    <div className="flex flex-col gap-12">
+      <header className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="display text-4xl font-semibold sm:text-5xl">Hey, {account.first_name}.</h1>
+          <Badge tone={tier === 'house' ? 'night' : tier === 'member' ? 'ok' : 'neutral'}>{tierName(tier)}</Badge>
+        </div>
+        <div className="mt-4 flex flex-wrap items-end gap-x-10 gap-y-4">
+          <div>
+            <p className="tabular display text-7xl font-semibold leading-none text-gold-ink">{points}</p>
+            <p className="mt-2 text-muted">points</p>
+          </div>
+          <div>
+            <p className="tabular display text-4xl font-semibold leading-none">{orders}</p>
+            <p className="mt-2 text-muted">order{orders === 1 ? '' : 's'}</p>
           </div>
         </div>
+      </header>
+
+      {added && (
+        <Notice tone="ok" icon={<Check size={18} strokeWidth={2} />} title={`${added} is in your cart.`}>
+          We’ll check it against your points when you place the order.{' '}
+          <Link href="/checkout" className="font-semibold underline">Go to checkout</Link>
+        </Notice>
       )}
-    </main>
+
+      {account.next_order_credit > 0 && (
+        <Notice tone="ok" icon={<Gift size={18} strokeWidth={1.75} />} title={`$${account.next_order_credit} off your next order is waiting.`}>
+          It comes off at checkout when you order with this number, unless another deal is worth more on that order.
+        </Notice>
+      )}
+
+      {account.pending_referral_reward && (
+        <section className="flex flex-col gap-4 rounded-3xl border border-gold/60 bg-surface p-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex gap-3">
+            <Gift size={22} strokeWidth={1.75} className="mt-0.5 shrink-0 text-gold-ink" />
+            <div>
+              <p className="font-semibold">Your referral gift is waiting</p>
+              <p className="text-muted">{account.pending_referral_reward}, free with your next order.</p>
+            </div>
+          </div>
+          <Button
+            variant="gold"
+            disabled={lines.some(l => l.rewardKey === REFERRAL_REWARD_KEY)}
+            onClick={() => addReward(REFERRAL_REWARD_KEY, 'Referral pre-roll', 'Pre-Rolls')}
+          >
+            {lines.some(l => l.rewardKey === REFERRAL_REWARD_KEY) ? 'In your cart' : 'Add to cart'}
+          </Button>
+        </section>
+      )}
+
+      <section aria-labelledby="spend-title" className="flex flex-col gap-4">
+        <h2 id="spend-title" className="display text-2xl font-semibold">Spend your points</h2>
+        <ul className="flex flex-col divide-y divide-line border-y border-line">
+          {REWARDS.map(r => {
+            const unlocked = r.tiers.includes(tier)
+            const enough = points >= r.points
+            const inCart = lines.some(l => l.rewardKey === r.key)
+            return (
+              <li key={r.key} className="flex flex-wrap items-center justify-between gap-4 py-4">
+                <div>
+                  <p className="font-semibold">{r.name}</p>
+                  <p className="text-sm text-muted">
+                    <span className="tabular">{r.points}</span> points
+                    {r.pickupOnlyFor.includes(tier) && ' · pickup orders'}
+                    {!unlocked && ' · unlocks at Member'}
+                  </p>
+                </div>
+                {unlocked && enough ? (
+                  <Button size="sm" variant={inCart ? 'outline' : 'primary'} disabled={inCart || (rewardInCart && !inCart)} onClick={() => addReward(r.key, r.name, r.category)}>
+                    {inCart ? 'In your cart' : 'Add to cart'}
+                  </Button>
+                ) : (
+                  <span className="tabular text-sm font-semibold text-muted">{unlocked ? `${r.points - points} to go` : 'Locked'}</span>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+        {rewardInCart && <p className="text-sm text-muted">One points reward per order.</p>}
+      </section>
+
+      {tier === 'house' && <HousePerks account={account} />}
+
+      {account.membership_requested && (
+        <Notice tone="neutral" title={`Your ${tierName(account.membership_requested)} request is in.`}>We review every request personally and will text you soon.</Notice>
+      )}
+      {memberEligible && (
+        <Upgrade
+          title="You’ve earned Member."
+          body={`${orders} orders in. Member is free: 2× points on $50+ orders and the free eighth reward.`}
+          action="Apply for Member"
+          onClick={() => setApplying('member')}
+        />
+      )}
+      {houseEligible && (
+        <Upgrade
+          house
+          title="You’re invited to The House."
+          body={`${orders} orders and ${points} points. Join for $${HOUSE_MONTHLY_FEE} a month: 10% off $50+ orders, 2× points always, and free gifts.`}
+          action="Join The House"
+          onClick={() => setApplying('house')}
+        />
+      )}
+
+      <Referral account={account} phone={phone} onUpdate={onUpdate} />
+
+      <TierLadder current={tier} />
+
+      <button type="button" onClick={onReset} className="self-start text-sm font-semibold text-muted underline underline-offset-4 hover:text-ink">
+        Look up a different number
+      </button>
+
+      <ApplyDialog tier={applying} phone={phone} onClose={() => setApplying(null)} onDone={a => { onUpdate(a); setApplying(null) }} />
+    </div>
+  )
+}
+
+function Upgrade({ title, body, action, onClick, house }: { title: string; body: string; action: string; onClick: () => void; house?: boolean }) {
+  return (
+    <section className={cx('flex flex-col gap-5 rounded-3xl p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8', house ? 'bg-night text-on-night' : 'border border-ok/40 bg-ok-tint')}>
+      <div className="max-w-md">
+        <p className={cx('display text-2xl font-semibold', house ? 'text-gold' : 'text-ok')}>{title}</p>
+        <p className={cx('mt-1', house ? 'text-on-night-muted' : 'text-ink/80')}>{body}</p>
+      </div>
+      <Button variant={house ? 'gold' : 'primary'} size="lg" onClick={onClick} className="shrink-0">{action}</Button>
+    </section>
+  )
+}
+
+function HousePerks({ account }: { account: PublicRewards }) {
+  const toNext = (n: number) => { const r = n - (account.purchase_count % n); return r === n ? n : r }
+  const perks = [
+    { label: 'Free pre-roll', detail: 'every 5th order', value: `${toNext(5)} to go` },
+    { label: '10% off', detail: 'orders of $50+, when it’s your best deal', value: 'Automatic' },
+    { label: '2× points', detail: 'on every order', value: 'Automatic' },
+  ]
+  return (
+    <section aria-labelledby="house-title" className="flex flex-col gap-5 rounded-3xl bg-night p-6 text-on-night sm:p-8">
+      <div className="flex items-baseline justify-between gap-4">
+        <h2 id="house-title" className="display flex items-center gap-2 text-2xl font-semibold text-gold"><Crown size={20} strokeWidth={1.75} /> The House</h2>
+        {account.house_paid_until && <p className="text-sm text-on-night-muted">Active until {formatDay(account.house_paid_until)}</p>}
+      </div>
+      <dl className="flex flex-col divide-y divide-white/10">
+        {perks.map(p => (
+          <div key={p.label} className="flex items-baseline justify-between gap-4 py-3">
+            <dt>
+              <span className="font-semibold">{p.label}</span> <span className="text-on-night-muted">{p.detail}</span>
+            </dt>
+            <dd className="tabular shrink-0 font-semibold text-gold">{p.value}</dd>
+          </div>
+        ))}
+      </dl>
+      <p className="text-sm text-on-night-muted">Renew with ${HOUSE_MONTHLY_FEE} to ${CASHTAG} on Cash App each month, with your name in the note.</p>
+    </section>
+  )
+}
+
+function Referral({ account, phone, onUpdate }: { account: PublicRewards; phone: string; onUpdate: (a: PublicRewards) => void }) {
+  const [copied, setCopied] = useState(false)
+  const [code, setCode] = useState('')
+  const [choice, setChoice] = useState<'grabba' | 'plain' | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const canUseCode = !account.referred && account.purchase_count === 0
+
+  async function share() {
+    const text = `Use my LuckyDayze code ${account.referral_code} on your first order for ${REFERRAL_BONUS_POINTS} bonus points and a free pre-roll.`
+    const url = `${window.location.origin}/rewards`
+    try {
+      if (navigator.share) {
+        await navigator.share({ text, url })
+        return
+      }
+      await navigator.clipboard.writeText(`${text} ${url}`)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {}
+  }
+
+  return (
+    <section aria-labelledby="referral-title" className="grid gap-8 sm:grid-cols-2">
+      <div className="flex flex-col gap-3">
+        <h2 id="referral-title" className="display text-2xl font-semibold">Share your code</h2>
+        <p className="text-muted">Friends get {REFERRAL_BONUS_POINTS} bonus points and a free pre-roll. You get 50 points when their first order lands.</p>
+        <p className="display mt-2 text-4xl font-semibold tracking-[0.18em] text-gold-ink">{account.referral_code}</p>
+        <Button variant="outline" className="self-start" onClick={share}>
+          {copied ? <><Check size={16} strokeWidth={2} /> Copied</> : <><Share2 size={16} strokeWidth={1.75} /> Share invite</>}
+        </Button>
+        {account.referral_count > 0 && <p className="text-sm font-semibold text-ok">{account.referral_count} friend{account.referral_count === 1 ? '' : 's'} joined with your code.</p>}
+      </div>
+
+      {canUseCode && (
+        <form
+          className="flex flex-col gap-4"
+          onSubmit={async e => {
+            e.preventDefault()
+            if (!code.trim()) return setError('Enter your friend’s code.')
+            if (!choice) return setError('Choose your free pre-roll.')
+            setBusy(true)
+            setError(null)
+            try {
+              onUpdate(await post<PublicRewards>('/api/rewards/referral', { phone, code: code.trim(), choice }))
+            } catch (err) {
+              setError((err as Error).message)
+            } finally {
+              setBusy(false)
+            }
+          }}
+        >
+          <h2 className="display text-2xl font-semibold">Got a friend’s code?</h2>
+          <Field label="Referral code" error={error}>
+            {p => (
+              <input {...p} autoCapitalize="characters" autoCorrect="off" spellCheck={false} value={code} onChange={e => setCode(e.target.value.toUpperCase())}
+                className={cx(inputClass, 'font-semibold uppercase tracking-[0.2em]')} />
+            )}
+          </Field>
+          <Segmented
+            label="Your free pre-roll"
+            value={choice}
+            onChange={setChoice}
+            size="sm"
+            options={[{ value: 'grabba', label: 'With Grabba' }, { value: 'plain', label: 'No Grabba' }]}
+          />
+          <Button type="submit" loading={busy} className="self-start">Apply code</Button>
+        </form>
+      )}
+    </section>
+  )
+}
+
+function ApplyDialog({ tier, phone, onClose, onDone }: {
+  tier: 'member' | 'house' | null; phone: string; onClose: () => void; onDone: (a: PublicRewards) => void
+}) {
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [birthday, setBirthday] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const house = tier === 'house'
+
+  return (
+    <Dialog open={!!tier} onClose={onClose} title={house ? 'Join The House' : 'Apply for Member'}>
+      <form
+        className="flex flex-col gap-5"
+        onSubmit={async e => {
+          e.preventDefault()
+          setBusy(true)
+          setError(null)
+          try {
+            onDone(await post<PublicRewards>('/api/rewards/membership', { phone, tier, name, email, birthday }))
+          } catch (err) {
+            setError((err as Error).message)
+          } finally {
+            setBusy(false)
+          }
+        }}
+      >
+        <p className="text-muted">We review every request personally and text you to confirm.</p>
+        <Field label="Full name" optional>
+          {p => <input {...p} autoComplete="name" value={name} onChange={e => setName(e.target.value)} className={inputClass} />}
+        </Field>
+        <Field label="Email">
+          {p => <input {...p} type="email" autoComplete="email" required value={email} onChange={e => setEmail(e.target.value)} className={inputClass} />}
+        </Field>
+        <Field label="Birthday" optional hint="We like to send something on your day.">
+          {p => <input {...p} type="date" autoComplete="bday" value={birthday} onChange={e => setBirthday(e.target.value)} className={inputClass} />}
+        </Field>
+        {house && (
+          <Notice tone="night" icon={<Crown size={16} strokeWidth={1.75} />} title={`$${HOUSE_MONTHLY_FEE} a month`}>
+            <span className="text-on-night-muted">Send ${HOUSE_MONTHLY_FEE} to ${CASHTAG} on Cash App with your name in the note. We activate you once it lands.</span>
+          </Notice>
+        )}
+        {error && <Notice tone="danger">{error}</Notice>}
+        <Button type="submit" size="lg" loading={busy}>{house ? 'Send request' : 'Apply'}</Button>
+      </form>
+    </Dialog>
   )
 }

@@ -1,46 +1,63 @@
-import type { Metadata, Viewport } from "next";
-import { Geist } from "next/font/google";
-import "./globals.css";
-import { ThemeProvider } from "./theme";
+import type { Metadata, Viewport } from 'next'
+import { Bodoni_Moda, Hanken_Grotesk } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
+import { ThemeProvider } from '@/components/theme'
+import { CartProvider } from '@/components/cart'
+import './globals.css'
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
+const bodoni = Bodoni_Moda({
+  subsets: ['latin'],
+  variable: '--font-bodoni',
+  axes: ['opsz'],
+  style: ['normal', 'italic'],
+  display: 'swap',
+})
+
+const hanken = Hanken_Grotesk({
+  subsets: ['latin'],
+  variable: '--font-hanken',
+  display: 'swap',
+})
 
 export const viewport: Viewport = {
-  themeColor: "#c9a84c",
-  width: "device-width",
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#f4efe6' },
+    { media: '(prefers-color-scheme: dark)', color: '#0e0d0b' },
+  ],
+  width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
+  viewportFit: 'cover',
 }
 
 export const metadata: Metadata = {
-  title: "LuckyDayze — NYC Cannabis Delivery",
-  description: "Premium cannabis delivered to your door in under 45 minutes.",
-  manifest: "/manifest.json",
+  title: 'LuckyDayze — NYC Cannabis Delivery',
+  description: 'Premium flower and pre-rolls, delivered to your door.',
+  manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
-    statusBarStyle: "black-translucent",
-    title: "LuckyDayze",
+    statusBarStyle: 'black-translucent',
+    title: 'LuckyDayze',
   },
   icons: {
-    apple: "/logo-192.png",
+    apple: '/logo-192.png',
   },
-};
+}
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+// Applies the saved (or system) theme before first paint so dark-mode visitors never see a light flash.
+const themeScript = `(function(){try{var t=localStorage.getItem('ld_theme');if(t!=='light'&&t!=='dark'){t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.classList.add(t)}catch(e){}})()`
+
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${geistSans.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col">
-        <ThemeProvider>{children}</ThemeProvider>
-      <Analytics />
+    <html lang="en" className={`${bodoni.variable} ${hanken.variable}`} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
+      <body className="min-h-dvh bg-canvas text-ink antialiased">
+        <ThemeProvider>
+          <CartProvider>{children}</CartProvider>
+        </ThemeProvider>
+        <Analytics />
       </body>
     </html>
-  );
+  )
 }
