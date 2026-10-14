@@ -12,15 +12,17 @@ import type { Order, ScheduledOrder } from '@/lib/types'
 import { OrdersTab } from './orders'
 import { ScheduledTab } from './scheduled'
 import { CustomersTab } from './customers'
+import { AccountsTab } from './accounts'
 import { PromosTab } from './promos'
 import { Switch, errorText } from './shared'
 
-type Tab = 'orders' | 'scheduled' | 'customers' | 'promos'
+type Tab = 'orders' | 'scheduled' | 'customers' | 'accounts' | 'promos'
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'orders', label: 'Orders' },
   { key: 'scheduled', label: 'Scheduled' },
   { key: 'customers', label: 'Customers' },
+  { key: 'accounts', label: 'Accounts' },
   { key: 'promos', label: 'Promos' },
 ]
 
@@ -191,6 +193,7 @@ function Admin() {
             />
           )}
           {tab === 'customers' && <CustomersTab />}
+          {tab === 'accounts' && <AccountsTab />}
           {tab === 'promos' && <PromosTab />}
         </div>
       </main>

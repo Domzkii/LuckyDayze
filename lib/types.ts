@@ -71,7 +71,7 @@ export interface OrderItem {
 }
 
 /** What kind of money we gave up. Older orders may not have one; 'house' and 'scheduled' are retired. */
-export type DiscountKind = 'preroll_deal' | 'promo' | 'perk' | 'credit' | 'house' | 'scheduled'
+export type DiscountKind = 'preroll_deal' | 'promo' | 'perk' | 'credit' | 'special' | 'house' | 'scheduled'
 
 export interface Discount {
   label: string
@@ -254,4 +254,49 @@ export interface PublicRewards {
   membership_requested: 'member' | 'house' | null
   house_paid_until: string | null
   next_order_credit: number
+}
+
+export type AccountKind = 'building' | 'friend'
+
+/** Flower prices by size ("3.5", "14", "28"). A size left out stays at the regular price. */
+export type SpecialPrices = Partial<Record<string, number>>
+
+export interface PriceList {
+  id: string
+  created_at: string
+  name: string
+  prices: SpecialPrices
+}
+
+export interface Profile {
+  user_id: string
+  created_at: string
+  email: string
+  name: string
+  phone: string
+  kind: AccountKind
+  apt: string | null
+  street_address: string | null
+  price_list_id: string | null
+}
+
+export interface Invite {
+  code: string
+  created_at: string
+  note: string | null
+  price_list_id: string | null
+  used_by: string | null
+  used_at: string | null
+}
+
+/** What a signed-in customer sees about their own account. */
+export interface AccountInfo {
+  email: string
+  name: string
+  phone: string
+  kind: AccountKind
+  apt: string | null
+  street_address: string | null
+  /** Their special prices, or null. The list's name stays staff-only. */
+  prices: SpecialPrices | null
 }

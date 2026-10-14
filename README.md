@@ -11,7 +11,8 @@ Cannabis delivery and pickup for Manhattan and Brooklyn. Next.js 16 on Vercel, S
 | `/order/[id]` | Customers | Payment (Cash App, Zelle or cash), then live status (link is private to the customer) |
 | `/track` | Customers | Orders from this device, or look up by phone |
 | `/rewards` | Customers | Points, rewards, referral code |
-| `/admin` | Staff | Orders, scheduled orders, customers, promos |
+| `/account` | Customers | Optional account: sign in, sign up (invite links for friends), their details and special prices |
+| `/admin` | Staff | Orders, scheduled orders, customers, accounts and special prices, promos |
 | `/finance` | Staff | Weekly books, payouts, re-up and investment funds, product catalog |
 
 Customers never write to the database directly. Every customer action goes through `app/api/*`, which recomputes prices from the database (`lib/pricing.ts` is shared by the browser preview and the server). Staff sign in with Supabase Auth, and row-level security limits the data to people listed in `public.staff`.
@@ -20,7 +21,7 @@ Customers never write to the database directly. Every customer action goes throu
 
 1. Create a project at [supabase.com](https://supabase.com).
 2. Open **SQL Editor**, paste `supabase/migrations/0001_init.sql`, and run it. It creates the tables, security rules, the order functions, realtime, and the `products` photo bucket.
-3. **Authentication → Providers → Email**: turn off "Allow new users to sign up" so only people you invite get accounts.
+3. **Authentication → Providers → Email**: turn off "Allow new users to sign up". Customer accounts are created by `/api/account/signup` with the service key, already confirmed, so no emails are sent and this setting can stay off.
 4. **Authentication → Users → Add user**: create a login for each staff member.
 5. Make them staff (SQL Editor):
    ```sql
@@ -41,9 +42,11 @@ npm run lint
 ## How an order flows
 
 1. Customer places the order at `/checkout`. Status: **pending payment**.
-2. They pay from their order page: Cash App to $Luckydayz3, or Zelle with the order code in the memo. Cash orders skip this step and are collected at the door.
+2. They pay from their order page: Cash App to $Luckydayz3, or Zelle with the order code in the memo. Cash orders wait for staff to approve them, then are collected at the door.
 3. Staff move it along in `/admin`: payment received → preparing → out for delivery (or ready for pickup) → delivered.
 4. **Delivered** runs `complete_order()` once: loyalty points, referral bonus, inventory, sales rows for finance, and the Popular badge. Running it twice does nothing.
 5. **Cancel** runs `cancel_order()`, which gives back any points spent on a reward.
+
+Signed-in customers send their session token with the order. The server looks up their profile: friends outside the building deliver to their street address, and a special price list (Admin → Accounts) competes as the order's one deal.
 
 Scheduled orders wait in **Scheduled** until staff queue them. Recurring ones roll forward to their next date.

@@ -1,5 +1,5 @@
 import { roundCents } from './format'
-import type { Category, Discount, Product, SaleEvent } from './types'
+import type { Category, Discount, Product, SaleEvent, SpecialPrices } from './types'
 
 /** One line in the cart, as the browser keeps it. Prices are re-derived from products on the server. */
 export interface CartLine {
@@ -93,11 +93,19 @@ export interface QuoteOptions {
   sale: SaleEvent | null
   /** Dollars off banked from an older order (the retired "$7 off next time" perk). */
   credit?: number
+  /** A signed-in customer's special flower prices. */
+  special?: SpecialPrices | null
+}
+
+/** Flower price for this size from a special price list, if it beats the regular one. */
+export function specialPriceFor(special: SpecialPrices | null | undefined, weight: string | null, regular: number) {
+  const p = Number(special?.[weight ?? '3.5'])
+  return p > 0 && p < regular ? p : null
 }
 
 /** The one deal an order gets: whichever is worth most to the customer. */
 export interface Deal {
-  kind: 'perk' | 'promo' | 'credit'
+  kind: 'perk' | 'promo' | 'credit' | 'special'
   label: string
   /** Dollars off. */
   value: number
@@ -152,6 +160,15 @@ export function quote(cart: CartLine[], products: Product[], opts: QuoteOptions)
   if (opts.credit && opts.credit > 0 && merchandise > 0) {
     const amount = roundCents(Math.min(opts.credit, merchandise))
     candidates.push({ kind: 'credit', label: `$${opts.credit} off from your last order`, value: amount, discount: amount })
+  }
+  if (opts.special) {
+    const saved = lines
+      .filter(l => !l.rewardKey && l.category === 'Flower')
+      .reduce((s, l) => {
+        const p = specialPriceFor(opts.special, l.weight, l.unitPrice)
+        return p === null ? s : s + (l.unitPrice - p) * l.qty
+      }, 0)
+    if (saved > 0) candidates.push({ kind: 'special', label: 'Your prices', value: roundCents(saved), discount: roundCents(saved) })
   }
   const perk = perkFor(merchandise)
   if (perk) {

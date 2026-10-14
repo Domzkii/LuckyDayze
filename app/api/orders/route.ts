@@ -5,6 +5,7 @@ import { quote, type CartLine } from '@/lib/pricing'
 import {
   REFERRAL_BONUS_POINTS, REFERRAL_GIFTS, REFERRAL_REWARD_KEY, SIGNUP_POINTS, rewardByKey, type ReferralChoice,
 } from '@/lib/rewards'
+import { accountFromRequest } from '@/lib/server/auth'
 import { InputError, handle, isUuid, randomCode, readJson, str } from '@/lib/server/http'
 import { notifyNewOrder } from '@/lib/server/notify'
 import type { Fulfillment, Frequency, Loyalty, OrderItem, PaymentMethod, Product, SaleEvent, StoreSettings } from '@/lib/types'
@@ -62,7 +63,12 @@ export async function POST(request: Request) {
       if (!CASHTAG_RE.test(cashTag)) throw new InputError('Please enter your Cash App $Cashtag so we can match your payment.')
     }
     const notes = str(body.notes, 500) || null
-    const address = str(body.address, 40)
+
+    // Signed-in customers get their special prices; friends outside the building give a street address.
+    const { profile, priceList } = await accountFromRequest(request)
+    const friend = profile?.kind === 'friend'
+    const address = str(body.address, friend ? 120 : 40)
+    const missingAddress = friend ? 'Please enter your street address.' : 'Please enter your apartment number.'
 
     const lines = parseLines(body.lines)
     const productIds = [...new Set(lines.map(l => l.productId).filter((id): id is string => !!id))]
@@ -88,12 +94,12 @@ export async function POST(request: Request) {
 
     if (fulfillment === 'delivery') {
       if (!settings.is_open) throw new InputError('Delivery is closed right now. Pickup and scheduled delivery are still open.')
-      if (!address) throw new InputError('Please enter your apartment number.')
-      place = formatApt(address)
+      if (!address) throw new InputError(missingAddress)
+      place = friend ? address : formatApt(address)
     } else if (fulfillment === 'pickup') {
       place = PICKUP_PLACE
     } else {
-      if (!address) throw new InputError('Please enter your apartment number.')
+      if (!address) throw new InputError(missingAddress)
       scheduledDate = str(body.scheduledDate, 10)
       if (!/^\d{4}-\d{2}-\d{2}$/.test(scheduledDate) || scheduledDate < today || scheduledDate > addDays(today, MAX_SCHEDULE_DAYS)) {
         throw new InputError(`Please pick a delivery date within the next ${MAX_SCHEDULE_DAYS} days.`)
@@ -101,7 +107,7 @@ export async function POST(request: Request) {
       timeWindow = (TIME_WINDOWS as readonly string[]).includes(str(body.timeWindow, 40)) ? str(body.timeWindow, 40) : null
       const f = str(body.frequency, 10)
       frequency = FREQUENCIES.some(o => o.value === f) ? (f as Frequency) : 'once'
-      place = formatApt(address)
+      place = friend ? address : formatApt(address)
     }
 
     // ── Stock ──
@@ -166,12 +172,12 @@ export async function POST(request: Request) {
     }
 
     // ── The one deal ──
-    // Each order gets one deal: the spend perk, a promo or banked credit, whichever is worth most
-    // to the customer. lib/pricing decides.
+    // Each order gets one deal: the spend perk, a promo, banked credit or the customer's special
+    // prices, whichever is worth most to the customer. lib/pricing decides.
     const banked = fulfillment !== 'scheduled' ? Number(loyalty?.next_order_credit ?? 0) : 0
 
     // ── Price it ──
-    const priced = quote(lines, products, { sale, credit: banked })
+    const priced = quote(lines, products, { sale, credit: banked, special: priceList?.prices })
     const creditUsed = priced.discounts.find(d => d.kind === 'credit')?.amount ?? 0
     if (priced.lines.length === 0) throw new InputError('Your cart is empty.')
     if (fulfillment !== 'pickup' && priced.merchandise < Number(settings.delivery_minimum)) {

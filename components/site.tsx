@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, ShoppingBag } from 'lucide-react'
+import { ArrowLeft, ShoppingBag, UserRound } from 'lucide-react'
 import { InstagramIcon } from './icons'
 import { INSTAGRAM } from '@/lib/format'
 import { ageVerified, confirmAge } from '@/lib/local'
@@ -33,6 +33,9 @@ export function SiteHeader({ onCart, back }: { onCart?: () => void; back?: { hre
           </Link>
           <Link href="/rewards" className="inline-flex min-h-11 items-center rounded-full px-3 text-sm font-semibold text-gold-ink hover:text-ink">
             Rewards
+          </Link>
+          <Link href="/account" aria-label="Your account" className="inline-flex size-11 items-center justify-center rounded-full text-muted transition-colors hover:bg-sunken hover:text-ink">
+            <UserRound size={20} strokeWidth={1.75} />
           </Link>
           <ThemeToggle />
           {onCart && (

@@ -5,11 +5,11 @@ export const BOROUGHS = ['Manhattan', 'Brooklyn'] as const
 /** Everything happens in one building: pickup is at my door, delivery goes to theirs. */
 export const PICKUP_PLACE = 'My door'
 
-/** "4B" → "Apt 4B"; leaves "Apt 4B", "#4B" or longer text alone. */
+/** "4B" → "Apt 4B"; leaves "Apt 4B", "#4B" and street addresses alone. */
 export function formatApt(value: string | null | undefined) {
   const v = (value ?? '').trim()
   if (!v) return ''
-  return /^(apt|apartment|unit|#)/i.test(v) || v.length > 12 ? v : `Apt ${v}`
+  return /^(apt|apartment|unit|#)/i.test(v) || /\s/.test(v) || v.length > 12 ? v : `Apt ${v}`
 }
 export const STORE_TIME_ZONE = 'America/New_York'
 

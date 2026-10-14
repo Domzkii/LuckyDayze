@@ -12,6 +12,7 @@ import { perkNudge, quote } from '@/lib/pricing'
 import { REFERRAL_GIFTS, type ReferralChoice } from '@/lib/rewards'
 import { rememberOrder, saveCustomer, savedCustomer } from '@/lib/local'
 import { useCatalog } from '@/lib/use-catalog'
+import { authHeaders, useAccount } from '@/lib/use-account'
 import type { Frequency, Fulfillment, PaymentMethod, PublicRewards } from '@/lib/types'
 import { useCart } from '@/components/cart'
 import { CartThumb } from '@/components/cart-drawer'
@@ -29,6 +30,9 @@ export default function CheckoutPage() {
   const router = useRouter()
   const { products, settings, sale, status } = useCatalog()
   const { lines, ready, clear } = useCart()
+  const signedIn = useAccount()
+  const me = signedIn.status === 'signed-in' ? signedIn.account : null
+  const friend = me?.kind === 'friend'
 
   const open = settings?.is_open ?? true
   const [fulfillment, setFulfillment] = useState<Fulfillment | null>(null)
@@ -65,6 +69,16 @@ export default function CheckoutPage() {
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [])
 
+  // A signed-in account's details win over what this device remembers.
+  useEffect(() => {
+    if (!me) return
+    /* eslint-disable react-hooks/set-state-in-effect -- prefill from the account once it loads */
+    setName(me.name)
+    setPhone(me.phone)
+    setAddress((me.kind === 'friend' ? me.street_address : me.apt) ?? '')
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [me])
+
   // Recognize returning customers to show their points and any banked credit.
   const cleanPhone = normalizePhone(phone)
   useEffect(() => {
@@ -85,7 +99,8 @@ export default function CheckoutPage() {
 
   // One deal per order: the spend perk competes with promos and banked credit.
   // lib/pricing picks whichever is worth most to the customer (the server does the same).
-  const priced = useMemo(() => quote(lines, products, { sale, credit: banked }), [lines, products, sale, banked])
+  const special = me?.prices ?? null
+  const priced = useMemo(() => quote(lines, products, { sale, credit: banked, special }), [lines, products, sale, banked, special])
   const minimum = Number(settings?.delivery_minimum ?? 30)
   const short = method !== 'pickup' ? minimum - priced.merchandise : 0
 
@@ -95,7 +110,7 @@ export default function CheckoutPage() {
     if (name.trim().length < 2) e.name = 'Enter your name.'
     if (!cleanPhone) e.phone = 'Enter a 10-digit US phone number.'
     if (payment === 'cashapp' && !/^[A-Za-z][A-Za-z0-9_-]{0,19}$/.test(cashTag.replace(/^\$/, '').trim())) e.cashTag = 'Enter your Cash App $Cashtag, like $JaneDoe.'
-    if (method !== 'pickup' && !address.trim()) e.address = 'Enter your apartment number.'
+    if (method !== 'pickup' && !address.trim()) e.address = friend ? 'Enter your street address.' : 'Enter your apartment number.'
     if (method === 'scheduled' && !date) e.date = 'Choose a delivery date.'
     if (showReferral && referralCode.trim() && !referralChoice) e.referral = 'Choose your free pre-roll, or save it for later.'
     if (short > 0) e.form = `Delivery starts at ${money(minimum)}. Add ${money(short, { cents: true })} more, or switch to pickup.`
@@ -118,7 +133,7 @@ export default function CheckoutPage() {
     try {
       const res = await fetch('/api/orders', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({
           fulfillment: method,
           name: name.trim(),
@@ -277,7 +292,14 @@ export default function CheckoutPage() {
 
             {/* Who */}
             <section aria-labelledby="who-title" className="flex flex-col gap-5">
-              <h2 id="who-title" className="display text-2xl font-semibold">Your details</h2>
+              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                <h2 id="who-title" className="display text-2xl font-semibold">Your details</h2>
+                {me ? (
+                  <Link href="/account" className="text-sm font-semibold text-muted hover:text-ink">Signed in as {me.email}</Link>
+                ) : signedIn.status === 'guest' ? (
+                  <Link href="/account" className="text-sm font-semibold text-gold-ink hover:text-ink">Have an account? Sign in</Link>
+                ) : null}
+              </div>
               <div className="grid gap-5 sm:grid-cols-2">
                 <Field label="Name" error={errors.name}>
                   {p => <input {...p} autoComplete="name" value={name} onChange={e => setName(e.target.value)} className={inputClass} />}
@@ -306,7 +328,12 @@ export default function CheckoutPage() {
                   )}
                 </Field>
               )}
-              {method !== 'pickup' && (
+              {method !== 'pickup' && friend && (
+                <Field label="Street address" error={errors.address} hint="Where we deliver. Change it here for just this order.">
+                  {p => <input {...p} autoComplete="street-address" maxLength={120} value={address} onChange={e => setAddress(e.target.value)} className={inputClass} />}
+                </Field>
+              )}
+              {method !== 'pickup' && !friend && (
                 <Field label="Apartment number" error={errors.address} hint="Your door number, like 4B. We bring it right up.">
                   {p => (
                     <input {...p} autoComplete="address-line2" autoCapitalize="characters" maxLength={20} value={address}
@@ -402,9 +429,14 @@ export default function CheckoutPage() {
               </dl>
 
               {priced.deal && priced.passedOver.length > 0 && (
-                <p className="text-sm text-muted">One deal per order. {priced.deal.label} is your best one, so it’s the one applied.</p>
+                <p className="text-sm text-muted">
+                  {priced.deal.kind === 'special'
+                    ? 'One deal per order. Your prices beat the other deals, so they’re the one applied.'
+                    : `One deal per order. ${priced.deal.label} is your best one, so it’s the one applied.`}
+                </p>
               )}
-              {perkNudge(priced.merchandise) && <p className="text-sm text-gold-ink">{perkNudge(priced.merchandise)}</p>}
+              {/* Special prices usually beat the spend perks, so the nudge would only mislead. */}
+              {!special && perkNudge(priced.merchandise) && <p className="text-sm text-gold-ink">{perkNudge(priced.merchandise)}</p>}
 
               {errors.form && (
                 <div ref={errorRef} tabIndex={-1} data-error>
