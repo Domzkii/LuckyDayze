@@ -38,7 +38,8 @@ export function CartDrawer({ open, onClose, products, sale, settings }: {
       open={open}
       onClose={onClose}
       title="Your cart"
-      variant="drawer"
+      variant="popover"
+      anchor="[data-cart-button]"
       footer={
         lines.length > 0 && (
           <div className="flex flex-col gap-3">
@@ -66,7 +67,7 @@ export function CartDrawer({ open, onClose, products, sale, settings }: {
       }
     >
       {lines.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 py-20 text-center text-muted">
+        <div className="flex flex-col items-center gap-3 py-10 text-center text-muted">
           <ShoppingBag size={36} strokeWidth={1.25} />
           <p className="font-semibold text-ink">Your cart is empty</p>
           <p className="text-sm">Pick a strain or a pre-roll to get started.</p>
@@ -81,7 +82,7 @@ export function CartDrawer({ open, onClose, products, sale, settings }: {
               ? Math.max(line.qty, Math.floor((Number(product.stock_grams) - lines.filter(l => l.productId === product.id && l.key !== line.key).reduce((s, l) => s + Number(l.weight) * l.qty, 0)) / Number(line.weight)))
               : 10
             return (
-              <li key={line.key} className="flex gap-4 py-4">
+              <li key={line.key} className="flex gap-3 py-3">
                 <CartThumb image={line.image} reward={!!line.rewardKey} />
                 <div className="flex min-w-0 flex-1 flex-col gap-2">
                   <div className="flex items-start justify-between gap-3">

@@ -1,6 +1,6 @@
 'use client'
 
-import { forwardRef, useEffect, useId, useRef, useState } from 'react'
+import { forwardRef, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Loader2, X } from 'lucide-react'
 
@@ -257,21 +257,36 @@ interface DialogProps {
   title: string
   /** Visually hide the title (it is still announced). */
   hideTitle?: boolean
-  /** 'center': card on desktop, bottom sheet on phones. 'drawer': full-height panel from the right. */
-  variant?: 'center' | 'drawer'
+  /**
+   * 'center': card on desktop, bottom sheet on phones. 'drawer': full-height panel from the right.
+   * 'popover': a compact card that grows out of the element matching `anchor` (e.g. the cart bag).
+   */
+  variant?: 'center' | 'drawer' | 'popover'
+  /** CSS selector for the element a popover comes out of. */
+  anchor?: string
   children: React.ReactNode
   footer?: React.ReactNode
   className?: string
 }
 
-/** Matches the exit animations in globals.css. */
+/** Match the exit animations in globals.css. */
 const EXIT_MS = 280
+const POPOVER_EXIT_MS = 140
+/** Popover gap from the screen edges, in px. */
+const EDGE = 12
+
+/** Where a popover sits: just under its anchor, right edges lined up, never off-screen. */
+function popoverPlace(selector?: string) {
+  const rect = selector ? document.querySelector(selector)?.getBoundingClientRect() : null
+  if (!rect || rect.width === 0) return { top: 72, right: EDGE }
+  return { top: Math.round(rect.bottom + 6), right: Math.max(EDGE, Math.round(window.innerWidth - rect.right)) }
+}
 
 /**
  * Native <dialog> as a modal: focus is trapped, Escape closes, the page behind is inert.
  * Closing plays an exit animation before the dialog actually closes.
  */
-export function Dialog({ open, onClose, title, hideTitle, variant = 'center', children, footer, className = '' }: DialogProps) {
+export function Dialog({ open, onClose, title, hideTitle, variant = 'center', anchor, children, footer, className = '' }: DialogProps) {
   const ref = useRef<HTMLDialogElement>(null)
   const titleId = useId()
 
@@ -288,17 +303,29 @@ export function Dialog({ open, onClose, title, hideTitle, variant = 'center', ch
     }
     if (!el.open) return
     setClosing(true)
-    const t = setTimeout(() => { el.close(); setClosing(false) }, EXIT_MS)
+    const t = setTimeout(() => { el.close(); setClosing(false) }, variant === 'popover' ? POPOVER_EXIT_MS : EXIT_MS)
     return () => clearTimeout(t)
-  }, [open])
+  }, [open, variant])
 
   const drawer = variant === 'drawer'
+  const popover = variant === 'popover'
+
+  // Measure the anchor before paint so the card never flashes in the wrong spot.
+  const [place, setPlace] = useState<{ top: number; right: number } | null>(null)
+  useLayoutEffect(() => {
+    if (!popover || !open) return
+    const update = () => setPlace(popoverPlace(anchor))
+    update()
+    window.addEventListener('resize', update)
+    return () => window.removeEventListener('resize', update)
+  }, [popover, open, anchor])
 
   return (
     <dialog
       ref={ref}
       aria-labelledby={titleId}
       data-closing={closing || undefined}
+      data-variant={variant}
       onClose={onClose}
       onCancel={e => { e.preventDefault(); onClose() }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
@@ -306,10 +333,31 @@ export function Dialog({ open, onClose, title, hideTitle, variant = 'center', ch
         'm-0 max-h-none max-w-none bg-transparent p-0 text-ink backdrop:animate-fade open:flex',
         drawer
           ? 'ml-auto h-dvh w-full sm:max-w-md'
-          : 'mt-auto w-full sm:m-auto sm:max-w-lg',
+          : popover
+            ? 'h-dvh w-full'
+            : 'mt-auto w-full sm:m-auto sm:max-w-lg',
       )}
     >
-      {(open || closing) && (
+      {popover && (open || closing) && place && (
+        <div
+          style={{ top: place.top, right: place.right, width: `min(400px, calc(100vw - ${place.right + EDGE}px))`, maxHeight: `calc(100dvh - ${place.top + EDGE}px)` }}
+          className={cx(
+            'absolute flex origin-top-right flex-col overflow-hidden rounded-2xl border border-line bg-canvas shadow-sheet will-change-transform',
+            closing ? 'animate-pop-out' : 'animate-pop-in',
+            className,
+          )}
+        >
+          <div className="flex items-center justify-between gap-4 px-5 pb-2 pt-3">
+            <h2 id={titleId} className={cx('display text-xl font-semibold', hideTitle && 'sr-only')}>{title}</h2>
+            <IconButton label="Close" onClick={onClose} className="-mr-2 ml-auto">
+              <X size={18} strokeWidth={1.75} />
+            </IconButton>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-4">{children}</div>
+          {footer && <div className="border-t border-line px-5 pb-4 pt-3">{footer}</div>}
+        </div>
+      )}
+      {!popover && (open || closing) && (
         <div
           className={cx(
             'flex w-full flex-col bg-canvas will-change-transform',

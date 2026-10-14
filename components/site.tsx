@@ -42,6 +42,7 @@ export function SiteHeader({ onCart, back }: { onCart?: () => void; back?: { hre
             <button
               type="button"
               onClick={onCart}
+              data-cart-button
               aria-label={count ? `Cart, ${count} item${count === 1 ? '' : 's'}` : 'Cart, empty'}
               className="relative inline-flex size-11 items-center justify-center rounded-full text-ink transition-colors hover:bg-sunken"
             >
