@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { Check, Copy, EllipsisVertical, Share, SquarePlus, X } from 'lucide-react'
+import { Check, ChevronDown, Copy, EllipsisVertical, Menu, Share, SquarePlus, X } from 'lucide-react'
 import { installPlatform, isInstalled, useInstallPrompt, type InstallPlatform } from '@/lib/install'
 import { closeInstallBanner, countInstallBanner, installBannerAllowed } from '@/lib/local'
 import { Button, Dialog, IconButton, Segmented, cx } from './ui'
@@ -22,17 +22,22 @@ type Step = { title: React.ReactNode; detail?: React.ReactNode }
 
 function stepsFor(platform: InstallPlatform): Step[] {
   switch (platform) {
+    // iOS 27 Safari: Share lives behind the ≡ button in the address bar, and Add to Home Screen
+    // is under View More in the share sheet. Safari no longer reports its real iOS version, so
+    // older iPhones (Share right in the bottom bar) get a note instead of their own steps.
     case 'ios-safari':
       return [
         {
-          title: <>Tap the Share button <Key label="Share"><Share size={15} strokeWidth={2} /></Key></>,
-          detail: <>It’s in Safari’s bar at the bottom of the screen. Don’t see it? Tap <Key label="More">•••</Key> first, then Share.</>,
+          title: <>Tap <Key label="the menu button"><Menu size={15} strokeWidth={2} /></Key> in the address bar</>,
+          detail: <>It’s on the left side of the address bar at the bottom of the screen. On an older iPhone, skip this: the Share button <Key label="Share"><Share size={15} strokeWidth={2} /></Key> is right in the bottom bar.</>,
         },
+        { title: <>Tap <Key label=""><Share size={15} strokeWidth={2} /> Share</Key></> },
         {
-          title: <>Tap <Key label=""><SquarePlus size={15} strokeWidth={2} /> Add to Home Screen</Key></>,
-          detail: 'You may need to scroll down the list to find it.',
+          title: <>Tap <Key label=""><ChevronDown size={15} strokeWidth={2} /> View More</Key></>,
+          detail: 'Then scroll down the list.',
         },
-        { title: <>Tap <Key label="">Add</Key> in the top right corner</> },
+        { title: <>Tap <Key label=""><SquarePlus size={15} strokeWidth={2} /> Add to Home Screen</Key></> },
+        { title: <>Tap <Key label="">Add</Key></> },
       ]
     case 'ios-chrome':
       return [
