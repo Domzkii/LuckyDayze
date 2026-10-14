@@ -18,6 +18,7 @@ export function toPublicOrder(o: Order): PublicOrder {
     total: Number(o.total),
     customer_arrived: o.customer_arrived,
     perk: o.perk ?? null,
+    payment_method: o.payment_method ?? 'cashapp',
   }
 }
 

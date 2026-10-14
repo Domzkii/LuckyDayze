@@ -2,17 +2,14 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Check, Crown, Gift, Share2 } from 'lucide-react'
-import { CASHTAG, formatDay, normalizePhone } from '@/lib/format'
-import {
-  HOUSE_MIN_ORDERS, HOUSE_MIN_POINTS, HOUSE_MONTHLY_FEE, MEMBER_MIN_ORDERS, REFERRAL_BONUS_POINTS,
-  REFERRAL_REWARD_KEY, REWARDS, TIERS, tierName,
-} from '@/lib/rewards'
+import { Check, Gift, Share2 } from 'lucide-react'
+import { normalizePhone } from '@/lib/format'
+import { REFERRAL_BONUS_POINTS, REFERRAL_REWARD_KEY, REWARDS } from '@/lib/rewards'
 import { savedCustomer } from '@/lib/local'
-import type { PublicRewards, Tier } from '@/lib/types'
+import type { PublicRewards } from '@/lib/types'
 import { useCart } from '@/components/cart'
 import { SiteFooter, SiteHeader } from '@/components/site'
-import { Badge, Button, Dialog, Field, Notice, Segmented, cx, inputClass } from '@/components/ui'
+import { Button, Field, Notice, Segmented, cx, inputClass } from '@/components/ui'
 
 async function post<T>(url: string, body: unknown): Promise<T> {
   const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
@@ -56,14 +53,14 @@ export default function RewardsPage() {
         ) : (
           <>
             <h1 className="display text-4xl font-semibold sm:text-6xl">Lucky Rewards</h1>
-            <p className="mt-4 max-w-lg text-lg text-muted">Every dollar earns a point. Points turn into free pre-rolls and eighths, and regulars move up to The House.</p>
+            <p className="mt-4 max-w-lg text-lg text-muted">Every dollar earns a point. Points turn into free pre-rolls and eighths.</p>
             <form onSubmit={lookup} className="mt-10 flex max-w-lg flex-col gap-3 sm:flex-row sm:items-start">
               <Field label="Your phone number" error={error} className="flex-1">
                 {p => <input {...p} type="tel" inputMode="tel" autoComplete="tel-national" value={phone} onChange={e => setPhone(e.target.value)} className={inputClass} />}
               </Field>
               <Button type="submit" size="lg" loading={busy} className="sm:mt-7">Check points</Button>
             </form>
-            <TierLadder />
+            <HowItWorks />
           </>
         )}
       </main>
@@ -72,43 +69,23 @@ export default function RewardsPage() {
   )
 }
 
-function TierLadder({ current }: { current?: Tier }) {
+function HowItWorks() {
+  const steps = [
+    '1 point for every $1 you spend',
+    ...REWARDS.map(r => `${r.points} points: ${r.name.toLowerCase()}`),
+    `Share your code: friends get a free pre-roll, you get ${REFERRAL_BONUS_POINTS} points`,
+  ]
   return (
-    <section aria-labelledby="tiers-title" className="mt-16">
-      <h2 id="tiers-title" className="display text-3xl font-semibold">How membership works</h2>
-      <ol className="mt-6 flex flex-col gap-3">
-        {TIERS.map(t => {
-          const house = t.key === 'house'
-          return (
-            <li
-              key={t.key}
-              className={cx(
-                'grid gap-4 rounded-3xl p-6 sm:grid-cols-[180px_1fr] sm:gap-8',
-                house ? 'bg-night text-on-night' : 'border border-line bg-surface',
-              )}
-            >
-              <div className="flex flex-col gap-1">
-                <p className={cx('display flex items-center gap-2 text-2xl font-semibold', house && 'text-gold')}>
-                  {house && <Crown size={20} strokeWidth={1.75} />}{t.name}
-                </p>
-                <p className={cx('text-sm font-semibold', house ? 'text-on-night-muted' : 'text-muted')}>{t.price}</p>
-                {current === t.key && <Badge tone={house ? 'gold' : 'ok'} className="mt-2 self-start">You’re here</Badge>}
-              </div>
-              <div className="flex flex-col gap-3">
-                <p className={house ? 'text-on-night-muted' : 'text-muted'}>{t.requirement}</p>
-                <ul className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
-                  {t.perks.map(p => (
-                    <li key={p} className="flex gap-2 text-[15px]">
-                      <Check size={16} strokeWidth={2} className={cx('mt-1 shrink-0', house ? 'text-gold' : 'text-ok')} />
-                      {p}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </li>
-          )
-        })}
-      </ol>
+    <section aria-labelledby="how-title" className="mt-16">
+      <h2 id="how-title" className="display text-3xl font-semibold">How points work</h2>
+      <ul className="mt-6 flex flex-col gap-3 rounded-3xl border border-line bg-surface p-6">
+        {steps.map(t => (
+          <li key={t} className="flex gap-2 text-[15px]">
+            <Check size={16} strokeWidth={2} className="mt-1 shrink-0 text-ok" />
+            {t}
+          </li>
+        ))}
+      </ul>
     </section>
   )
 }
@@ -118,11 +95,7 @@ function Account({ account, phone, onUpdate, onReset }: {
 }) {
   const { add, lines } = useCart()
   const [added, setAdded] = useState<string | null>(null)
-  const [applying, setApplying] = useState<'member' | 'house' | null>(null)
-  const { tier, points, purchase_count: orders } = account
-
-  const memberEligible = tier === 'guest' && orders >= MEMBER_MIN_ORDERS && !account.membership_requested
-  const houseEligible = tier === 'member' && orders >= HOUSE_MIN_ORDERS && points >= HOUSE_MIN_POINTS && !account.membership_requested
+  const { points, purchase_count: orders } = account
   const rewardInCart = lines.some(l => l.rewardKey && l.rewardKey !== REFERRAL_REWARD_KEY)
 
   function addReward(key: string, name: string, category: 'Flower' | 'Pre-Rolls') {
@@ -133,10 +106,7 @@ function Account({ account, phone, onUpdate, onReset }: {
   return (
     <div className="flex flex-col gap-12">
       <header className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="display text-4xl font-semibold sm:text-5xl">Hey, {account.first_name}.</h1>
-          <Badge tone={tier === 'house' ? 'night' : tier === 'member' ? 'ok' : 'neutral'}>{tierName(tier)}</Badge>
-        </div>
+        <h1 className="display text-4xl font-semibold sm:text-5xl">Hey, {account.first_name}.</h1>
         <div className="mt-4 flex flex-wrap items-end gap-x-10 gap-y-4">
           <div>
             <p className="tabular display text-7xl font-semibold leading-none text-gold-ink">{points}</p>
@@ -185,7 +155,6 @@ function Account({ account, phone, onUpdate, onReset }: {
         <h2 id="spend-title" className="display text-2xl font-semibold">Spend your points</h2>
         <ul className="flex flex-col divide-y divide-line border-y border-line">
           {REWARDS.map(r => {
-            const unlocked = r.tiers.includes(tier)
             const enough = points >= r.points
             const inCart = lines.some(l => l.rewardKey === r.key)
             return (
@@ -194,16 +163,14 @@ function Account({ account, phone, onUpdate, onReset }: {
                   <p className="font-semibold">{r.name}</p>
                   <p className="text-sm text-muted">
                     <span className="tabular">{r.points}</span> points
-                    {r.pickupOnlyFor.includes(tier) && ' · pickup orders'}
-                    {!unlocked && ' · unlocks at Member'}
                   </p>
                 </div>
-                {unlocked && enough ? (
+                {enough ? (
                   <Button size="sm" variant={inCart ? 'outline' : 'primary'} disabled={inCart || (rewardInCart && !inCart)} onClick={() => addReward(r.key, r.name, r.category)}>
                     {inCart ? 'In your cart' : 'Add to cart'}
                   </Button>
                 ) : (
-                  <span className="tabular text-sm font-semibold text-muted">{unlocked ? `${r.points - points} to go` : 'Locked'}</span>
+                  <span className="tabular text-sm font-semibold text-muted">{r.points - points} to go</span>
                 )}
               </li>
             )
@@ -212,79 +179,14 @@ function Account({ account, phone, onUpdate, onReset }: {
         {rewardInCart && <p className="text-sm text-muted">One points reward per order.</p>}
       </section>
 
-      {tier === 'house' && <HousePerks account={account} />}
-
-      {account.membership_requested && (
-        <Notice tone="neutral" title={`Your ${tierName(account.membership_requested)} request is in.`}>We review every request personally and will text you soon.</Notice>
-      )}
-      {memberEligible && (
-        <Upgrade
-          title="You’ve earned Member."
-          body={`${orders} orders in. Member is free: 2× points on $50+ orders and the free eighth reward.`}
-          action="Apply for Member"
-          onClick={() => setApplying('member')}
-        />
-      )}
-      {houseEligible && (
-        <Upgrade
-          house
-          title="You’re invited to The House."
-          body={`${orders} orders and ${points} points. Join for $${HOUSE_MONTHLY_FEE} a month: 10% off $50+ orders, 2× points always, and free gifts.`}
-          action="Join The House"
-          onClick={() => setApplying('house')}
-        />
-      )}
-
       <Referral account={account} phone={phone} onUpdate={onUpdate} />
 
-      <TierLadder current={tier} />
+      <HowItWorks />
 
       <button type="button" onClick={onReset} className="self-start text-sm font-semibold text-muted underline underline-offset-4 hover:text-ink">
         Look up a different number
       </button>
-
-      <ApplyDialog tier={applying} phone={phone} onClose={() => setApplying(null)} onDone={a => { onUpdate(a); setApplying(null) }} />
     </div>
-  )
-}
-
-function Upgrade({ title, body, action, onClick, house }: { title: string; body: string; action: string; onClick: () => void; house?: boolean }) {
-  return (
-    <section className={cx('flex flex-col gap-5 rounded-3xl p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8', house ? 'bg-night text-on-night' : 'border border-ok/40 bg-ok-tint')}>
-      <div className="max-w-md">
-        <p className={cx('display text-2xl font-semibold', house ? 'text-gold' : 'text-ok')}>{title}</p>
-        <p className={cx('mt-1', house ? 'text-on-night-muted' : 'text-ink/80')}>{body}</p>
-      </div>
-      <Button variant={house ? 'gold' : 'primary'} size="lg" onClick={onClick} className="shrink-0">{action}</Button>
-    </section>
-  )
-}
-
-function HousePerks({ account }: { account: PublicRewards }) {
-  const toNext = (n: number) => { const r = n - (account.purchase_count % n); return r === n ? n : r }
-  const perks = [
-    { label: 'Free pre-roll', detail: 'every 5th order', value: `${toNext(5)} to go` },
-    { label: '10% off', detail: 'orders of $50+, when it’s your best deal', value: 'Automatic' },
-    { label: '2× points', detail: 'on every order', value: 'Automatic' },
-  ]
-  return (
-    <section aria-labelledby="house-title" className="flex flex-col gap-5 rounded-3xl bg-night p-6 text-on-night sm:p-8">
-      <div className="flex items-baseline justify-between gap-4">
-        <h2 id="house-title" className="display flex items-center gap-2 text-2xl font-semibold text-gold"><Crown size={20} strokeWidth={1.75} /> The House</h2>
-        {account.house_paid_until && <p className="text-sm text-on-night-muted">Active until {formatDay(account.house_paid_until)}</p>}
-      </div>
-      <dl className="flex flex-col divide-y divide-white/10">
-        {perks.map(p => (
-          <div key={p.label} className="flex items-baseline justify-between gap-4 py-3">
-            <dt>
-              <span className="font-semibold">{p.label}</span> <span className="text-on-night-muted">{p.detail}</span>
-            </dt>
-            <dd className="tabular shrink-0 font-semibold text-gold">{p.value}</dd>
-          </div>
-        ))}
-      </dl>
-      <p className="text-sm text-on-night-muted">Renew with ${HOUSE_MONTHLY_FEE} to ${CASHTAG} on Cash App each month, with your name in the note.</p>
-    </section>
   )
 }
 
@@ -358,54 +260,5 @@ function Referral({ account, phone, onUpdate }: { account: PublicRewards; phone:
         </form>
       )}
     </section>
-  )
-}
-
-function ApplyDialog({ tier, phone, onClose, onDone }: {
-  tier: 'member' | 'house' | null; phone: string; onClose: () => void; onDone: (a: PublicRewards) => void
-}) {
-  const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
-  const [birthday, setBirthday] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
-  const house = tier === 'house'
-
-  return (
-    <Dialog open={!!tier} onClose={onClose} title={house ? 'Join The House' : 'Apply for Member'}>
-      <form
-        className="flex flex-col gap-5"
-        onSubmit={async e => {
-          e.preventDefault()
-          setBusy(true)
-          setError(null)
-          try {
-            onDone(await post<PublicRewards>('/api/rewards/membership', { phone, tier, name, email, birthday }))
-          } catch (err) {
-            setError((err as Error).message)
-          } finally {
-            setBusy(false)
-          }
-        }}
-      >
-        <p className="text-muted">We review every request personally and text you to confirm.</p>
-        <Field label="Full name" optional>
-          {p => <input {...p} autoComplete="name" value={name} onChange={e => setName(e.target.value)} className={inputClass} />}
-        </Field>
-        <Field label="Email">
-          {p => <input {...p} type="email" autoComplete="email" required value={email} onChange={e => setEmail(e.target.value)} className={inputClass} />}
-        </Field>
-        <Field label="Birthday" optional hint="We like to send something on your day.">
-          {p => <input {...p} type="date" autoComplete="bday" value={birthday} onChange={e => setBirthday(e.target.value)} className={inputClass} />}
-        </Field>
-        {house && (
-          <Notice tone="night" icon={<Crown size={16} strokeWidth={1.75} />} title={`$${HOUSE_MONTHLY_FEE} a month`}>
-            <span className="text-on-night-muted">Send ${HOUSE_MONTHLY_FEE} to ${CASHTAG} on Cash App with your name in the note. We activate you once it lands.</span>
-          </Notice>
-        )}
-        {error && <Notice tone="danger">{error}</Notice>}
-        <Button type="submit" size="lg" loading={busy}>{house ? 'Send request' : 'Apply'}</Button>
-      </form>
-    </Dialog>
   )
 }

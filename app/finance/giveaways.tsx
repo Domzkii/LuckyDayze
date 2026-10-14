@@ -4,8 +4,8 @@ import { sum } from './math'
 import { Row, Rows, Section } from './parts'
 
 const REWARD_LABELS: Record<string, { label: string; detail: string }> = {
-  perk_prerolls: { label: 'Spend $60: free pre-rolls', detail: 'Flower cost of the 2 pre-rolls' },
-  perk_eighth: { label: 'Spend $150: free 1/8', detail: 'Flower cost of the eighth' },
+  perk_prerolls: { label: 'Spend $60: free pre-rolls', detail: 'Older perk' },
+  perk_eighth: { label: 'Spend $150: free 1/8', detail: 'Older perk' },
   free_preroll: { label: 'Points: free pre-roll', detail: '100 points redeemed' },
   free_eighth: { label: 'Points: free eighth', detail: '300 points redeemed' },
   referral_preroll: { label: 'Referral gift', detail: 'Pre-roll for a referred friend' },
@@ -13,10 +13,11 @@ const REWARD_LABELS: Record<string, { label: string; detail: string }> = {
 
 const DISCOUNT_LABELS: Record<string, { label: string; detail: string }> = {
   preroll_deal: { label: 'Pre-roll 2 for $15', detail: 'Off the $10-each price' },
-  credit: { label: 'Spend $60: $7 off next order', detail: 'Used on a later order' },
-  house: { label: 'House: 10% off', detail: 'Members on orders of $50+' },
+  perk: { label: 'Spend perks', detail: '$5 off at $60, $15 off at $150' },
+  credit: { label: 'Spend $60: $7 off next order', detail: 'Older perk, used on a later order' },
+  house: { label: 'House: 10% off', detail: 'Retired membership' },
   promo: { label: 'Promos', detail: 'Sales you ran from admin' },
-  scheduled: { label: 'Scheduled: 5% off', detail: 'Booked a day ahead' },
+  scheduled: { label: 'Scheduled: 5% off', detail: 'Retired' },
 }
 
 function group(rows: Sale[], amount: (s: Sale) => number) {

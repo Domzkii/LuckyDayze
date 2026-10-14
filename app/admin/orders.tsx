@@ -1,11 +1,11 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, BellRing, DoorOpen, ExternalLink, Gift, Inbox, MapPin, Phone, StickyNote } from 'lucide-react'
+import { ArrowLeft, BellRing, Banknote, DoorOpen, ExternalLink, Gift, Inbox, MapPin, Phone, StickyNote } from 'lucide-react'
 import { supabase } from '@/lib/supabase/browser'
 import { Badge, Button, ConfirmDialog, Dialog, Field, Notice, Spinner, cx, inputClass } from '@/components/ui'
-import { STORE_TIME_ZONE, formatApt, formatPhone, formatTime, money, todayInStore } from '@/lib/format'
-import { housePerksDue, rewardByKey, tierName } from '@/lib/rewards'
+import { STORE_TIME_ZONE, formatApt, formatPhone, formatTime, money, orderCode, todayInStore } from '@/lib/format'
+import { rewardByKey } from '@/lib/rewards'
 import type { Loyalty, Order, OrderStatus } from '@/lib/types'
 import { ACTIVE_STATUSES, EmptyState, FulfillmentLabel, StatusBadge, errorText, itemLine, itemSummary, statusLabel } from './shared'
 
@@ -127,7 +127,9 @@ export function OrdersTab({
                 </div>
                 <div className="flex items-end justify-between gap-3">
                   <p className="line-clamp-2 text-sm text-muted">
-                    {order.cash_tag && <span className="font-semibold text-ok">${order.cash_tag} · </span>}
+                    {order.payment_method === 'zelle' ? <span className="font-semibold text-ok">Zelle {orderCode(order.id)} · </span>
+                      : order.payment_method === 'cash' ? <span className="font-semibold text-ok">Cash · </span>
+                      : order.cash_tag && <span className="font-semibold text-ok">${order.cash_tag} · </span>}
                     {itemSummary(order.items)}
                   </p>
                   <span className="tabular shrink-0 font-semibold">{money(Number(order.total), { cents: true })}</span>
@@ -145,7 +147,7 @@ export function OrdersTab({
 
 function nextStep(order: Order): { status: OrderStatus; label: string } | null {
   switch (order.status) {
-    case 'pending_payment': return { status: 'confirmed', label: 'Payment received' }
+    case 'pending_payment': return { status: 'confirmed', label: order.payment_method === 'cash' ? 'Approve cash order' : 'Payment received' }
     case 'confirmed': return { status: 'preparing', label: 'Start preparing' }
     case 'preparing': return { status: 'out_for_delivery', label: order.fulfillment === 'pickup' ? 'Ready for pickup' : 'Out for delivery' }
     case 'out_for_delivery': return { status: 'delivered', label: order.fulfillment === 'pickup' ? 'Mark picked up' : 'Mark delivered' }
@@ -236,7 +238,17 @@ function OrderDetailBody({ order, onChanged, onClose }: { order: Order; onChange
         <a href={`tel:${order.customer_phone}`} className="inline-flex min-h-11 items-center gap-2 font-semibold text-gold-ink hover:underline">
           <Phone size={16} strokeWidth={1.75} aria-hidden /> {formatPhone(order.customer_phone)}
         </a>
-        {order.cash_tag && (
+        {order.payment_method === 'zelle' && (
+          <p className="inline-flex min-h-11 items-center gap-2 font-semibold text-ok">
+            Zelle · memo code <span className="tabular tracking-[0.15em]">{orderCode(order.id)}</span>
+          </p>
+        )}
+        {order.payment_method === 'cash' && (
+          <p className="inline-flex min-h-11 items-center gap-2 font-semibold text-ok">
+            <Banknote size={16} strokeWidth={1.75} aria-hidden /> Paying cash: collect {money(Number(order.total), { cents: true })}
+          </p>
+        )}
+        {order.payment_method === 'cashapp' && order.cash_tag && (
           <a
             href={`https://cash.app/$${encodeURIComponent(order.cash_tag)}`}
             target="_blank"
@@ -259,13 +271,13 @@ function OrderDetailBody({ order, onChanged, onClose }: { order: Order; onChange
         ) : null}
         {loyalty && (
           <p className="text-sm text-muted">
-            {tierName(loyalty.membership_tier)} · <span className="tabular">{loyalty.purchase_count}</span> past orders ·{' '}
+            <span className="tabular">{loyalty.purchase_count}</span> past orders ·{' '}
             <span className="tabular">{loyalty.points}</span> points
           </p>
         )}
       </section>
 
-      {(order.referral_code || reward || order.perk || order.credit_used > 0 || (loyalty?.membership_tier === 'house' && housePerksDue(loyalty.purchase_count).length > 0) || order.order_notes) && (
+      {(order.referral_code || reward || order.perk || order.credit_used > 0 || order.order_notes) && (
         <section aria-label="Notes" className="flex flex-col gap-2">
           {order.referral_code && (
             <Notice tone="ok" icon={<Gift size={16} strokeWidth={1.75} />} title={`Referral code ${order.referral_code}`}>
@@ -293,11 +305,6 @@ function OrderDetailBody({ order, onChanged, onClose }: { order: Order; onChange
               Already taken off the total.
             </Notice>
           )}
-          {loyalty?.membership_tier === 'house' && housePerksDue(loyalty.purchase_count).map(perk => (
-            <Notice key={perk} tone="night" icon={<Gift size={16} strokeWidth={1.75} />} title="House perk due">
-              {perk}
-            </Notice>
-          ))}
           {order.order_notes && (
             <Notice icon={<StickyNote size={16} strokeWidth={1.75} />} title="Customer note">
               {order.order_notes}
@@ -396,7 +403,7 @@ function OrderDetailBody({ order, onChanged, onClose }: { order: Order; onChange
           <>
             {order.customer_name}’s {money(Number(order.total), { cents: true })} order will be cancelled.
             {order.reward_points > 0 && ` Their ${order.reward_points} reward points go back to their account.`}
-            {order.status !== 'pending_payment' && ' If they already paid, refund them in Cash App.'}
+            {order.status !== 'pending_payment' && order.payment_method !== 'cash' && ` If they already paid, refund them in ${order.payment_method === 'zelle' ? 'Zelle' : 'Cash App'}.`}
           </>
         }
         confirmLabel="Cancel order"

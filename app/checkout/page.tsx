@@ -3,15 +3,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { CalendarDays, Check, DoorOpen, Gift, KeyRound } from 'lucide-react'
+import { CalendarDays, Check, DoorOpen, KeyRound } from 'lucide-react'
 import {
-  CASHTAG, FREQUENCIES, MAX_SCHEDULE_DAYS, TIME_WINDOWS, formatDay, money, normalizePhone, todayInStore, weightLabel,
+  CASHTAG, FREQUENCIES, MAX_SCHEDULE_DAYS, PAYMENT_METHODS, TIME_WINDOWS, ZELLE_PHONE, formatDay, formatPhone, money, normalizePhone,
+  todayInStore, weightLabel,
 } from '@/lib/format'
-import { PERKS, perkNudge, perkTier, quote, type PerkChoice, type PerkKind } from '@/lib/pricing'
-import { REFERRAL_GIFTS, tierName, type ReferralChoice } from '@/lib/rewards'
+import { perkNudge, quote } from '@/lib/pricing'
+import { REFERRAL_GIFTS, type ReferralChoice } from '@/lib/rewards'
 import { rememberOrder, saveCustomer, savedCustomer } from '@/lib/local'
 import { useCatalog } from '@/lib/use-catalog'
-import type { Frequency, Fulfillment, PublicRewards } from '@/lib/types'
+import type { Frequency, Fulfillment, PaymentMethod, PublicRewards } from '@/lib/types'
 import { useCart } from '@/components/cart'
 import { CartThumb } from '@/components/cart-drawer'
 import { SiteHeader } from '@/components/site'
@@ -22,7 +23,7 @@ function addDays(isoDate: string, days: number) {
   return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10)
 }
 
-type Errors = Partial<Record<'fulfillment' | 'name' | 'phone' | 'cashTag' | 'address' | 'date' | 'referral' | 'perk' | 'form', string>>
+type Errors = Partial<Record<'fulfillment' | 'name' | 'phone' | 'cashTag' | 'address' | 'date' | 'referral' | 'form', string>>
 
 export default function CheckoutPage() {
   const router = useRouter()
@@ -35,6 +36,7 @@ export default function CheckoutPage() {
 
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
+  const [payment, setPayment] = useState<PaymentMethod>('cashapp')
   const [cashTag, setCashTag] = useState('')
   const [address, setAddress] = useState('')
   const [notes, setNotes] = useState('')
@@ -44,9 +46,6 @@ export default function CheckoutPage() {
   const [showReferral, setShowReferral] = useState(false)
   const [referralCode, setReferralCode] = useState('')
   const [referralChoice, setReferralChoice] = useState<ReferralChoice | null>(null)
-  const [perkPick, setPerkPick] = useState<PerkChoice | null>(null)
-  const [preRollPick, setPreRollPick] = useState<string | null>(null)
-  const [eighthPick, setEighthPick] = useState<string | null>(null)
   const [account, setAccount] = useState<PublicRewards | null>(null)
   const [attempted, setAttempted] = useState(false)
   const [serverError, setServerError] = useState<string | null>(null)
@@ -61,11 +60,12 @@ export default function CheckoutPage() {
     if (saved.name) setName(saved.name)
     if (saved.phone) setPhone(saved.phone)
     if (saved.cashTag) setCashTag(saved.cashTag)
+    if (saved.payment && PAYMENT_METHODS.some(m => m.value === saved.payment)) setPayment(saved.payment)
     if (saved.address) setAddress(saved.address)
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [])
 
-  // Recognize returning customers to show their tier pricing.
+  // Recognize returning customers to show their points and any banked credit.
   const cleanPhone = normalizePhone(phone)
   useEffect(() => {
     if (!cleanPhone) return
@@ -82,40 +82,22 @@ export default function CheckoutPage() {
 
   const today = todayInStore()
   const banked = method !== 'scheduled' ? knownAccount?.next_order_credit ?? 0 : 0
-  const scheduledAhead = method === 'scheduled' && !!date && date > today
 
-  // One deal per order: the spend perk competes with the House 10%, promos, banked credit and the
-  // scheduled 5%. lib/pricing picks whichever is worth most to the customer (the server does the same).
-  const tier = perkTier(quote(lines, products, { sale: null, tier: null, scheduledAhead: false }).merchandise)
-  const wanted: PerkKind | null = tier === 'eighth' ? 'eighth' : tier === 'choice' ? (method === 'scheduled' && perkPick === 'credit' ? null : perkPick) : null
-  const priced = useMemo(
-    () => quote(lines, products, { sale, tier: knownAccount?.tier ?? null, scheduledAhead, credit: banked, perk: wanted }),
-    [lines, products, sale, knownAccount, scheduledAhead, banked, wanted],
-  )
-  // Would any perk beat the other deals? If not, don't ask the customer to pick one.
-  const perkCanWin = !!tier && quote(lines, products, {
-    sale, tier: knownAccount?.tier ?? null, scheduledAhead, credit: banked, perk: tier === 'eighth' ? 'eighth' : 'prerolls',
-  }).deal?.kind === 'perk'
-  const perkChoice: PerkKind | null = priced.deal?.kind === 'perk' ? wanted : null
-  const minimum = Number(settings?.delivery_minimum ?? 10)
+  // One deal per order: the spend perk competes with promos and banked credit.
+  // lib/pricing picks whichever is worth most to the customer (the server does the same).
+  const priced = useMemo(() => quote(lines, products, { sale, credit: banked }), [lines, products, sale, banked])
+  const minimum = Number(settings?.delivery_minimum ?? 30)
   const short = method !== 'pickup' ? minimum - priced.merchandise : 0
-  const cartGrams = (id: string) => lines.filter(l => l.productId === id && !l.rewardKey).reduce((s, l) => s + Number(l.weight ?? 0) * l.qty, 0)
-  const eighthOptions = products.filter(p => p.category === 'Flower' && p.in_stock && Number(p.stock_grams) - cartGrams(p.id) >= 3.5)
-  const preRollOptions = products.filter(p => p.category === 'Pre-Rolls' && p.in_stock)
-  const perkProduct = products.find(p => p.id === (perkChoice === 'eighth' ? eighthPick : perkChoice === 'prerolls' ? preRollPick : null))
 
   function validate(): Errors {
     const e: Errors = {}
     if (method === 'delivery' && !open) e.fulfillment = 'Delivery is closed right now. Choose pickup or schedule it for later.'
     if (name.trim().length < 2) e.name = 'Enter your name.'
     if (!cleanPhone) e.phone = 'Enter a 10-digit US phone number.'
-    if (!/^[A-Za-z][A-Za-z0-9_-]{0,19}$/.test(cashTag.replace(/^\$/, '').trim())) e.cashTag = 'Enter your Cash App $Cashtag, like $JaneDoe.'
+    if (payment === 'cashapp' && !/^[A-Za-z][A-Za-z0-9_-]{0,19}$/.test(cashTag.replace(/^\$/, '').trim())) e.cashTag = 'Enter your Cash App $Cashtag, like $JaneDoe.'
     if (method !== 'pickup' && !address.trim()) e.address = 'Enter your apartment number.'
     if (method === 'scheduled' && !date) e.date = 'Choose a delivery date.'
     if (showReferral && referralCode.trim() && !referralChoice) e.referral = 'Choose your free pre-roll, or save it for later.'
-    if (perkCanWin && tier === 'choice' && !wanted) e.perk = `Choose ${PERKS.freePreRolls} free pre-rolls or $${PERKS.credit} off your next order.`
-    if (perkChoice === 'prerolls' && !perkProduct) e.perk = 'Pick which free pre-rolls you want.'
-    if (perkChoice === 'eighth' && !perkProduct) e.perk = 'Pick the strain for your free 1/8.'
     if (short > 0) e.form = `Delivery starts at ${money(minimum)}. Add ${money(short, { cents: true })} more, or switch to pickup.`
     return e
   }
@@ -141,7 +123,8 @@ export default function CheckoutPage() {
           fulfillment: method,
           name: name.trim(),
           phone: cleanPhone,
-          cashTag: cashTag.replace(/^\$/, '').trim(),
+          paymentMethod: payment,
+          cashTag: payment === 'cashapp' ? cashTag.replace(/^\$/, '').trim() : '',
           address: method === 'pickup' ? '' : address.trim(),
           notes: notes.trim(),
           scheduledDate: method === 'scheduled' ? date : null,
@@ -149,7 +132,6 @@ export default function CheckoutPage() {
           frequency: method === 'scheduled' ? frequency : 'once',
           referralCode: showReferral ? referralCode.trim() : '',
           referralChoice: showReferral ? referralChoice : null,
-          perk: perkChoice ? { choice: perkChoice, productId: perkProduct?.id ?? null } : null,
           lines,
         }),
       })
@@ -159,7 +141,7 @@ export default function CheckoutPage() {
         requestAnimationFrame(() => errorRef.current?.focus())
         return
       }
-      saveCustomer({ name: name.trim(), phone: cleanPhone!, cashTag: cashTag.replace(/^\$/, '').trim(), address: method === 'pickup' ? address : address.trim() })
+      saveCustomer({ name: name.trim(), phone: cleanPhone!, payment, cashTag: cashTag.replace(/^\$/, '').trim(), address: method === 'pickup' ? address : address.trim() })
       clear()
       if (data.kind === 'scheduled') {
         setScheduled({ date, total: data.total })
@@ -184,7 +166,9 @@ export default function CheckoutPage() {
           <h1 className="display mt-6 text-4xl font-semibold">You’re on the schedule.</h1>
           <p className="mt-4 text-lg text-muted">
             We’ll text you to confirm your delivery for <span className="font-semibold text-ink">{formatDay(scheduled.date)}</span>.
-            Pay <span className="tabular font-semibold text-ink">{money(scheduled.total, { cents: true })}</span> to ${CASHTAG} when we confirm.
+            {payment === 'cash'
+              ? <>Have <span className="tabular font-semibold text-ink">{money(scheduled.total, { cents: true })}</span> in cash ready on the day.</>
+              : <>Pay <span className="tabular font-semibold text-ink">{money(scheduled.total, { cents: true })}</span> {payment === 'zelle' ? `on Zelle to ${formatPhone(ZELLE_PHONE)}` : `to $${CASHTAG}`} when we confirm.</>}
           </p>
           <ButtonLink href="/" size="lg" className="mt-10">Back to the menu</ButtonLink>
         </main>
@@ -221,7 +205,7 @@ export default function CheckoutPage() {
       <SiteHeader back={{ href: '/', label: 'Menu' }} />
       <main className="mx-auto max-w-6xl px-4 pb-24 pt-8 sm:px-6 sm:pt-12">
         <h1 className="display text-4xl font-semibold sm:text-5xl">Checkout</h1>
-        <p className="mt-2 text-muted">Place your order, then pay on Cash App. We start as soon as your payment lands.</p>
+        <p className="mt-2 text-muted">Place your order, then pay with Cash App, Zelle or cash.</p>
 
         <form onSubmit={submit} noValidate className="mt-10 grid gap-10 lg:grid-cols-[minmax(0,1fr)_400px] lg:gap-14">
           <div className="flex flex-col gap-12">
@@ -253,13 +237,13 @@ export default function CheckoutPage() {
                   onChange={() => setFulfillment('scheduled')}
                   icon={<CalendarDays size={20} strokeWidth={1.75} />}
                   title="Schedule a delivery"
-                  detail="Pick a day. 5% off when you book a day or more ahead, and it can repeat."
+                  detail="Pick a day, and it can repeat."
                 />
               </div>
 
               {method === 'scheduled' && (
                 <div className="mt-2 flex flex-col gap-6">
-                  <Field label="Delivery date" error={errors.date} hint={date && date > today ? 'Booked ahead: 5% off applied.' : 'Book for tomorrow or later to save 5%.'}>
+                  <Field label="Delivery date" error={errors.date}>
                     {p => (
                       <input {...p} type="date" min={today} max={addDays(today, MAX_SCHEDULE_DAYS)} value={date} onChange={e => setDate(e.target.value)} className={cx(inputClass, 'sm:max-w-xs')} />
                     )}
@@ -286,64 +270,10 @@ export default function CheckoutPage() {
                   <div className="flex flex-col gap-2">
                     <p className="text-sm font-semibold">Repeat</p>
                     <Segmented label="Repeat" value={frequency} onChange={setFrequency} options={FREQUENCIES.map(f => ({ value: f.value, label: f.label }))} size="sm" />
-                    {frequency !== 'once' && <p className="text-sm text-muted">Three repeat deliveries earns you an invitation to Member.</p>}
                   </div>
                 </div>
               )}
             </section>
-
-            {/* Perk */}
-            {tier && perkCanWin && (
-              <section aria-labelledby="perk-title" className="flex flex-col gap-4">
-                <h2 id="perk-title" className="display flex items-center gap-2 text-2xl font-semibold">
-                  <Gift size={22} strokeWidth={1.75} className="text-gold-ink" />
-                  {tier === 'eighth' ? 'You unlocked a free 1/8' : 'You unlocked a perk'}
-                </h2>
-                {errors.perk && <p className="text-sm text-danger" data-error tabIndex={-1}>{errors.perk}</p>}
-
-                {tier === 'choice' && (
-                  <div className="flex flex-col gap-3">
-                    <ChoiceCard
-                      name="perk"
-                      checked={perkPick === 'prerolls'}
-                      onChange={() => setPerkPick('prerolls')}
-                      title={`${PERKS.freePreRolls} free pre-rolls`}
-                      detail="Added to this order."
-                    />
-                    <ChoiceCard
-                      name="perk"
-                      checked={perkPick === 'credit'}
-                      onChange={() => setPerkPick('credit')}
-                      disabled={method === 'scheduled'}
-                      title={`$${PERKS.credit} off your next order`}
-                      detail={method === 'scheduled' ? 'Not available on scheduled orders.' : 'Saved to your phone number once this order is delivered.'}
-                    />
-                    {wanted && priced.deal && priced.deal.kind !== 'perk' && (
-                      <p className="text-sm text-muted">{priced.deal.label} is worth more on this order, so we’re using that instead.</p>
-                    )}
-                    {perkPick === 'prerolls' && preRollOptions.length > 0 && (
-                      <Segmented
-                        label="Which pre-rolls"
-                        value={preRollPick}
-                        onChange={setPreRollPick}
-                        size="sm"
-                        options={preRollOptions.map(p => ({ value: p.id, label: p.name }))}
-                      />
-                    )}
-                  </div>
-                )}
-
-                {tier === 'eighth' && (
-                  <div className="flex flex-col gap-2.5">
-                    <p className="text-muted">Pick the strain. It’s on us.</p>
-                    {eighthOptions.length === 0 && <Notice tone="warn">No strain has a full 1/8 left after your cart. We’ll sort it out with you.</Notice>}
-                    {eighthOptions.map(p => (
-                      <ChoiceCard key={p.id} name="eighth" checked={eighthPick === p.id} onChange={() => setEighthPick(p.id)} title={p.name} detail={p.strain_type} />
-                    ))}
-                  </div>
-                )}
-              </section>
-            )}
 
             {/* Who */}
             <section aria-labelledby="who-title" className="flex flex-col gap-5">
@@ -355,19 +285,27 @@ export default function CheckoutPage() {
                 <Field
                   label="Phone"
                   error={errors.phone}
-                  hint={knownAccount ? `Welcome back, ${knownAccount.first_name}. ${tierName(knownAccount.tier)} · ${knownAccount.points} points.` : 'We text you when it’s on the way.'}
+                  hint={knownAccount ? `Welcome back, ${knownAccount.first_name}. ${knownAccount.points} points.` : 'We text you when it’s on the way.'}
                 >
                   {p => <input {...p} type="tel" inputMode="tel" autoComplete="tel-national" value={phone} onChange={e => setPhone(e.target.value)} className={inputClass} />}
                 </Field>
               </div>
-              <Field label="Cash App $Cashtag" error={errors.cashTag} hint="So we can match your payment to your order.">
-                {p => (
-                  <div className="relative sm:max-w-xs">
-                    <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 font-semibold text-muted">$</span>
-                    <input {...p} autoCapitalize="none" autoCorrect="off" spellCheck={false} value={cashTag} onChange={e => setCashTag(e.target.value.replace(/^\$/, ''))} className={cx(inputClass, 'pl-8')} />
-                  </div>
-                )}
-              </Field>
+              <div className="flex flex-col gap-2">
+                <p className="text-sm font-semibold">How you’ll pay</p>
+                <Segmented label="How you’ll pay" value={payment} onChange={setPayment} size="sm" options={PAYMENT_METHODS.map(m => ({ value: m.value, label: m.label }))} />
+                {payment === 'zelle' && <p className="text-sm text-muted">You’ll get our Zelle number and a memo code after you place the order.</p>}
+                {payment === 'cash' && <p className="text-sm text-muted">We approve cash orders first, then you pay {method === 'pickup' ? 'when you pick up' : 'at the door'}.</p>}
+              </div>
+              {payment === 'cashapp' && (
+                <Field label="Cash App $Cashtag" error={errors.cashTag} hint="So we can match your payment to your order.">
+                  {p => (
+                    <div className="relative sm:max-w-xs">
+                      <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 font-semibold text-muted">$</span>
+                      <input {...p} autoCapitalize="none" autoCorrect="off" spellCheck={false} value={cashTag} onChange={e => setCashTag(e.target.value.replace(/^\$/, ''))} className={cx(inputClass, 'pl-8')} />
+                    </div>
+                  )}
+                </Field>
+              )}
               {method !== 'pickup' && (
                 <Field label="Apartment number" error={errors.address} hint="Your door number, like 4B. We bring it right up.">
                   {p => (
@@ -435,16 +373,6 @@ export default function CheckoutPage() {
                     <span className="tabular font-semibold">{l.rewardKey ? 'Free' : money(l.lineTotal)}</span>
                   </li>
                 ))}
-                {perkProduct && (
-                  <li className="flex items-center gap-3">
-                    <CartThumb image={perkProduct.image_urls?.[0] ?? null} reward />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-semibold">{perkProduct.name}</p>
-                      <p className="text-sm text-muted">{perkChoice === 'eighth' ? '1/8 oz · spend perk' : `× ${PERKS.freePreRolls} · spend perk`}</p>
-                    </div>
-                    <span className="tabular font-semibold">Free</span>
-                  </li>
-                )}
                 {showReferral && referralCode.trim() && referralChoice && referralChoice !== 'later' && (
                   <li className="flex items-center gap-3">
                     <CartThumb image={null} reward />
@@ -473,7 +401,7 @@ export default function CheckoutPage() {
                 </div>
               </dl>
 
-              {priced.deal && (priced.passedOver.length > 0 || (tier && !perkCanWin)) && (
+              {priced.deal && priced.passedOver.length > 0 && (
                 <p className="text-sm text-muted">One deal per order. {priced.deal.label} is your best one, so it’s the one applied.</p>
               )}
               {perkNudge(priced.merchandise) && <p className="text-sm text-gold-ink">{perkNudge(priced.merchandise)}</p>}
@@ -490,7 +418,9 @@ export default function CheckoutPage() {
               <p className="text-center text-sm text-muted">
                 {method === 'scheduled'
                   ? 'Nothing to pay yet. We’ll text to confirm before your day.'
-                  : `Next you’ll pay ${totalLabel} to $${CASHTAG} on Cash App.`}
+                  : payment === 'cash'
+                    ? `You’ll pay ${totalLabel} in cash ${method === 'pickup' ? 'at pickup' : 'at the door'}.`
+                    : `Next you’ll pay ${totalLabel} ${payment === 'zelle' ? 'on Zelle' : `to $${CASHTAG} on Cash App`}.`}
               </p>
             </div>
           </aside>

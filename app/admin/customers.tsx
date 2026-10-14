@@ -4,9 +4,9 @@ import { useEffect, useState } from 'react'
 import { ArrowLeft, Phone, Search, Users } from 'lucide-react'
 import { supabase } from '@/lib/supabase/browser'
 import { Button, Notice, Spinner, cx, inputClass } from '@/components/ui'
-import { formatDay, formatPhone, formatTime, money } from '@/lib/format'
+import { formatPhone, formatTime, money } from '@/lib/format'
 import type { Loyalty, Order } from '@/lib/types'
-import { EmptyState, FulfillmentLabel, StatusBadge, TierBadge, errorText, itemSummary } from './shared'
+import { EmptyState, FulfillmentLabel, StatusBadge, errorText, itemSummary } from './shared'
 
 export function CustomersTab() {
   const [query, setQuery] = useState('')
@@ -74,7 +74,6 @@ export function CustomersTab() {
               <button type="button" onClick={() => setSelected(c)} className="flex w-full flex-col gap-1.5 px-4 py-3.5 text-left transition-colors hover:bg-sunken/60">
                 <div className="flex items-center justify-between gap-3">
                   <span className="truncate font-semibold">{c.customer_name}</span>
-                  <TierBadge tier={c.membership_tier} />
                 </div>
                 <p className="tabular text-sm text-muted">
                   {formatPhone(c.customer_phone)} · {c.points} pts · {c.purchase_count} orders · {money(Number(c.total_spent), { cents: false })}
@@ -119,7 +118,6 @@ function CustomerDetail({ customer, onBack }: { customer: Loyalty; onBack: () =>
   if (customer.pending_referral_reward) facts.push(['Gift to claim', customer.pending_referral_reward])
   if (customer.email) facts.push(['Email', <a key="e" href={`mailto:${customer.email}`} className="text-gold-ink hover:underline">{customer.email}</a>])
   if (customer.birthday) facts.push(['Birthday', customer.birthday])
-  if (customer.house_paid_until) facts.push(['House paid until', formatDay(customer.house_paid_until)])
 
   return (
     <section aria-label={customer.customer_name} className="flex flex-col gap-5">
@@ -134,7 +132,6 @@ function CustomerDetail({ customer, onBack }: { customer: Loyalty; onBack: () =>
             <Phone size={16} strokeWidth={1.75} aria-hidden /> {formatPhone(customer.customer_phone)}
           </a>
         </div>
-        <TierBadge tier={customer.membership_tier} />
       </div>
 
       <dl className="grid grid-cols-1 divide-y divide-line rounded-2xl border border-line bg-surface sm:grid-cols-2 sm:divide-y-0">

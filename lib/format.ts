@@ -1,4 +1,5 @@
 export const CASHTAG = 'Luckydayz3'
+export const ZELLE_PHONE = '7184198493'
 export const INSTAGRAM = 'lucky_dayze'
 export const BOROUGHS = ['Manhattan', 'Brooklyn'] as const
 /** Everything happens in one building: pickup is at my door, delivery goes to theirs. */
@@ -22,8 +23,23 @@ export const FREQUENCIES = [
 /** How far ahead a scheduled delivery can be booked. */
 export const MAX_SCHEDULE_DAYS = 60
 
-export const WEIGHTS = ['3.5', '7', '14', '28'] as const
+/** Sizes on the menu. Old orders may still show a 1/4 oz ('7'), so it keeps its label. */
+export const WEIGHTS = ['3.5', '14', '28'] as const
 export const WEIGHT_LABELS: Record<string, string> = { '3.5': '1/8 oz', '7': '1/4 oz', '14': '1/2 oz', '28': '1 oz' }
+
+export const PAYMENT_METHODS = [
+  { value: 'cashapp', label: 'Cash App' },
+  { value: 'zelle', label: 'Zelle' },
+  { value: 'cash', label: 'Cash' },
+] as const
+export function paymentLabel(method: string | null | undefined) {
+  return PAYMENT_METHODS.find(m => m.value === method)?.label ?? 'Cash App'
+}
+
+/** Short code customers put in the Zelle memo, so staff can match the payment. */
+export function orderCode(id: string) {
+  return id.replace(/-/g, '').slice(0, 6).toUpperCase()
+}
 
 export function money(n: number, opts: { cents?: boolean } = {}) {
   const cents = opts.cents ?? !Number.isInteger(Math.round(n * 100) / 100)

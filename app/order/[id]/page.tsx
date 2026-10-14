@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { Check, Copy, EllipsisVertical, ExternalLink, KeyRound, Share } from 'lucide-react'
-import { CASHTAG, cashAppLink, formatTime, money, weightLabel } from '@/lib/format'
+import { CASHTAG, ZELLE_PHONE, cashAppLink, formatPhone, formatTime, money, orderCode, weightLabel } from '@/lib/format'
 import { installPromptSeen, markInstallPromptSeen } from '@/lib/local'
 import type { OrderStatus, PublicOrder } from '@/lib/types'
 import { SiteHeader } from '@/components/site'
@@ -16,7 +16,7 @@ function steps(o: PublicOrder) {
   const pickup = o.fulfillment === 'pickup'
   return [
     { status: 'pending_payment', label: 'Placed' },
-    { status: 'confirmed', label: 'Paid' },
+    { status: 'confirmed', label: o.payment_method === 'cash' ? 'Confirmed' : 'Paid' },
     { status: 'preparing', label: 'Preparing' },
     { status: 'out_for_delivery', label: pickup ? 'Ready' : 'On the way' },
     { status: 'delivered', label: pickup ? 'Picked up' : 'Delivered' },
@@ -26,8 +26,12 @@ function steps(o: PublicOrder) {
 function headline(o: PublicOrder) {
   const pickup = o.fulfillment === 'pickup'
   switch (o.status) {
-    case 'pending_payment': return { title: `Send ${money(o.total, { cents: true })} to finish.`, body: 'Your order is saved. It goes to the kitchen the moment your payment lands.' }
-    case 'confirmed': return { title: 'Payment received.', body: `Thanks, ${o.first_name}. We’re lining your order up now.` }
+    case 'pending_payment': return o.payment_method === 'cash'
+      ? { title: 'Waiting for approval.', body: `Your cash order is in. We’ll approve it shortly, then have ${money(o.total, { cents: true })} ready${pickup ? ' when you come by' : ' at the door'}.` }
+      : { title: `Send ${money(o.total, { cents: true })} to finish.`, body: 'Your order is saved. It goes to the kitchen the moment your payment lands.' }
+    case 'confirmed': return o.payment_method === 'cash'
+      ? { title: 'Approved.', body: `Thanks, ${o.first_name}. Have ${money(o.total, { cents: true })} in cash ready${pickup ? ' when you come by' : ' at the door'}.` }
+      : { title: 'Payment received.', body: `Thanks, ${o.first_name}. We’re lining your order up now.` }
     case 'preparing': return { title: 'We’re getting it ready.', body: pickup ? 'We’ll update this page the moment it’s ready to grab.' : 'A driver heads out as soon as it’s packed.' }
     case 'out_for_delivery': return pickup
       ? { title: 'Ready for pickup.', body: 'Come to my door and tap “I’m at the door” when you get here.' }
@@ -114,7 +118,12 @@ function OrderView({ order, placed, onChange }: { order: PublicOrder; placed: bo
         <p className="max-w-lg text-lg text-muted">{h.body}</p>
       </header>
 
-      {order.status === 'pending_payment' && <PayCard total={order.total} firstName={order.first_name} />}
+      {order.status === 'pending_payment' && order.payment_method !== 'cash' && (order.payment_method === 'zelle'
+        ? <ZelleCard total={order.total} code={orderCode(order.id)} />
+        : <PayCard total={order.total} firstName={order.first_name} />)}
+      {order.payment_method === 'cash' && !FINAL.includes(order.status) && order.status !== 'confirmed' && (
+        <Notice tone="neutral" title={`Paying cash: ${money(order.total, { cents: true })}`}>Exact change helps.</Notice>
+      )}
       {order.status !== 'cancelled' && <Timeline order={order} />}
       {order.fulfillment === 'pickup' && <PickupCard order={order} onChange={onChange} />}
 
@@ -198,6 +207,56 @@ function PayCard({ total, firstName }: { total: number; firstName: string }) {
           Open Cash App <ExternalLink size={18} strokeWidth={1.75} />
         </ButtonLink>
         <p className="text-sm text-on-night-muted">Put “{firstName}” in the note. This page updates on its own once we see it.</p>
+      </div>
+    </section>
+  )
+}
+
+function CopyButton({ text, label }: { text: string; label: string }) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <IconButton
+      label={copied ? 'Copied' : label}
+      className="text-on-night-muted hover:bg-white/10 hover:text-on-night"
+      onClick={() => {
+        navigator.clipboard?.writeText(text).then(() => {
+          setCopied(true)
+          setTimeout(() => setCopied(false), 1800)
+        }).catch(() => {})
+      }}
+    >
+      {copied ? <Check size={18} strokeWidth={2} /> : <Copy size={18} strokeWidth={1.75} />}
+    </IconButton>
+  )
+}
+
+/** Zelle has no pay link, so the card gives the number and a memo code to copy. */
+function ZelleCard({ total, code }: { total: number; code: string }) {
+  return (
+    <section aria-labelledby="pay-title" className="overflow-hidden rounded-3xl bg-night text-on-night">
+      <div className="flex flex-col gap-6 p-6 sm:p-8">
+        <h2 id="pay-title" className="sr-only">Pay with Zelle</h2>
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-sm text-on-night-muted">Send exactly</p>
+            <p className="tabular display text-5xl font-semibold text-gold">{money(total, { cents: true })}</p>
+          </div>
+          <div className="sm:text-right">
+            <p className="text-sm text-on-night-muted">on Zelle to</p>
+            <div className="flex items-center gap-1">
+              <p className="tabular display text-2xl font-semibold">{formatPhone(ZELLE_PHONE)}</p>
+              <CopyButton text={ZELLE_PHONE} label="Copy Zelle number" />
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center justify-between gap-4 rounded-2xl bg-white/5 px-4 py-3">
+          <div>
+            <p className="text-sm text-on-night-muted">Put this in the memo</p>
+            <p className="tabular display text-2xl font-semibold tracking-[0.15em]">{code}</p>
+          </div>
+          <CopyButton text={code} label="Copy memo code" />
+        </div>
+        <p className="text-sm text-on-night-muted">Open Zelle in your bank’s app. This page updates on its own once we see the payment.</p>
       </div>
     </section>
   )

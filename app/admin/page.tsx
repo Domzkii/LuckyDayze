@@ -8,21 +8,19 @@ import { StaffGate } from '@/components/staff-gate'
 import { ThemeToggle } from '@/components/theme'
 import { Button, IconButton, Notice, Wordmark, cx } from '@/components/ui'
 import { todayInStore } from '@/lib/format'
-import type { MembershipRequest, Order, ScheduledOrder } from '@/lib/types'
+import type { Order, ScheduledOrder } from '@/lib/types'
 import { OrdersTab } from './orders'
 import { ScheduledTab } from './scheduled'
 import { CustomersTab } from './customers'
-import { MembersTab } from './members'
 import { PromosTab } from './promos'
 import { Switch, errorText } from './shared'
 
-type Tab = 'orders' | 'scheduled' | 'customers' | 'members' | 'promos'
+type Tab = 'orders' | 'scheduled' | 'customers' | 'promos'
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'orders', label: 'Orders' },
   { key: 'scheduled', label: 'Scheduled' },
   { key: 'customers', label: 'Customers' },
-  { key: 'members', label: 'Members' },
   { key: 'promos', label: 'Promos' },
 ]
 
@@ -44,9 +42,6 @@ function Admin() {
   const [scheduled, setScheduled] = useState<ScheduledOrder[]>([])
   const [scheduledLoading, setScheduledLoading] = useState(true)
   const [scheduledError, setScheduledError] = useState<string | null>(null)
-  const [requests, setRequests] = useState<MembershipRequest[]>([])
-  const [requestsLoading, setRequestsLoading] = useState(true)
-  const [requestsError, setRequestsError] = useState<string | null>(null)
   const [live, setLive] = useState(false)
   const [arrivals, setArrivals] = useState<Arrival[]>([])
   const [focusOrderId, setFocusOrderId] = useState<string | null>(null)
@@ -84,19 +79,10 @@ function Admin() {
     setScheduled((data ?? []) as ScheduledOrder[])
   }, [])
 
-  const loadRequests = useCallback(async () => {
-    const { data, error } = await supabase().from('membership_requests').select('*').order('created_at', { ascending: false }).limit(100)
-    setRequestsLoading(false)
-    if (error) return setRequestsError(errorText(error))
-    setRequestsError(null)
-    setRequests((data ?? []) as MembershipRequest[])
-  }, [])
-
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- initial fetch
     loadOrders()
     loadScheduled()
-    loadRequests()
 
     const client = supabase()
     const channel = client
@@ -107,7 +93,7 @@ function Admin() {
 
     // Catch up after the phone sleeps or the tab is backgrounded.
     const onVisible = () => {
-      if (document.visibilityState === 'visible') { loadOrders(); loadScheduled(); loadRequests() }
+      if (document.visibilityState === 'visible') { loadOrders(); loadScheduled() }
     }
     document.addEventListener('visibilitychange', onVisible)
 
@@ -115,13 +101,12 @@ function Admin() {
       document.removeEventListener('visibilitychange', onVisible)
       client.removeChannel(channel)
     }
-  }, [loadOrders, loadScheduled, loadRequests])
+  }, [loadOrders, loadScheduled])
 
   const today = todayInStore()
   const counts: Partial<Record<Tab, { n: number; urgent?: boolean }>> = {
     orders: { n: orders.filter(o => o.status === 'pending_payment').length, urgent: true },
     scheduled: { n: scheduled.filter(s => s.status === 'pending' && s.delivery_date <= today).length, urgent: true },
-    members: { n: requests.filter(r => r.status === 'pending').length },
   }
 
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([])
@@ -206,7 +191,6 @@ function Admin() {
             />
           )}
           {tab === 'customers' && <CustomersTab />}
-          {tab === 'members' && <MembersTab requests={requests} loading={requestsLoading} error={requestsError} onChanged={loadRequests} />}
           {tab === 'promos' && <PromosTab />}
         </div>
       </main>

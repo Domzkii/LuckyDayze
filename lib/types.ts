@@ -2,6 +2,7 @@ export type Category = 'Flower' | 'Pre-Rolls'
 export type StrainType = 'Sativa' | 'Indica' | 'Hybrid'
 export type Fulfillment = 'delivery' | 'pickup' | 'scheduled'
 export type Tier = 'guest' | 'member' | 'house'
+export type PaymentMethod = 'cashapp' | 'zelle' | 'cash'
 export type Frequency = 'once' | 'weekly' | 'biweekly' | 'monthly'
 
 export type OrderStatus =
@@ -69,8 +70,8 @@ export interface OrderItem {
   reward_key?: string
 }
 
-/** What kind of money we gave up. Older orders may not have one. */
-export type DiscountKind = 'preroll_deal' | 'promo' | 'house' | 'credit' | 'scheduled'
+/** What kind of money we gave up. Older orders may not have one; 'house' and 'scheduled' are retired. */
+export type DiscountKind = 'preroll_deal' | 'promo' | 'perk' | 'credit' | 'house' | 'scheduled'
 
 export interface Discount {
   label: string
@@ -89,6 +90,7 @@ export interface Order {
   pickup_location_id: string | null
   pickup_location_address: string | null
   order_notes: string | null
+  payment_method: PaymentMethod
   cash_tag: string | null
   items: OrderItem[]
   subtotal: number
@@ -114,6 +116,7 @@ export interface ScheduledOrder {
   customer_phone: string
   customer_address: string
   order_notes: string | null
+  payment_method: PaymentMethod
   cash_tag: string | null
   items: OrderItem[]
   subtotal: number
@@ -235,6 +238,7 @@ export interface PublicOrder {
   total: number
   customer_arrived: boolean
   perk: 'prerolls' | 'credit' | 'eighth' | null
+  payment_method: PaymentMethod
 }
 
 /** What the rewards page is allowed to show for a phone number. */

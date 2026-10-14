@@ -3,7 +3,7 @@
 import Image from 'next/image'
 import { Gift, Leaf, ShoppingBag, Trash2 } from 'lucide-react'
 import { money, weightLabel } from '@/lib/format'
-import { perkNudge, perkTier, quote } from '@/lib/pricing'
+import { perkNudge, quote } from '@/lib/pricing'
 import type { Product, SaleEvent, StoreSettings } from '@/lib/types'
 import { useCart } from './cart'
 import { QtyStepper } from './product'
@@ -27,11 +27,10 @@ export function CartDrawer({ open, onClose, products, sale, settings }: {
   open: boolean; onClose: () => void; products: Product[]; sale: SaleEvent | null; settings: StoreSettings | null
 }) {
   const { lines, setQty, remove } = useCart()
-  const priced = quote(lines, products, { sale, tier: null, scheduledAhead: false })
+  const priced = quote(lines, products, { sale })
   const byId = new Map(products.map(p => [p.id, p]))
-  const minimum = Number(settings?.delivery_minimum ?? 10)
+  const minimum = Number(settings?.delivery_minimum ?? 30)
   const nudge = perkNudge(priced.merchandise)
-  const tier = perkTier(priced.merchandise)
   const short = minimum - priced.merchandise
 
   return (
@@ -60,7 +59,6 @@ export function CartDrawer({ open, onClose, products, sale, settings }: {
             {short > 0 && (
               <p className="text-sm text-muted">Add <span className="tabular font-semibold text-ink">{money(short, { cents: true })}</span> more for delivery. Pickup has no minimum.</p>
             )}
-            {tier && <p className="text-sm font-semibold text-ok">{tier === 'eighth' ? 'You unlocked a free 1/8. Pick it at checkout.' : 'You unlocked a perk. Pick it at checkout.'}</p>}
             {nudge && <p className="text-sm text-gold-ink">{nudge}</p>}
             <ButtonLink href="/checkout" size="lg" className="w-full">Checkout</ButtonLink>
           </div>

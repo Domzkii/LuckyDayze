@@ -1,5 +1,5 @@
 import { Resend } from 'resend'
-import { formatDay, formatPhone, money, weightLabel } from '@/lib/format'
+import { formatDay, formatPhone, money, paymentLabel, weightLabel } from '@/lib/format'
 import type { Discount, Fulfillment, OrderItem } from '@/lib/types'
 
 const escape = (s: string) =>
@@ -15,6 +15,7 @@ interface NewOrderEmail {
   items: OrderItem[]
   discounts: Discount[]
   total: number
+  paymentMethod: string
   deliveryDate?: string
   timeWindow?: string | null
   frequency?: string
@@ -49,7 +50,7 @@ export async function notifyNewOrder(o: NewOrderEmail) {
             ${when}
             <p><strong>Items:</strong><br>${lines}</p>
             ${discounts ? `<p><strong>Discounts:</strong><br>${discounts}</p>` : ''}
-            <p style="font-size: 18px;"><strong>Total: ${money(o.total, { cents: true })}</strong></p>
+            <p style="font-size: 18px;"><strong>Total: ${money(o.total, { cents: true })}</strong> · ${paymentLabel(o.paymentMethod)}</p>
           </div>
           <a href="${o.origin}/admin" style="display: inline-block; margin-top: 20px; background: #1a1814; color: #f4efe6; font-weight: 600; padding: 14px 28px; border-radius: 999px; text-decoration: none;">Open admin</a>
         </div>`,

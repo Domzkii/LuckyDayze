@@ -1,6 +1,5 @@
-import { HOUSE_DISCOUNT_MIN, HOUSE_DISCOUNT_PCT } from './rewards'
 import { roundCents } from './format'
-import type { Category, Discount, Product, SaleEvent, Tier } from './types'
+import type { Category, Discount, Product, SaleEvent } from './types'
 
 /** One line in the cart, as the browser keeps it. Prices are re-derived from products on the server. */
 export interface CartLine {
@@ -37,39 +36,23 @@ export interface Quote {
 /** Any two pre-rolls, mixed or matched. */
 export const PREROLL_DEAL = { size: 2, price: 15, label: 'Pre-roll deal: 2 for $15', short: '2 for $15' }
 
-/** Spend perks, measured on merchandise after the pre-roll deal. */
-export const PERKS = {
-  choiceMin: 60,
-  eighthMin: 150,
-  freePreRolls: 2,
-  /** Dollars off the customer's next order, if they choose that over the pre-rolls. */
-  credit: 7,
-}
-export type PerkChoice = 'prerolls' | 'credit'
-export type PerkKind = PerkChoice | 'eighth'
+/** Spend perks: dollars off this order, measured on merchandise after the pre-roll deal. Highest step wins. */
+export const PERKS = [
+  { min: 60, off: 5 },
+  { min: 150, off: 15 },
+] as const
 
-/** What each perk is worth to the customer, at retail. Used to pick the order's one best deal. */
-export const PERK_VALUE: Record<PerkKind, number> = {
-  prerolls: PREROLL_DEAL.price,
-  credit: PERKS.credit,
-  eighth: 30,
+/** The spend perk an order of this size earns, or null. */
+export function perkFor(merchandise: number) {
+  return [...PERKS].reverse().find(p => merchandise >= p.min) ?? null
 }
 
-/** "Spend $12 more for …", or null once the top perk is reached. */
+/** "Spend $12 more for $5 off", or null once the top perk is reached. */
 export function perkNudge(merchandise: number) {
-  const fmt = (n: number) => `$${(Math.ceil(n * 100) / 100).toFixed(Number.isInteger(Math.ceil(n * 100) / 100) ? 0 : 2)}`
-  if (merchandise < PERKS.choiceMin) {
-    return `Spend ${fmt(PERKS.choiceMin - merchandise)} more for ${PERKS.freePreRolls} free pre-rolls or $${PERKS.credit} off your next order.`
-  }
-  if (merchandise < PERKS.eighthMin) return `Spend ${fmt(PERKS.eighthMin - merchandise)} more for a free 1/8 instead.`
-  return null
-}
-
-/** Which spend perk an order of this size unlocks. The free 1/8 replaces the $60 perk. */
-export function perkTier(merchandise: number): 'eighth' | 'choice' | null {
-  if (merchandise >= PERKS.eighthMin) return 'eighth'
-  if (merchandise >= PERKS.choiceMin) return 'choice'
-  return null
+  const next = PERKS.find(p => merchandise < p.min)
+  if (!next) return null
+  const more = Math.ceil((next.min - merchandise) * 100) / 100
+  return `Spend $${Number.isInteger(more) ? more : more.toFixed(2)} more for $${next.off} off this order.`
 }
 
 export function unitPriceFor(product: Product, weight: string | null) {
@@ -108,20 +91,15 @@ function bundleDiscount(unitPrices: number[], size: number, bundlePrice: number)
 
 export interface QuoteOptions {
   sale: SaleEvent | null
-  tier: Tier | null
-  /** Scheduled for a later calendar day than today. */
-  scheduledAhead: boolean
-  /** Dollars off banked from a previous $60+ order. */
+  /** Dollars off banked from an older order (the retired "$7 off next time" perk). */
   credit?: number
-  /** The spend perk this order would earn, if any. Competes with the discounts as one of the deals. */
-  perk?: PerkKind | null
 }
 
 /** The one deal an order gets: whichever is worth most to the customer. */
 export interface Deal {
-  kind: 'perk' | 'promo' | 'house' | 'credit' | 'scheduled'
+  kind: 'perk' | 'promo' | 'credit'
   label: string
-  /** Retail value to the customer. */
+  /** Dollars off. */
   value: number
 }
 
@@ -171,28 +149,20 @@ export function quote(cart: CartLine[], products: Product[], opts: QuoteOptions)
     const amount = sale.discount_type === 'percent' ? eligible * (Number(sale.discount_value) / 100) : Math.min(Number(sale.discount_value), eligible)
     if (amount > 0) candidates.push({ kind: 'promo', label: sale.title, value: roundCents(amount), discount: roundCents(amount) })
   }
-  if (opts.tier === 'house' && merchandise >= HOUSE_DISCOUNT_MIN) {
-    const amount = roundCents(merchandise * (HOUSE_DISCOUNT_PCT / 100))
-    candidates.push({ kind: 'house', label: `House: ${HOUSE_DISCOUNT_PCT}% off`, value: amount, discount: amount })
-  }
   if (opts.credit && opts.credit > 0 && merchandise > 0) {
     const amount = roundCents(Math.min(opts.credit, merchandise))
     candidates.push({ kind: 'credit', label: `$${opts.credit} off from your last order`, value: amount, discount: amount })
   }
-  if (opts.scheduledAhead) {
-    const amount = roundCents(merchandise * 0.05)
-    candidates.push({ kind: 'scheduled', label: 'Scheduled ahead: 5% off', value: amount, discount: amount })
-  }
-  if (opts.perk) {
-    const label = opts.perk === 'eighth' ? 'Free 1/8' : opts.perk === 'prerolls' ? `${PERKS.freePreRolls} free pre-rolls` : `$${PERKS.credit} off your next order`
-    candidates.push({ kind: 'perk', label, value: PERK_VALUE[opts.perk], discount: 0 })
+  const perk = perkFor(merchandise)
+  if (perk) {
+    candidates.push({ kind: 'perk', label: `Spend $${perk.min}: $${perk.off} off`, value: perk.off, discount: perk.off })
   }
 
-  // Highest value wins; on a tie the perk wins, since it costs us less than cash off.
+  // Highest value wins; on a tie the spend perk wins, since it doesn't use up anything banked.
   const ranked = [...candidates].sort((a, b) => b.value - a.value || (a.kind === 'perk' ? -1 : b.kind === 'perk' ? 1 : 0))
   const best = ranked[0] ?? null
   if (best && best.discount > 0) {
-    discounts.push({ label: best.label, amount: best.discount, kind: best.kind as Exclude<Deal['kind'], 'perk'> })
+    discounts.push({ label: best.label, amount: best.discount, kind: best.kind })
   }
   const strip = ({ kind, label, value }: Deal) => ({ kind, label, value })
   const deal = best ? strip(best) : null

@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server'
 import { serviceClient } from '@/lib/supabase/server'
-import { FREQUENCIES, MAX_SCHEDULE_DAYS, PICKUP_PLACE, TIME_WINDOWS, formatApt, normalizePhone, todayInStore } from '@/lib/format'
-import { PERKS, perkTier, quote, type CartLine, type PerkKind } from '@/lib/pricing'
+import { FREQUENCIES, MAX_SCHEDULE_DAYS, PAYMENT_METHODS, PICKUP_PLACE, TIME_WINDOWS, WEIGHTS, formatApt, normalizePhone, todayInStore } from '@/lib/format'
+import { quote, type CartLine } from '@/lib/pricing'
 import {
   REFERRAL_BONUS_POINTS, REFERRAL_GIFTS, REFERRAL_REWARD_KEY, SIGNUP_POINTS, rewardByKey, type ReferralChoice,
 } from '@/lib/rewards'
 import { InputError, handle, isUuid, randomCode, readJson, str } from '@/lib/server/http'
 import { notifyNewOrder } from '@/lib/server/notify'
-import type { Fulfillment, Frequency, Loyalty, OrderItem, Product, SaleEvent, StoreSettings } from '@/lib/types'
+import type { Fulfillment, Frequency, Loyalty, OrderItem, PaymentMethod, Product, SaleEvent, StoreSettings } from '@/lib/types'
 
 const CASHTAG_RE = /^[A-Za-z][A-Za-z0-9_-]{0,19}$/
 
@@ -26,6 +26,9 @@ function parseLines(raw: unknown): CartLine[] {
     const rewardKey = str(l.rewardKey, 40) || undefined
     const productId = isUuid(l.productId) ? l.productId : null
     if (!rewardKey && !productId) throw new InputError('Your cart has an item we don’t recognize. Please remove it and try again.')
+    if (!rewardKey && l.category === 'Flower' && !(WEIGHTS as readonly unknown[]).includes(l.weight)) {
+      throw new InputError('One of the sizes in your cart isn’t on the menu anymore. Please remove it and add it again.')
+    }
     return {
       key: `line-${i}`,
       productId,
@@ -51,8 +54,13 @@ export async function POST(request: Request) {
     if (name.length < 2) throw new InputError('Please enter your name.')
     const phone = normalizePhone(str(body.phone, 30))
     if (!phone) throw new InputError('Please enter a 10-digit US phone number.')
-    const cashTag = str(body.cashTag, 30).replace(/^\$/, '').replace(/\s/g, '')
-    if (!CASHTAG_RE.test(cashTag)) throw new InputError('Please enter your Cash App $Cashtag so we can match your payment.')
+    const paymentMethod = str(body.paymentMethod, 10) as PaymentMethod
+    if (!PAYMENT_METHODS.some(m => m.value === paymentMethod)) throw new InputError('Choose how you’ll pay: Cash App, Zelle or cash.')
+    let cashTag: string | null = null
+    if (paymentMethod === 'cashapp') {
+      cashTag = str(body.cashTag, 30).replace(/^\$/, '').replace(/\s/g, '')
+      if (!CASHTAG_RE.test(cashTag)) throw new InputError('Please enter your Cash App $Cashtag so we can match your payment.')
+    }
     const notes = str(body.notes, 500) || null
     const address = str(body.address, 40)
 
@@ -130,11 +138,7 @@ export async function POST(request: Request) {
       if (!reward) throw new InputError('That reward isn’t available.')
       if (fulfillment === 'scheduled') throw new InputError('Points rewards can be used on delivery or pickup orders, not scheduled ones.')
       if (!loyalty) throw new InputError('Rewards need an existing Lucky Rewards account on this phone number.')
-      if (!reward.tiers.includes(loyalty.membership_tier)) throw new InputError(`${reward.name} unlocks at Member.`)
       if (loyalty.points < reward.points) throw new InputError(`${reward.name} needs ${reward.points} points. This number has ${loyalty.points}.`)
-      if (reward.pickupOnlyFor.includes(loyalty.membership_tier) && fulfillment !== 'pickup') {
-        throw new InputError(`As a Guest, ${reward.name.toLowerCase()} is available with pickup orders.`)
-      }
       l.name = reward.name
       l.category = reward.category
       rewardPoints = reward.points
@@ -162,62 +166,12 @@ export async function POST(request: Request) {
     }
 
     // ── The one deal ──
-    // Each order gets one deal: the spend perk, the House 10%, a promo, banked credit or the
-    // scheduled 5%, whichever is worth most to the customer. lib/pricing decides.
+    // Each order gets one deal: the spend perk, a promo or banked credit, whichever is worth most
+    // to the customer. lib/pricing decides.
     const banked = fulfillment !== 'scheduled' ? Number(loyalty?.next_order_credit ?? 0) : 0
-    const dealOpts = {
-      sale,
-      tier: loyalty?.membership_tier ?? null,
-      scheduledAhead: fulfillment === 'scheduled' && scheduledDate > today,
-      credit: banked,
-    }
-    const tier = perkTier(quote(lines, products, { sale: null, tier: null, scheduledAhead: false }).merchandise)
-    const perkInput = (body.perk ?? {}) as Record<string, unknown>
-    const picked = perkInput.choice === 'prerolls' || perkInput.choice === 'credit' ? perkInput.choice : null
-    const wanted: PerkKind | null = tier === 'eighth' ? 'eighth' : tier === 'choice' ? picked : null
-    if (wanted === 'credit' && fulfillment === 'scheduled') {
-      throw new InputError('Scheduled orders can take the free pre-rolls. Choose those instead.')
-    }
-    // Only ask for a choice when a perk would actually beat the other deals.
-    if (tier === 'choice' && !wanted && quote(lines, products, { ...dealOpts, perk: 'prerolls' }).deal?.kind === 'perk') {
-      throw new InputError(`Your order unlocks a perk. Choose ${PERKS.freePreRolls} free pre-rolls or $${PERKS.credit} off your next order.`)
-    }
-
-    let perk: PerkKind | null = null
-    if (wanted && quote(lines, products, { ...dealOpts, perk: wanted }).deal?.kind === 'perk') {
-      perk = wanted
-      if (wanted !== 'credit') {
-        const wantCategory = wanted === 'eighth' ? 'Flower' : 'Pre-Rolls'
-        if (!isUuid(perkInput.productId)) {
-          throw new InputError(wanted === 'eighth' ? 'Pick the strain for your free 1/8.' : 'Pick which free pre-rolls you want.')
-        }
-        let perkProduct = byId.get(perkInput.productId)
-        if (!perkProduct) {
-          const { data } = await db.from('products').select('*').eq('id', perkInput.productId).maybeSingle()
-          perkProduct = (data ?? undefined) as Product | undefined
-          if (perkProduct) products.push(perkProduct)
-        }
-        if (!perkProduct || perkProduct.archived || !perkProduct.in_stock || perkProduct.category !== wantCategory) {
-          throw new InputError('That free item just sold out. Please pick another.')
-        }
-        if (wanted === 'eighth' && (gramsWanted.get(perkProduct.id) ?? 0) + 3.5 > Number(perkProduct.stock_grams)) {
-          throw new InputError(`There isn’t enough ${perkProduct.name} left for a free 1/8. Please pick another strain.`)
-        }
-        lines.push({
-          key: `perk-${wanted}`,
-          productId: perkProduct.id,
-          name: perkProduct.name,
-          category: perkProduct.category,
-          weight: wanted === 'eighth' ? '3.5' : null,
-          qty: wanted === 'eighth' ? 1 : PERKS.freePreRolls,
-          image: null,
-          rewardKey: wanted === 'eighth' ? 'perk_eighth' : 'perk_prerolls',
-        })
-      }
-    }
 
     // ── Price it ──
-    const priced = quote(lines, products, { ...dealOpts, perk })
+    const priced = quote(lines, products, { sale, credit: banked })
     const creditUsed = priced.discounts.find(d => d.kind === 'credit')?.amount ?? 0
     if (priced.lines.length === 0) throw new InputError('Your cart is empty.')
     if (fulfillment !== 'pickup' && priced.merchandise < Number(settings.delivery_minimum)) {
@@ -275,6 +229,7 @@ export async function POST(request: Request) {
       customer_name: name,
       customer_phone: phone,
       order_notes: notes,
+      payment_method: paymentMethod,
       cash_tag: cashTag,
       items,
       subtotal: priced.subtotal,
@@ -299,13 +254,13 @@ export async function POST(request: Request) {
       const { data, error } = await db.from('orders').insert({
         ...common,
         fulfillment,
+        // Cash orders wait here too, until staff approve them.
         status: priced.total > 0 ? 'pending_payment' : 'confirmed',
         customer_address: fulfillment === 'delivery' ? address : null,
         pickup_location_id: null,
         pickup_location_address: fulfillment === 'pickup' ? PICKUP_PLACE : null,
         reward_key: rewardKey,
         reward_points: rewardPoints,
-        perk,
         credit_used: creditUsed,
       }).select('id').single()
       if (error) {
@@ -327,6 +282,7 @@ export async function POST(request: Request) {
       items,
       discounts: priced.discounts,
       total: priced.total,
+      paymentMethod,
       deliveryDate: scheduledDate || undefined,
       timeWindow,
       frequency,

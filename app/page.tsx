@@ -54,7 +54,7 @@ function Storefront() {
 
   const open = settings?.is_open ?? true
   const { flower, preRolls } = availableProducts(products)
-  const cartTotal = quote(lines, products, { sale, tier: null, scheduledAhead: false }).total
+  const cartTotal = quote(lines, products, { sale }).total
 
   return (
     <>
@@ -155,10 +155,7 @@ function StoreStatus({ open, loading }: { open: boolean; loading: boolean }) {
 }
 
 function PerksBand() {
-  const perks = [
-    { at: PERKS.choiceMin, get: `${PERKS.freePreRolls} free pre-rolls, or $${PERKS.credit} off your next order` },
-    { at: PERKS.eighthMin, get: 'a free 1/8 of your choice' },
-  ]
+  const perks = PERKS.map(p => ({ at: p.min, get: `$${p.off} off your order` }))
   return (
     <div className="border-y border-line bg-surface">
       <dl className="mx-auto flex max-w-6xl flex-col gap-x-10 gap-y-2 px-4 py-4 text-sm sm:flex-row sm:items-center sm:px-6">

@@ -3,13 +3,13 @@
 import { CalendarClock, MapPin, Truck } from 'lucide-react'
 import { Badge } from '@/components/ui'
 import { weightLabel } from '@/lib/format'
-import type { Fulfillment, Order, OrderItem, OrderStatus, Tier } from '@/lib/types'
+import type { Fulfillment, Order, OrderItem, OrderStatus } from '@/lib/types'
 
 export const ACTIVE_STATUSES: OrderStatus[] = ['pending_payment', 'confirmed', 'preparing', 'out_for_delivery']
 
-export function statusLabel(status: OrderStatus, fulfillment: Fulfillment) {
+export function statusLabel(status: OrderStatus, fulfillment: Fulfillment, payment?: string) {
   switch (status) {
-    case 'pending_payment': return 'Awaiting payment'
+    case 'pending_payment': return payment === 'cash' ? 'Cash: needs approval' : 'Awaiting payment'
     case 'confirmed': return 'Confirmed'
     case 'preparing': return 'Preparing'
     case 'out_for_delivery': return fulfillment === 'pickup' ? 'Ready for pickup' : 'Out for delivery'
@@ -27,8 +27,8 @@ const statusTones = {
   cancelled: 'danger',
 } as const
 
-export function StatusBadge({ order }: { order: Pick<Order, 'status' | 'fulfillment'> }) {
-  return <Badge tone={statusTones[order.status]}>{statusLabel(order.status, order.fulfillment)}</Badge>
+export function StatusBadge({ order }: { order: Pick<Order, 'status' | 'fulfillment'> & { payment_method?: string } }) {
+  return <Badge tone={statusTones[order.status]}>{statusLabel(order.status, order.fulfillment, order.payment_method)}</Badge>
 }
 
 const fulfillmentMeta: Record<Fulfillment, { label: string; Icon: typeof Truck }> = {
@@ -54,12 +54,6 @@ export function itemLine(item: OrderItem) {
 
 export function itemSummary(items: OrderItem[] | null | undefined) {
   return Array.isArray(items) ? items.map(itemLine).join(', ') : ''
-}
-
-export function TierBadge({ tier }: { tier: Tier }) {
-  if (tier === 'house') return <Badge tone="night">The House</Badge>
-  if (tier === 'member') return <Badge tone="ok">Member</Badge>
-  return <Badge>Guest</Badge>
 }
 
 export function EmptyState({ icon, title, children }: { icon: React.ReactNode; title: string; children?: React.ReactNode }) {
