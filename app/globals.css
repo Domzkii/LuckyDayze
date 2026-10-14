@@ -132,16 +132,6 @@
   dialog::backdrop {
     background: rgb(10 9 8 / 0.55);
   }
-  dialog[data-closing]::backdrop {
-    animation: fade-out 280ms ease-in forwards;
-  }
-  /* A popover only lightly dims the page; it's a card, not a takeover. */
-  dialog[data-variant="popover"]::backdrop {
-    background: rgb(10 9 8 / 0.2);
-  }
-  dialog[data-variant="popover"][data-closing]::backdrop {
-    animation-duration: 140ms;
-  }
 
   html:has(dialog[open]) {
     overflow: hidden;
@@ -153,6 +143,21 @@
   .dark input[type="date"]::-webkit-calendar-picker-indicator {
     filter: invert(1);
   }
+}
+
+/*
+ * Dialog backdrops. Unlayered on purpose: the opening fade is a Tailwind utility
+ * (backdrop:animate-fade), and only unlayered CSS outranks utilities, so the closing fade can win.
+ */
+dialog[data-closing]::backdrop {
+  animation: fade-out 280ms ease-in forwards;
+}
+/* A popover only lightly dims the page; it's a card, not a takeover. */
+dialog[data-variant="popover"]::backdrop {
+  background: rgb(10 9 8 / 0.2);
+}
+dialog[data-variant="popover"][data-closing]::backdrop {
+  animation-duration: 140ms;
 }
 
 @utility tabular {

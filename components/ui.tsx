@@ -290,22 +290,34 @@ export function Dialog({ open, onClose, title, hideTitle, variant = 'center', an
   const ref = useRef<HTMLDialogElement>(null)
   const titleId = useId()
 
-  const [closing, setClosing] = useState(false)
+  // `present` stays true from opening until the exit animation finishes. Deriving `closing`
+  // from it (rather than setting it in an effect) means the panel never unmounts for a frame
+  // between "open turned false" and "exit animation started".
+  const [present, setPresent] = useState(open)
+  if (open && !present) setPresent(true)
+  const closing = present && !open
 
   useEffect(() => {
     const el = ref.current
     if (!el) return
     if (open) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- reopening mid-exit cancels the exit
-      setClosing(false)
       if (!el.open) el.showModal()
       return
     }
     if (!el.open) return
-    setClosing(true)
-    const t = setTimeout(() => { el.close(); setClosing(false) }, variant === 'popover' ? POPOVER_EXIT_MS : EXIT_MS)
+    // The panel's animationend normally finishes the close; this is the fallback if it never fires.
+    const t = setTimeout(finishClose, (variant === 'popover' ? POPOVER_EXIT_MS : EXIT_MS) + 100)
     return () => clearTimeout(t)
   }, [open, variant])
+
+  function finishClose() {
+    ref.current?.close()
+    setPresent(false)
+  }
+  /** Close once the panel's own exit animation ends (not a child's, which bubble up too). */
+  function onPanelAnimationEnd(e: React.AnimationEvent) {
+    if (closing && e.target === e.currentTarget) finishClose()
+  }
 
   const drawer = variant === 'drawer'
   const popover = variant === 'popover'
@@ -338,8 +350,9 @@ export function Dialog({ open, onClose, title, hideTitle, variant = 'center', an
             : 'mt-auto w-full sm:m-auto sm:max-w-lg',
       )}
     >
-      {popover && (open || closing) && place && (
+      {popover && present && place && (
         <div
+          onAnimationEnd={onPanelAnimationEnd}
           style={{ top: place.top, right: place.right, width: `min(400px, calc(100vw - ${place.right + EDGE}px))`, maxHeight: `calc(100dvh - ${place.top + EDGE}px)` }}
           className={cx(
             'absolute flex origin-top-right flex-col overflow-hidden rounded-2xl border border-line bg-canvas shadow-sheet will-change-transform',
@@ -357,8 +370,9 @@ export function Dialog({ open, onClose, title, hideTitle, variant = 'center', an
           {footer && <div className="border-t border-line px-5 pb-4 pt-3">{footer}</div>}
         </div>
       )}
-      {!popover && (open || closing) && (
+      {!popover && present && (
         <div
+          onAnimationEnd={onPanelAnimationEnd}
           className={cx(
             'flex w-full flex-col bg-canvas will-change-transform',
             drawer
