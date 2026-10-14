@@ -1,6 +1,6 @@
 # LuckyDayze
 
-Cannabis delivery and pickup for Manhattan and Brooklyn. Next.js 16 on Vercel, Supabase for data, auth and photos, Resend for order emails.
+Cannabis delivery and pickup for residents of one building, plus invited friends outside it. Next.js 16 on Vercel, Supabase for data, auth and photos, Resend for order emails.
 
 ## Pages
 
@@ -11,6 +11,7 @@ Cannabis delivery and pickup for Manhattan and Brooklyn. Next.js 16 on Vercel, S
 | `/order/[id]` | Customers | Payment (Cash App, Zelle or cash), then live status (link is private to the customer) |
 | `/track` | Customers | Orders from this device, or look up by phone |
 | `/rewards` | Customers | Points, rewards, referral code |
+| `/app` | Customers | How to add LuckyDayze to the home screen (iPhone, Android, desktop) |
 | `/account` | Customers | Optional account: sign in, sign up (invite links for friends), their details and special prices |
 | `/admin` | Staff | Orders, scheduled orders, customers, accounts and special prices, promos |
 | `/finance` | Staff | Weekly books, payouts, re-up and investment funds, product catalog |
@@ -20,7 +21,7 @@ Customers never write to the database directly. Every customer action goes throu
 ## Set up a new Supabase project
 
 1. Create a project at [supabase.com](https://supabase.com).
-2. Open **SQL Editor**, paste `supabase/migrations/0001_init.sql`, and run it. It creates the tables, security rules, the order functions, realtime, and the `products` photo bucket.
+2. Open **SQL Editor** and run each file in `supabase/migrations/` in order (`0001` → `0006`). `0001_init.sql` creates the tables, security rules, the order functions, realtime, and the `products` photo bucket; the later files layer on pricing, the one-deal rule, the October tweaks and customer accounts.
 3. **Authentication → Providers → Email**: turn off "Allow new users to sign up". Customer accounts are created by `/api/account/signup` with the service key, already confirmed, so no emails are sent and this setting can stay off.
 4. **Authentication → Users → Add user**: create a login for each staff member.
 5. Make them staff (SQL Editor):
@@ -39,6 +40,8 @@ npm run typecheck
 npm run lint
 ```
 
+`building-revamp` is the working branch. Pushing it to `main` (`git push origin building-revamp:main`) deploys to production at lucky-dayze.vercel.app.
+
 ## How an order flows
 
 1. Customer places the order at `/checkout`. Status: **pending payment**.
@@ -50,3 +53,17 @@ npm run lint
 Signed-in customers send their session token with the order. The server looks up their profile: friends outside the building deliver to their street address, and a special price list (Admin → Accounts) competes as the order's one deal.
 
 Scheduled orders wait in **Scheduled** until staff queue them. Recurring ones roll forward to their next date.
+
+## Accounts and special prices
+
+Accounts are optional; guests can still order. Staff manage everything in **Admin → Accounts**:
+
+- **Price lists**: named sets of prices per size (e.g. `{"14":65,"28":120}`). Assign one to an account to give that person their own prices. Special prices count as the order's one deal, so they don't stack with the spend perk or promos.
+- **Invite links**: `/account?invite=CODE`, optionally tied to a price list that is applied when the friend signs up. Each link works once.
+- **Passwords**: staff can reset a customer's password from the account row.
+
+At sign-up people choose "In the building" (apartment) or "Somewhere else" (street address). Anyone can pick "Somewhere else"; there is no approval step yet.
+
+## Home-screen install
+
+`lib/install.ts` detects the platform and whether the app is already installed, and wraps Android/desktop `beforeinstallprompt`. `components/install.tsx` holds the step-by-step guide used on `/app`, the after-order card, and the menu banner (phones only, shows after 3s, hides after 10s, at most twice per device via `localStorage.ld_install`). iPhone steps follow iOS 27 Safari (≡ → Share → View More → Add to Home Screen), with a note for older iPhones.
