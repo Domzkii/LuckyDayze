@@ -78,7 +78,7 @@ export function AccountsTab() {
         <h2 id="accounts-title" className="display text-2xl font-semibold">Accounts</h2>
         {profiles.length === 0 ? (
           <EmptyState icon={<Users size={28} strokeWidth={1.5} />} title="No accounts yet">
-            Building residents sign up at /account. Friends sign up with an invite link.
+            People sign up at /account, in the building or with a street address. Invite links can add special prices.
           </EmptyState>
         ) : (
           <ul className="flex flex-col divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">
@@ -91,7 +91,7 @@ export function AccountsTab() {
                       <span className="truncate font-semibold">{p.name}</span>
                       <span className="flex shrink-0 gap-1.5">
                         {list && <Badge tone="gold">{list.name} prices</Badge>}
-                        <Badge>{p.kind === 'friend' ? 'Friend' : 'Building'}</Badge>
+                        <Badge>{p.kind === 'friend' ? 'Outside' : 'Building'}</Badge>
                       </span>
                     </div>
                     <p className="tabular truncate text-sm text-muted">
@@ -297,8 +297,8 @@ function Invites({ invites, lists, onChanged }: { invites: Invite[]; lists: Pric
     <section aria-labelledby="invites-title" className="flex flex-col gap-3">
       <h2 id="invites-title" className="display text-2xl font-semibold">Invite a friend</h2>
       <p className="text-sm text-muted">
-        For people outside the building. Text them the link; they make an account with their street address.
-        Each link works once. Building residents don’t need one.
+        Text them the link; they make an account with their street address. Each link works once.
+        Anyone can also sign up on their own; a link is how you give someone special prices from the start.
       </p>
       <form onSubmit={create} className="flex flex-col gap-4 rounded-2xl border border-line bg-surface p-4 sm:flex-row sm:items-end">
         <Field label="Who it’s for" optional className="flex-1">
@@ -359,7 +359,7 @@ function AccountDetail({ profile, lists, onBack, onChanged }: {
   const facts: [string, React.ReactNode][] = [
     ['Phone', <a key="p" href={`tel:${profile.phone}`} className="font-semibold text-gold-ink hover:underline">{formatPhone(profile.phone)}</a>],
     ['Email', profile.email],
-    ['Type', profile.kind === 'friend' ? 'Friend (outside the building)' : 'Building resident'],
+    ['Lives', profile.kind === 'friend' ? 'Outside the building' : 'In the building'],
     [profile.kind === 'friend' ? 'Address' : 'Apartment', profile.kind === 'friend' ? profile.street_address : formatApt(profile.apt)],
     ['Joined', formatTime(profile.created_at)],
   ]

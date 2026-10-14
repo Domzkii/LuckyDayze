@@ -111,7 +111,9 @@ function SignInForm() {
 }
 
 function SignUpForm({ invite }: { invite: string | null }) {
-  const friend = !!invite
+  const [where, setWhere] = useState<'building' | 'elsewhere'>('building')
+  // Invite links are for people outside the building, so they skip the choice.
+  const friend = !!invite || where === 'elsewhere'
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [place, setPlace] = useState('')
@@ -125,9 +127,9 @@ function SignUpForm({ invite }: { invite: string | null }) {
     /* eslint-disable react-hooks/set-state-in-effect -- one-time prefill from device storage */
     if (saved.name) setName(saved.name)
     if (saved.phone) setPhone(saved.phone)
-    if (saved.address && !friend) setPlace(saved.address)
+    if (saved.address && !invite) setPlace(saved.address)
     /* eslint-enable react-hooks/set-state-in-effect */
-  }, [friend])
+  }, [invite])
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -148,6 +150,7 @@ function SignUpForm({ invite }: { invite: string | null }) {
           email: email.trim(),
           password,
           invite,
+          kind: friend ? 'friend' : 'building',
           apt: friend ? '' : place.trim(),
           street_address: friend ? place.trim() : '',
         }),
@@ -173,6 +176,18 @@ function SignUpForm({ invite }: { invite: string | null }) {
       <Field label="Phone" hint="Your points follow this number.">
         {p => <input {...p} type="tel" inputMode="tel" autoComplete="tel-national" value={phone} onChange={e => setPhone(e.target.value)} className={inputClass} />}
       </Field>
+      {!invite && (
+        <div className="flex flex-col gap-2">
+          <p className="text-sm font-semibold">Where do you live?</p>
+          <Segmented
+            label="Where do you live?"
+            value={where}
+            onChange={w => { setWhere(w); setPlace('') }}
+            size="sm"
+            options={[{ value: 'building', label: 'In the building' }, { value: 'elsewhere', label: 'Somewhere else' }]}
+          />
+        </div>
+      )}
       {friend ? (
         <Field label="Street address" hint="Where we deliver. Include the apartment or floor if there is one.">
           {p => <input {...p} autoComplete="street-address" maxLength={120} value={place} onChange={e => setPlace(e.target.value)} className={inputClass} />}

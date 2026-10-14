@@ -71,6 +71,7 @@ export function SiteFooter() {
         <nav aria-label="Footer" className="flex flex-wrap gap-x-1 gap-y-1 text-sm font-semibold">
           <Link href="/track" className="inline-flex min-h-11 items-center rounded-full px-3 text-muted hover:text-ink">Track an order</Link>
           <Link href="/rewards" className="inline-flex min-h-11 items-center rounded-full px-3 text-muted hover:text-ink">Lucky Rewards</Link>
+          <Link href="/app" className="inline-flex min-h-11 items-center rounded-full px-3 text-muted hover:text-ink">Get the app</Link>
           <a href={`https://instagram.com/${INSTAGRAM}`} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-2 rounded-full px-3 text-muted hover:text-ink">
             <InstagramIcon size={16} /> @{INSTAGRAM}
           </a>

@@ -10,6 +10,7 @@ import { availableProducts, useCatalog } from '@/lib/use-catalog'
 import type { Product, SaleEvent } from '@/lib/types'
 import { useCart } from '@/components/cart'
 import { CartDrawer } from '@/components/cart-drawer'
+import { InstallBanner } from '@/components/install'
 import { ProductCard, ProductSheet } from '@/components/product'
 import { AgeGate, SiteFooter, SiteHeader } from '@/components/site'
 import { Button, ButtonLink, Spinner, cx } from '@/components/ui'
@@ -132,6 +133,7 @@ function Storefront() {
         </div>
       )}
 
+      <InstallBanner raised={count > 0} />
       <ProductSheet product={selected} onClose={() => setSelected(null)} onAdded={() => setSelected(null)} />
       <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} products={products} sale={sale} settings={settings} />
     </>

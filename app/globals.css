@@ -198,6 +198,14 @@ dialog[data-variant="popover"][data-closing]::backdrop {
   from { opacity: 1; transform: none; }
   to { opacity: 0; transform: translateY(-4px) scale(0.97); }
 }
+@keyframes banner-in {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes banner-out {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateY(16px); }
+}
 @keyframes fade-out {
   from { opacity: 1; }
   to { opacity: 0; }
@@ -234,6 +242,12 @@ dialog[data-variant="popover"][data-closing]::backdrop {
 @utility animate-pop-out {
   animation: pop-out 140ms ease-in forwards;
 }
+@utility animate-banner-in {
+  animation: banner-in 320ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+@utility animate-banner-out {
+  animation: banner-out 220ms ease-in forwards;
+}
 @utility animate-sink {
   animation: sink 200ms var(--ease-sheet-exit) forwards;
 }
@@ -251,12 +265,14 @@ dialog[data-variant="popover"][data-closing]::backdrop {
   .animate-rise {
     animation: fade-in 200ms ease-out both;
   }
-  .animate-pop-in {
+  .animate-pop-in,
+  .animate-banner-in {
     animation: fade-in 150ms ease-out both;
   }
   .animate-sheet-down,
   .animate-sheet-left-out,
   .animate-pop-out,
+  .animate-banner-out,
   .animate-sink {
     animation: fade-out 200ms ease-in forwards;
   }

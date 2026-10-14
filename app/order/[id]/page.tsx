@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { Check, Copy, EllipsisVertical, ExternalLink, KeyRound, Share } from 'lucide-react'
+import { Check, Copy, ExternalLink, KeyRound } from 'lucide-react'
 import { CASHTAG, ZELLE_PHONE, cashAppLink, formatPhone, formatTime, money, orderCode, weightLabel } from '@/lib/format'
-import { installPromptSeen, markInstallPromptSeen } from '@/lib/local'
 import type { OrderStatus, PublicOrder } from '@/lib/types'
+import { InstallCard } from '@/components/install'
 import { SiteHeader } from '@/components/site'
 import { Button, ButtonLink, IconButton, Notice, Spinner, cx } from '@/components/ui'
 
@@ -329,26 +329,5 @@ function PickupCard({ order, onChange }: { order: PublicOrder; onChange: () => v
         </>
       )}
     </section>
-  )
-}
-
-function InstallCard() {
-  const [show, setShow] = useState(false)
-  useEffect(() => {
-    const mobile = /iphone|ipad|ipod|android/i.test(navigator.userAgent)
-    const standalone = window.matchMedia('(display-mode: standalone)').matches
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- device checks after mount
-    setShow(mobile && !standalone && !installPromptSeen())
-  }, [])
-  if (!show) return null
-  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent)
-  return (
-    <aside className="flex flex-col gap-3 rounded-3xl border border-line p-5">
-      <p className="font-semibold">Reorder in two taps</p>
-      <p className="flex flex-wrap items-center gap-1 text-sm text-muted">
-        {ios ? <>In Safari, tap Share <Share size={14} strokeWidth={1.75} aria-label="Share icon" /> then “Add to Home Screen”.</> : <>In Chrome, open the menu <EllipsisVertical size={14} strokeWidth={1.75} aria-label="menu icon" /> then “Add to Home screen”.</>}
-      </p>
-      <Button variant="ghost" size="sm" className="self-start" onClick={() => { markInstallPromptSeen(); setShow(false) }}>Got it</Button>
-    </aside>
   )
 }

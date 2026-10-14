@@ -40,11 +40,12 @@ export async function POST(request: Request) {
     const password = typeof body.password === 'string' ? body.password : ''
     if (password.length < 8) throw new InputError('Use at least 8 characters for your password.')
 
-    // An invite makes this a friend account with a street address; otherwise it's a building account.
+    // Building residents give an apartment; anyone else ('friend') gives a street address.
+    // Invite links are always outside the building, and can carry special prices.
     const inviteCode = str(body.invite, 20)
     const invite = inviteCode ? await findInvite(inviteCode) : null
     if (inviteCode && (!invite || invite.used_by)) throw new InputError('That invite link isn’t valid anymore. Ask for a new one.')
-    const kind = invite ? 'friend' : 'building'
+    const kind = invite || body.kind === 'friend' ? 'friend' : 'building'
     const apt = kind === 'building' ? str(body.apt, 20) : ''
     const street = kind === 'friend' ? str(body.street_address, 120) : ''
     if (kind === 'building' && !apt) throw new InputError('Please enter your apartment number.')

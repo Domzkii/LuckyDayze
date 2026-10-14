@@ -45,5 +45,9 @@ export function ageVerified() {
 }
 export const confirmAge = () => write(AGE_KEY, Date.now())
 
-export const installPromptSeen = () => read<boolean>('ld_install_seen', false)
-export const markInstallPromptSeen = () => write('ld_install_seen', true)
+/** The home-screen banner shows at most twice per device, and never after it's closed. */
+const INSTALL_KEY = 'ld_install'
+const installState = () => read<{ shown: number; closed: boolean }>(INSTALL_KEY, { shown: 0, closed: false })
+export const installBannerAllowed = () => { const s = installState(); return !s.closed && s.shown < 2 }
+export const countInstallBanner = () => { const s = installState(); write(INSTALL_KEY, { ...s, shown: s.shown + 1 }) }
+export const closeInstallBanner = () => write(INSTALL_KEY, { ...installState(), closed: true })
