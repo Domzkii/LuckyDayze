@@ -1,6 +1,6 @@
 'use client'
 
-import { forwardRef, useEffect, useId, useRef } from 'react'
+import { forwardRef, useEffect, useId, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Loader2, X } from 'lucide-react'
 
@@ -264,18 +264,32 @@ interface DialogProps {
   className?: string
 }
 
+/** Matches the exit animations in globals.css. */
+const EXIT_MS = 280
+
 /**
  * Native <dialog> as a modal: focus is trapped, Escape closes, the page behind is inert.
+ * Closing plays an exit animation before the dialog actually closes.
  */
 export function Dialog({ open, onClose, title, hideTitle, variant = 'center', children, footer, className = '' }: DialogProps) {
   const ref = useRef<HTMLDialogElement>(null)
   const titleId = useId()
 
+  const [closing, setClosing] = useState(false)
+
   useEffect(() => {
     const el = ref.current
     if (!el) return
-    if (open && !el.open) el.showModal()
-    if (!open && el.open) el.close()
+    if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reopening mid-exit cancels the exit
+      setClosing(false)
+      if (!el.open) el.showModal()
+      return
+    }
+    if (!el.open) return
+    setClosing(true)
+    const t = setTimeout(() => { el.close(); setClosing(false) }, EXIT_MS)
+    return () => clearTimeout(t)
   }, [open])
 
   const drawer = variant === 'drawer'
@@ -284,6 +298,7 @@ export function Dialog({ open, onClose, title, hideTitle, variant = 'center', ch
     <dialog
       ref={ref}
       aria-labelledby={titleId}
+      data-closing={closing || undefined}
       onClose={onClose}
       onCancel={e => { e.preventDefault(); onClose() }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
@@ -294,13 +309,16 @@ export function Dialog({ open, onClose, title, hideTitle, variant = 'center', ch
           : 'mt-auto w-full sm:m-auto sm:max-w-lg',
       )}
     >
-      {open && (
+      {(open || closing) && (
         <div
           className={cx(
-            'flex w-full flex-col bg-canvas',
+            'flex w-full flex-col bg-canvas will-change-transform',
             drawer
-              ? 'h-full animate-sheet-left border-l border-line'
-              : 'max-h-[92dvh] animate-sheet-up rounded-t-3xl shadow-sheet sm:max-h-[85dvh] sm:animate-rise sm:rounded-3xl',
+              ? cx('h-full border-l border-line', closing ? 'animate-sheet-left-out' : 'animate-sheet-left')
+              : cx(
+                'max-h-[92dvh] rounded-t-3xl shadow-sheet sm:max-h-[85dvh] sm:rounded-3xl',
+                closing ? 'animate-sheet-down sm:animate-sink' : 'animate-sheet-up sm:animate-rise',
+              ),
             className,
           )}
         >

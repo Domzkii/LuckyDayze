@@ -84,6 +84,9 @@
   --color-indica-tint: var(--indica-tint);
 
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  /* Sheets: quick to start but without the snap of expo, like iOS sheets. */
+  --ease-sheet: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-sheet-exit: cubic-bezier(0.4, 0, 1, 1);
   --shadow-lift: 0 1px 2px rgb(26 24 20 / 0.06), 0 8px 24px -12px rgb(26 24 20 / 0.22);
   --shadow-sheet: 0 -8px 40px -12px rgb(0 0 0 / 0.35);
 }
@@ -129,6 +132,9 @@
   dialog::backdrop {
     background: rgb(10 9 8 / 0.55);
   }
+  dialog[data-closing]::backdrop {
+    animation: fade-out 280ms ease-in forwards;
+  }
 
   html:has(dialog[open]) {
     overflow: hidden;
@@ -160,6 +166,22 @@
   from { transform: translateX(100%); }
   to { transform: translateX(0); }
 }
+@keyframes sheet-down {
+  from { transform: translateY(0); }
+  to { transform: translateY(100%); }
+}
+@keyframes sheet-right {
+  from { transform: translateX(0); }
+  to { transform: translateX(100%); }
+}
+@keyframes sink {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(8px) scale(0.98); }
+}
+@keyframes fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
 @keyframes fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -173,10 +195,20 @@
 }
 
 @utility animate-sheet-up {
-  animation: sheet-up 420ms var(--ease-out-expo);
+  animation: sheet-up 440ms var(--ease-sheet);
 }
 @utility animate-sheet-left {
-  animation: sheet-left 420ms var(--ease-out-expo);
+  animation: sheet-left 440ms var(--ease-sheet);
+}
+/* Exits run 280ms (EXIT_MS in components/ui.tsx) and hold their end state until the dialog closes. */
+@utility animate-sheet-down {
+  animation: sheet-down 280ms var(--ease-sheet-exit) forwards;
+}
+@utility animate-sheet-left-out {
+  animation: sheet-right 280ms var(--ease-sheet-exit) forwards;
+}
+@utility animate-sink {
+  animation: sink 200ms var(--ease-sheet-exit) forwards;
 }
 @utility animate-fade {
   animation: fade-in 240ms ease-out;
@@ -191,6 +223,11 @@
   .animate-sheet-left,
   .animate-rise {
     animation: fade-in 200ms ease-out both;
+  }
+  .animate-sheet-down,
+  .animate-sheet-left-out,
+  .animate-sink {
+    animation: fade-out 200ms ease-in forwards;
   }
   html {
     scroll-behavior: auto;
