@@ -75,6 +75,7 @@ export function SiteFooter() {
           <a href={`https://instagram.com/${INSTAGRAM}`} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-2 rounded-full px-3 text-muted hover:text-ink">
             <InstagramIcon size={16} /> @{INSTAGRAM}
           </a>
+          <Link href="/admin" className="inline-flex min-h-11 items-center rounded-full px-3 text-muted hover:text-ink">Back office</Link>
         </nav>
       </div>
     </footer>
