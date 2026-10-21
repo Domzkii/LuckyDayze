@@ -180,7 +180,7 @@ export default function CheckoutPage() {
           <span className="flex size-14 items-center justify-center rounded-full bg-gold text-on-gold"><Check size={26} strokeWidth={2} /></span>
           <h1 className="display mt-6 text-4xl font-semibold">You’re on the schedule.</h1>
           <p className="mt-4 text-lg text-muted">
-            We’ll text you to confirm your delivery for <span className="font-semibold text-ink">{formatDay(scheduled.date)}</span>.
+            We’ll reach out to confirm your delivery for <span className="font-semibold text-ink">{formatDay(scheduled.date)}</span>.
             {payment === 'cash'
               ? <>Have <span className="tabular font-semibold text-ink">{money(scheduled.total, { cents: true })}</span> in cash ready on the day.</>
               : <>Pay <span className="tabular font-semibold text-ink">{money(scheduled.total, { cents: true })}</span> {payment === 'zelle' ? `on Zelle to ${formatPhone(ZELLE_PHONE)}` : `to $${CASHTAG}`} when we confirm.</>}
@@ -307,7 +307,7 @@ export default function CheckoutPage() {
                 <Field
                   label="Phone"
                   error={errors.phone}
-                  hint={knownAccount ? `Welcome back, ${knownAccount.first_name}. ${knownAccount.points} points.` : 'We text you when it’s on the way.'}
+                  hint={knownAccount ? `Welcome back, ${knownAccount.first_name}. ${knownAccount.points} points.` : 'So we can reach you about your order.'}
                 >
                   {p => <input {...p} type="tel" inputMode="tel" autoComplete="tel-national" value={phone} onChange={e => setPhone(e.target.value)} className={inputClass} />}
                 </Field>
@@ -449,7 +449,7 @@ export default function CheckoutPage() {
               </Button>
               <p className="text-center text-sm text-muted">
                 {method === 'scheduled'
-                  ? 'Nothing to pay yet. We’ll text to confirm before your day.'
+                  ? 'Nothing to pay yet. We’ll reach out to confirm before your day.'
                   : payment === 'cash'
                     ? `You’ll pay ${totalLabel} in cash ${method === 'pickup' ? 'at pickup' : 'at the door'}.`
                     : `Next you’ll pay ${totalLabel} ${payment === 'zelle' ? 'on Zelle' : `to $${CASHTAG} on Cash App`}.`}

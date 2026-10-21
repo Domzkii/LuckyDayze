@@ -22,6 +22,8 @@ export const REFERRAL_REWARD_KEY = 'referral_preroll'
 
 export const SIGNUP_POINTS = 25
 export const REFERRAL_BONUS_POINTS = 25
+/** What the person who shared the code gets when their friend's first order is delivered (complete_order in SQL). */
+export const REFERRER_POINTS = 50
 
 // Member and The House tiers are on hold until the numbers are worked out; see git history.
 

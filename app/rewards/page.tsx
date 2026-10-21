@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Check, Gift, Share2 } from 'lucide-react'
 import { normalizePhone } from '@/lib/format'
-import { REFERRAL_BONUS_POINTS, REFERRAL_REWARD_KEY, REWARDS } from '@/lib/rewards'
+import { REFERRAL_BONUS_POINTS, REFERRAL_REWARD_KEY, REFERRER_POINTS, REWARDS } from '@/lib/rewards'
 import { savedCustomer } from '@/lib/local'
 import type { PublicRewards } from '@/lib/types'
 import { useCart } from '@/components/cart'
@@ -73,7 +73,7 @@ function HowItWorks() {
   const steps = [
     '1 point for every $1 you spend',
     ...REWARDS.map(r => `${r.points} points: ${r.name.toLowerCase()}`),
-    `Share your code: friends get a free pre-roll, you get ${REFERRAL_BONUS_POINTS} points`,
+    `Share your code: friends get a free pre-roll and ${REFERRAL_BONUS_POINTS} points, you get ${REFERRER_POINTS} points`,
   ]
   return (
     <section aria-labelledby="how-title" className="mt-16">
@@ -216,7 +216,7 @@ function Referral({ account, phone, onUpdate }: { account: PublicRewards; phone:
     <section aria-labelledby="referral-title" className="grid gap-8 sm:grid-cols-2">
       <div className="flex flex-col gap-3">
         <h2 id="referral-title" className="display text-2xl font-semibold">Share your code</h2>
-        <p className="text-muted">Friends get {REFERRAL_BONUS_POINTS} bonus points and a free pre-roll. You get 50 points when their first order lands.</p>
+        <p className="text-muted">Friends get {REFERRAL_BONUS_POINTS} bonus points and a free pre-roll. You get {REFERRER_POINTS} points when their first order lands.</p>
         <p className="display mt-2 text-4xl font-semibold tracking-[0.18em] text-gold-ink">{account.referral_code}</p>
         <Button variant="outline" className="self-start" onClick={share}>
           {copied ? <><Check size={16} strokeWidth={2} /> Copied</> : <><Share2 size={16} strokeWidth={1.75} /> Share invite</>}
