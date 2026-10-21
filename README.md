@@ -40,7 +40,7 @@ npm run typecheck
 npm run lint
 ```
 
-`building-revamp` is the working branch. Pushing it to `main` (`git push origin building-revamp:main`) deploys to production at lucky-dayze.vercel.app.
+`building-revamp` is the working branch. Pushing it to `main` (`git push origin building-revamp:main`) deploys to production at luckydayzenyc.com (www and lucky-dayze.vercel.app redirect there).
 
 ## How an order flows
 
