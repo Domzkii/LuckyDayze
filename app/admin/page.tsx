@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { Bell, BellRing, LogOut, Menu, Store, Wallet, X } from 'lucide-react'
+import { BellRing, LogOut, Menu, Store, Wallet, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase/browser'
 import { StaffGate } from '@/components/staff-gate'
+import { StaffAlerts } from '@/components/staff-alerts'
 import { ThemeToggle } from '@/components/theme'
 import { Button, IconButton, Notice, Wordmark, cx } from '@/components/ui'
 import { todayInStore } from '@/lib/format'
@@ -64,7 +65,11 @@ function Admin() {
         setArrivals(prev => [...prev, ...newlyArrived.map(o => ({ id: o.id, name: o.customer_name, where: o.pickup_location_address }))])
         if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
           for (const o of newlyArrived) {
-            new Notification('Customer arrived', { body: `${o.customer_name} is at the door for their pickup.`, icon: '/logo-192.png' })
+            const body = `${o.customer_name} is at the door for their pickup.`
+            // Home-screen apps on iPhone have no Notification constructor; the service worker can still show one.
+            navigator.serviceWorker?.getRegistration()
+              .then(reg => { if (reg) return reg.showNotification('Customer arrived', { body, icon: '/logo-192.png' }); new Notification('Customer arrived', { body, icon: '/logo-192.png' }) })
+              .catch(() => {})
           }
         }
       }
@@ -203,17 +208,6 @@ function Admin() {
 
 function AdminHeader({ live }: { live: boolean }) {
   const [menuOpen, setMenuOpen] = useState(false)
-  const [notifyState, setNotifyState] = useState<NotificationPermission | 'unsupported'>('default')
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- reading a browser-only API after mount
-    setNotifyState(typeof Notification === 'undefined' ? 'unsupported' : Notification.permission)
-  }, [])
-
-  async function enableAlerts() {
-    if (typeof Notification === 'undefined') return
-    setNotifyState(await Notification.requestPermission())
-  }
 
   const secondary = (
     <>
@@ -223,11 +217,7 @@ function AdminHeader({ live }: { live: boolean }) {
       <Link href="/" className="inline-flex min-h-11 items-center gap-2 rounded-full px-3 text-sm font-semibold text-muted hover:bg-sunken hover:text-ink">
         <Store size={17} strokeWidth={1.75} aria-hidden /> Storefront
       </Link>
-      {notifyState === 'default' && (
-        <button type="button" onClick={enableAlerts} className="inline-flex min-h-11 items-center gap-2 rounded-full px-3 text-sm font-semibold text-muted hover:bg-sunken hover:text-ink">
-          <Bell size={17} strokeWidth={1.75} aria-hidden /> Turn on alerts
-        </button>
-      )}
+      <StaffAlerts className="inline-flex min-h-11 items-center gap-2 rounded-full px-3 text-sm font-semibold text-muted hover:bg-sunken hover:text-ink" />
       <button
         type="button"
         onClick={() => supabase().auth.signOut()}

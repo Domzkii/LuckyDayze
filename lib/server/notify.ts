@@ -24,8 +24,9 @@ interface NewOrderEmail {
 /** Emails the owner about a new order. Never throws: a failed email must not fail the order. */
 export async function notifyNewOrder(o: NewOrderEmail) {
   const key = process.env.RESEND_API_KEY
-  const to = process.env.ORDER_NOTIFY_EMAIL
-  if (!key || !to) return
+  // One address, or several separated by commas.
+  const to = (process.env.ORDER_NOTIFY_EMAIL ?? '').split(',').map(s => s.trim()).filter(Boolean)
+  if (!key || !to.length) return
 
   const lines = o.items
     .map(i => `${escape(i.name)}${i.weight ? ` (${weightLabel(i.weight)})` : ''} × ${i.qty}${i.is_reward ? ' — reward' : ''}`)

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { serviceClient } from '@/lib/supabase/server'
-import { FREQUENCIES, MAX_SCHEDULE_DAYS, PAYMENT_METHODS, PICKUP_PLACE, TIME_WINDOWS, WEIGHTS, formatApt, normalizePhone, todayInStore } from '@/lib/format'
+import { FREQUENCIES, MAX_SCHEDULE_DAYS, PAYMENT_METHODS, PICKUP_PLACE, TIME_WINDOWS, WEIGHTS, formatApt, money, normalizePhone, todayInStore } from '@/lib/format'
 import { quote, type CartLine } from '@/lib/pricing'
 import {
   REFERRAL_BONUS_POINTS, REFERRAL_GIFTS, REFERRAL_REWARD_KEY, SIGNUP_POINTS, rewardByKey, type ReferralChoice,
@@ -8,6 +8,7 @@ import {
 import { accountFromRequest } from '@/lib/server/auth'
 import { InputError, handle, isUuid, randomCode, readJson, str } from '@/lib/server/http'
 import { notifyNewOrder } from '@/lib/server/notify'
+import { pushToStaff } from '@/lib/server/push'
 import type { Fulfillment, Frequency, Loyalty, OrderItem, PaymentMethod, Product, SaleEvent, StoreSettings } from '@/lib/types'
 
 const CASHTAG_RE = /^[A-Za-z][A-Za-z0-9_-]{0,19}$/
@@ -278,21 +279,30 @@ export async function POST(request: Request) {
       id = data.id
     }
 
-    await notifyNewOrder({
-      origin: new URL(request.url).origin,
-      kind: fulfillment === 'scheduled' ? 'scheduled' : 'order',
-      fulfillment,
-      name,
-      phone,
-      place,
-      items,
-      discounts: priced.discounts,
-      total: priced.total,
-      paymentMethod,
-      deliveryDate: scheduledDate || undefined,
-      timeWindow,
-      frequency,
-    })
+    const scheduled = fulfillment === 'scheduled'
+    const itemCount = items.reduce((n, i) => n + i.qty, 0)
+    await Promise.all([
+      pushToStaff({
+        title: `New ${scheduled ? 'scheduled order' : fulfillment === 'pickup' ? 'pickup' : 'order'}: ${money(priced.total, { cents: true })}`,
+        body: `${name} · ${itemCount} item${itemCount === 1 ? '' : 's'} · ${place}`,
+        tag: `order-${id}`,
+      }),
+      notifyNewOrder({
+        origin: new URL(request.url).origin,
+        kind: scheduled ? 'scheduled' : 'order',
+        fulfillment,
+        name,
+        phone,
+        place,
+        items,
+        discounts: priced.discounts,
+        total: priced.total,
+        paymentMethod,
+        deliveryDate: scheduledDate || undefined,
+        timeWindow,
+        frequency,
+      }),
+    ])
 
     return NextResponse.json({ id, kind: fulfillment === 'scheduled' ? 'scheduled' : 'order', total: priced.total })
   })
