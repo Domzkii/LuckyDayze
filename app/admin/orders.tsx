@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, BellRing, Banknote, DoorOpen, ExternalLink, Gift, Inbox, MapPin, Phone, StickyNote } from 'lucide-react'
 import { supabase } from '@/lib/supabase/browser'
-import { Badge, Button, ConfirmDialog, Dialog, Field, Notice, Spinner, cx, inputClass } from '@/components/ui'
+import { Badge, Button, ConfirmDialog, Dialog, Notice, Spinner, cx } from '@/components/ui'
 import { STORE_TIME_ZONE, formatApt, formatPhone, formatTime, money, orderCode, todayInStore } from '@/lib/format'
 import { rewardByKey } from '@/lib/rewards'
 import type { Loyalty, Order, OrderStatus } from '@/lib/types'
@@ -167,8 +167,6 @@ function OrderDetailBody({ order, onChanged, onClose }: { order: Order; onChange
   const [loyalty, setLoyalty] = useState<Loyalty | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [completing, setCompleting] = useState(false)
-  const [deliveryCost, setDeliveryCost] = useState(order.fulfillment === 'pickup' ? '0' : '10')
   const [confirmCancel, setConfirmCancel] = useState(false)
 
   useEffect(() => {
@@ -198,15 +196,13 @@ function OrderDetailBody({ order, onChanged, onClose }: { order: Order; onChange
     onChanged()
   }
 
+  // Deliveries stay in the building, so there's no delivery cost to record.
   async function complete() {
-    const cost = Number(deliveryCost)
-    if (!Number.isFinite(cost) || cost < 0) return setError('Enter the delivery cost as a number, or 0.')
     setBusy('delivered')
     setError(null)
-    const { error } = await supabase().rpc('complete_order', { p_order_id: order.id, p_delivery_cost: cost })
+    const { error } = await supabase().rpc('complete_order', { p_order_id: order.id, p_delivery_cost: 0 })
     setBusy(null)
     if (error) return setError(errorText(error))
-    setCompleting(false)
     onChanged()
   }
 
@@ -346,39 +342,13 @@ function OrderDetailBody({ order, onChanged, onClose }: { order: Order; onChange
         <p className="text-sm text-muted">
           {statusLabel(order.status, order.fulfillment)}
           {order.delivered_at && ` ${formatTime(order.delivered_at)}`}
-          {order.status === 'delivered' && order.delivery_cost != null && ` · delivery cost ${money(Number(order.delivery_cost), { cents: true })}`}
+          {order.status === 'delivered' && Number(order.delivery_cost) > 0 && ` · delivery cost ${money(Number(order.delivery_cost), { cents: true })}`}
           . This order is closed.
         </p>
       ) : (
         <section aria-label="Update status" className="flex flex-col gap-3">
           {step && step.status === 'delivered' ? (
-            completing ? (
-              <div className="flex flex-col gap-3 rounded-2xl border border-line p-4">
-                <Field label="What did this delivery cost?" hint="Gas, rides, runner pay. Splits across the team in Finance.">
-                  {props => (
-                    <div className="relative">
-                      <span aria-hidden className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted">$</span>
-                      <input
-                        {...props}
-                        inputMode="decimal"
-                        type="number"
-                        min="0"
-                        step="0.5"
-                        value={deliveryCost}
-                        onChange={e => setDeliveryCost(e.target.value)}
-                        className={cx(inputClass, 'tabular pl-8')}
-                      />
-                    </div>
-                  )}
-                </Field>
-                <div className="flex gap-2">
-                  <Button variant="outline" className="flex-1" onClick={() => setCompleting(false)}>Back</Button>
-                  <Button className="flex-1" loading={busy === 'delivered'} onClick={complete}>{step.label}</Button>
-                </div>
-              </div>
-            ) : (
-              <Button size="lg" onClick={() => setCompleting(true)}>{step.label}</Button>
-            )
+            <Button size="lg" loading={busy === 'delivered'} onClick={complete}>{step.label}</Button>
           ) : step ? (
             <Button size="lg" loading={busy === step.status} onClick={() => setStatus(step.status)}>{step.label}</Button>
           ) : null}

@@ -1,7 +1,7 @@
 import { AlertTriangle } from 'lucide-react'
 import { formatDay, money } from '@/lib/format'
 import type { FinanceData } from './data'
-import { GRAMS_PER_QP, LOW_STOCK_GRAMS, ROLES, formatWeight, sum } from './math'
+import { GRAMS_PER_QP, LOW_STOCK_GRAMS, ROLES, formatWeight, roleLabel, sum } from './math'
 import { Giveaways } from './giveaways'
 import { Meter, Row, Rows, Section } from './parts'
 
@@ -20,7 +20,7 @@ export function Overview({ data }: { data: FinanceData }) {
         <Rows>
           <Row label="Revenue" detail="After discounts" value={money(sum(sales, s => s.revenue), c)} strong tone="gold" />
           <Row label="Net profit" detail="After discounts and free items" value={money(sum(sales, s => s.net_profit), c)} strong />
-          <Row label="Invested" detail="5% of revenue once the re-up fund is covered" value={money(invested, c)} tone="ok" />
+          <Row label="Invested" detail="Its share of profit once the re-up fund is covered" value={money(invested, c)} tone="ok" />
           <Row label="Orders delivered" value={orderCount} />
           <Row label="Weeks closed" value={closedWeeks.length} />
           {settings && (
@@ -31,40 +31,18 @@ export function Overview({ data }: { data: FinanceData }) {
 
       <Giveaways sales={sales} title="Rewards and discounts, all time" />
 
-      <Section title="Payouts by role">
+      <Section title="Payouts">
         {payouts.length === 0 ? (
           <p className="text-sm text-muted">Payouts appear here after the first week is closed.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[22rem] text-sm">
-              <thead>
-                <tr className="border-b border-line text-left text-muted">
-                  <th scope="col" className="py-2 pr-3 font-medium">Role</th>
-                  <th scope="col" className="py-2 px-3 text-right font-medium">Gross</th>
-                  <th scope="col" className="py-2 px-3 text-right font-medium">Delivery</th>
-                  <th scope="col" className="py-2 pl-3 text-right font-medium">Net</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ROLES.map(role => {
-                  const mine = payouts.filter(p => p.role === role.key)
-                  const gross = sum(mine, p => p.gross_payout)
-                  const delivery = sum(mine, p => p.delivery_contribution)
-                  return (
-                    <tr key={role.key} className="border-b border-line last:border-b-0">
-                      <th scope="row" className="py-3 pr-3 text-left font-semibold">
-                        {role.label}
-                        <span className="block text-xs font-normal text-muted">{role.desc}</span>
-                      </th>
-                      <td className="tabular py-3 px-3 text-right">{money(gross, c)}</td>
-                      <td className="tabular py-3 px-3 text-right text-danger">−{money(delivery, c)}</td>
-                      <td className="tabular py-3 pl-3 text-right font-semibold text-gold-ink">{money(gross - delivery, c)}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+          <Rows>
+            {/* Partners first, then anyone paid before the team was two partners. */}
+            {[...new Set([...ROLES.map(r => r.key as string), ...payouts.map(p => p.role)])].map(role => {
+              const mine = payouts.filter(p => p.role === role)
+              if (mine.length === 0) return null
+              return <Row key={role} label={roleLabel(role)} value={money(sum(mine, p => p.net_payout), c)} tone="gold" />
+            })}
+          </Rows>
         )}
       </Section>
 

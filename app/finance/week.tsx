@@ -4,16 +4,21 @@ import { CalendarPlus } from 'lucide-react'
 import { formatDay, money } from '@/lib/format'
 import { Badge, Button, Notice } from '@/components/ui'
 import type { FinanceData } from './data'
-import { DEFAULT_REUP_GOAL, GRAMS_PER_OZ, ROLES, type RoleKey, type Splits, formatWeight, projectWeek, roleLabel } from './math'
+import { DEFAULT_REUP_GOAL, GRAMS_PER_OZ, SPLIT_PARTS, type Splits, formatWeight, projectWeek, roleLabel, splitTotal } from './math'
 import { Giveaways } from './giveaways'
 import { Empty, Meter, Row, Rows, Section } from './parts'
 
 const c = { cents: true }
 
-export function ThisWeek({ data, splits, onSplitsChange, onStart, onClose }: {
+export function ThisWeek({ data, splits, splitsDirty, splitsSaving, splitsError, onSplitsChange, onSplitsSave, onSplitsReset, onStart, onClose }: {
   data: FinanceData
   splits: Splits
+  splitsDirty: boolean
+  splitsSaving: boolean
+  splitsError: string | null
   onSplitsChange: (s: Splits) => void
+  onSplitsSave: () => void
+  onSplitsReset: () => void
   onStart: () => void
   onClose: () => void
 }) {
@@ -21,7 +26,7 @@ export function ThisWeek({ data, splits, onSplitsChange, onStart, onClose }: {
   const weekSales = activeWeek ? data.sales.filter(s => s.week_id === activeWeek.id) : []
   const p = projectWeek(weekSales, data.reupFund, splits)
   const fund = data.reupFund
-  const splitTotal = ROLES.reduce((s, r) => s + splits[r.key], 0)
+  const total = splitTotal(splits)
 
   return (
     <div className="flex flex-col gap-10">
@@ -43,7 +48,7 @@ export function ThisWeek({ data, splits, onSplitsChange, onStart, onClose }: {
             <Row label="Revenue" value={money(p.revenue, c)} strong tone="gold" />
             <Row label="Profit" value={money(p.profit, c)} strong />
             <Row label="Sold" value={formatWeight(p.grams)} />
-            <Row label="Delivery costs" value={money(p.delivery, c)} tone="danger" />
+            {p.delivery > 0 && <Row label="Delivery costs" value={money(p.delivery, c)} tone="danger" />}
           </Rows>
         </section>
       )}
@@ -61,7 +66,7 @@ export function ThisWeek({ data, splits, onSplitsChange, onStart, onClose }: {
             {fund.status === 'completed' ? (
               <Notice tone="ok">Goal met. Start the next week to set a new goal.</Notice>
             ) : (
-              <p className="tabular text-sm text-muted">{money(p.reupNeeded, c)} still needed. All profit goes here first; the team is paid once it is covered.</p>
+              <p className="tabular text-sm text-muted">{money(p.reupNeeded, c)} still needed. All profit goes here first; Hussein and Dominic are paid once it is covered.</p>
             )}
           </div>
         )}
@@ -71,20 +76,14 @@ export function ThisWeek({ data, splits, onSplitsChange, onStart, onClose }: {
         <Section title="Where this week’s profit goes">
           <Rows>
             {p.fundOpen && <Row label="Re-up fund" value={money(p.toReup, c)} tone="gold" />}
-            <Row label="Investment fund" detail="5% of revenue, once the re-up fund is covered" value={money(p.investment, c)} tone="ok" />
-            <Row label="Available for the team" value={money(p.teamSurplus, c)} strong />
+            <Row label="Left to split" detail="Profit after the re-up fund" value={money(p.surplus, c)} strong />
           </Rows>
           <h3 className="mb-1 mt-6 text-sm font-semibold">Projected payouts</h3>
           <Rows>
             {p.payouts.map(row => (
-              <Row
-                key={row.role}
-                label={roleLabel(row.role)}
-                detail={`${money(row.gross, c)} gross − ${money(row.deliveryShare, c)} delivery`}
-                value={money(row.net, c)}
-                tone="gold"
-              />
+              <Row key={row.role} label={roleLabel(row.role)} detail={`${splits[row.role]}%`} value={money(row.amount, c)} tone="gold" />
             ))}
+            <Row label="Investment fund" detail={`${splits.investment}%`} value={money(p.investment, c)} tone="ok" />
           </Rows>
         </Section>
       )}
@@ -92,27 +91,34 @@ export function ThisWeek({ data, splits, onSplitsChange, onStart, onClose }: {
       {activeWeek && (
         <Section
           title="Profit split"
-          action={<Badge tone={splitTotal === 100 ? 'ok' : 'danger'}>{splitTotal}%{splitTotal === 100 ? '' : ', should be 100%'}</Badge>}
+          action={<Badge tone={total === 100 ? 'ok' : 'danger'}>{total}%{total === 100 ? '' : ', should be 100%'}</Badge>}
         >
-          <p className="mb-4 text-sm text-muted">Used for projections and when the week is closed.</p>
+          <p className="mb-4 text-sm text-muted">How profit is split once the re-up fund is covered. Saved for both of you and used when the week closes.</p>
           <div className="flex flex-col gap-4">
-            {ROLES.map(role => (
-              <label key={role.key} className="flex flex-col gap-1">
+            {SPLIT_PARTS.map(part => (
+              <label key={part.key} className="flex flex-col gap-1">
                 <span className="flex items-baseline justify-between text-sm">
-                  <span className="font-semibold">{role.label}</span>
-                  <span className="tabular font-semibold text-gold-ink">{splits[role.key]}%</span>
+                  <span className="font-semibold">{part.label}</span>
+                  <span className="tabular font-semibold text-gold-ink">{splits[part.key]}%</span>
                 </span>
                 <input
                   type="range"
                   min={0}
-                  max={70}
-                  value={splits[role.key]}
-                  onChange={e => onSplitsChange({ ...splits, [role.key as RoleKey]: Number(e.target.value) })}
+                  max={100}
+                  value={splits[part.key]}
+                  onChange={e => onSplitsChange({ ...splits, [part.key]: Number(e.target.value) })}
                   className="h-11 w-full cursor-pointer accent-gold"
                 />
               </label>
             ))}
           </div>
+          {splitsError && <Notice tone="danger" className="mt-4">{splitsError}</Notice>}
+          {splitsDirty && (
+            <div className="mt-4 flex gap-3">
+              <Button variant="outline" className="flex-1" onClick={onSplitsReset}>Undo</Button>
+              <Button className="flex-1" onClick={onSplitsSave} loading={splitsSaving} disabled={total !== 100}>Save split</Button>
+            </div>
+          )}
         </Section>
       )}
 

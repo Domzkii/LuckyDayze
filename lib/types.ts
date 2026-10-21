@@ -35,6 +35,8 @@ export interface StoreSettings {
   is_open: boolean
   delivery_minimum: number
   cost_per_gram: number
+  /** Share of profit after the re-up fund, in percent: { hussein, dominic, investment }. */
+  payout_splits?: Record<string, number> | null
   updated_at: string
 }
 

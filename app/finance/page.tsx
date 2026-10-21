@@ -8,7 +8,7 @@ import { StaffGate } from '@/components/staff-gate'
 import { ThemeToggle } from '@/components/theme'
 import { IconButton, Notice, Spinner, Wordmark, buttonClass, cx } from '@/components/ui'
 import { useFinanceData } from './data'
-import { DEFAULT_SPLITS, type Splits } from './math'
+import { type Splits, readSplits, splitTotal } from './math'
 import { Overview } from './overview'
 import { ThisWeek } from './week'
 import { CloseWeekDialog, StartWeekDialog } from './week-dialogs'
@@ -30,11 +30,30 @@ export default function FinancePage() {
 function Finance() {
   const { data, loading, error, reload } = useFinanceData()
   const [tab, setTab] = useState<TabKey>('overview')
-  const [splits, setSplits] = useState<Splits>(DEFAULT_SPLITS)
+  // The saved split comes from the database; edits stay a draft until Save split.
+  const savedSplits = readSplits(data.settings?.payout_splits)
+  const [draftSplits, setDraftSplits] = useState<Splits | null>(null)
+  const splits = draftSplits ?? savedSplits
+  const [splitsSaving, setSplitsSaving] = useState(false)
+  const [splitsError, setSplitsError] = useState<string | null>(null)
   const [startOpen, setStartOpen] = useState(false)
   const [closeOpen, setCloseOpen] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([])
+
+  async function saveSplits() {
+    if (!draftSplits || splitTotal(draftSplits) !== 100) return
+    setSplitsSaving(true)
+    setSplitsError(null)
+    const { error } = await supabase().from('store_settings').update({ payout_splits: draftSplits }).eq('id', 1)
+    if (error) {
+      setSplitsSaving(false)
+      return setSplitsError(`Couldn’t save the split: ${error.message}`)
+    }
+    await reload()
+    setDraftSplits(null)
+    setSplitsSaving(false)
+  }
 
   async function refresh() {
     setRefreshing(true)
@@ -116,7 +135,18 @@ function Finance() {
         ) : tab === 'overview' ? (
           <Overview data={data} />
         ) : tab === 'week' ? (
-          <ThisWeek data={data} splits={splits} onSplitsChange={setSplits} onStart={() => setStartOpen(true)} onClose={() => setCloseOpen(true)} />
+          <ThisWeek
+            data={data}
+            splits={splits}
+            splitsDirty={draftSplits !== null}
+            splitsSaving={splitsSaving}
+            splitsError={splitsError}
+            onSplitsChange={setDraftSplits}
+            onSplitsSave={saveSplits}
+            onSplitsReset={() => { setDraftSplits(null); setSplitsError(null) }}
+            onStart={() => setStartOpen(true)}
+            onClose={() => setCloseOpen(true)}
+          />
         ) : tab === 'history' ? (
           <History data={data} />
         ) : (
@@ -129,7 +159,7 @@ function Finance() {
         open={closeOpen}
         onClose={() => setCloseOpen(false)}
         data={data}
-        splits={splits}
+        splits={savedSplits}
         onDone={async () => { await reload(); setStartOpen(true) }}
       />
     </div>

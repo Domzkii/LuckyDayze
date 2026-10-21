@@ -1,6 +1,6 @@
 # LuckyDayze
 
-Cannabis delivery and pickup for residents of one building, plus invited friends outside it. Next.js 16 on Vercel, Supabase for data, auth and photos, Resend for order emails.
+Cannabis delivery and pickup for residents of one building, plus invited friends outside it. Next.js 16 on Vercel, Supabase for data, auth and photos, Resend for order emails, web push for staff phone alerts.
 
 ## Pages
 
@@ -13,15 +13,15 @@ Cannabis delivery and pickup for residents of one building, plus invited friends
 | `/rewards` | Customers | Points, rewards, referral code |
 | `/app` | Customers | How to add LuckyDayze to the home screen (iPhone, Android, desktop) |
 | `/account` | Customers | Optional account: sign in, sign up (invite links for friends), their details and special prices |
-| `/admin` | Staff | Orders, scheduled orders, customers, accounts and special prices, promos |
-| `/finance` | Staff | Weekly books, payouts, re-up and investment funds, product catalog |
+| `/admin` | Staff | Orders, scheduled orders, customers, accounts and special prices, promos. Saved to the home screen it installs as its own app, **LD Office**, with push alerts |
+| `/finance` | Staff | Weekly books, the partner split, re-up and investment funds, product catalog |
 
 Customers never write to the database directly. Every customer action goes through `app/api/*`, which recomputes prices from the database (`lib/pricing.ts` is shared by the browser preview and the server). Staff sign in with Supabase Auth, and row-level security limits the data to people listed in `public.staff`.
 
 ## Set up a new Supabase project
 
 1. Create a project at [supabase.com](https://supabase.com).
-2. Open **SQL Editor** and run each file in `supabase/migrations/` in order (`0001` → `0006`). `0001_init.sql` creates the tables, security rules, the order functions, realtime, and the `products` photo bucket; the later files layer on pricing, the one-deal rule, the October tweaks and customer accounts.
+2. Open **SQL Editor** and run each file in `supabase/migrations/` in order (`0001` → `0008`). `0001_init.sql` creates the tables, security rules, the order functions, realtime, and the `products` photo bucket; the later files layer on pricing, the one-deal rule, the October tweaks, customer accounts, staff push alerts (`0007`) and the two-partner split (`0008`).
 3. **Authentication → Providers → Email**: turn off "Allow new users to sign up". Customer accounts are created by `/api/account/signup` with the service key, already confirmed, so no emails are sent and this setting can stay off.
 4. **Authentication → Users → Add user**: create a login for each staff member.
 5. Make them staff (SQL Editor):
@@ -46,13 +46,28 @@ npm run lint
 
 1. Customer places the order at `/checkout`. Status: **pending payment**.
 2. They pay from their order page: Cash App to $Luckydayz3, or Zelle with the order code in the memo. Cash orders wait for staff to approve them, then are collected at the door.
-3. Staff move it along in `/admin`: payment received → preparing → out for delivery (or ready for pickup) → delivered.
+3. Staff move it along in `/admin`: payment received → preparing → out for delivery (or ready for pickup) → delivered. **Mark delivered** is one tap; deliveries stay in the building, so no delivery cost is recorded.
 4. **Delivered** runs `complete_order()` once: loyalty points, referral bonus, inventory, sales rows for finance, and the Popular badge. Running it twice does nothing.
 5. **Cancel** runs `cancel_order()`, which gives back any points spent on a reward.
 
 Signed-in customers send their session token with the order. The server looks up their profile: friends outside the building deliver to their street address, and a special price list (Admin → Accounts) competes as the order's one deal.
 
 Scheduled orders wait in **Scheduled** until staff queue them. Recurring ones roll forward to their next date.
+
+## Order alerts
+
+Every new order (`app/api/orders`) sends two alerts at once. Neither can fail the order.
+
+- **Email** (`lib/server/notify.ts`) through Resend, from `ORDER_NOTIFY_FROM` (orders@luckydayzenyc.com, verified in Resend) to every address in `ORDER_NOTIFY_EMAIL` (comma-separated).
+- **Push** (`lib/server/push.ts`) to every device in `push_subscriptions`. Staff turn it on per device with **Turn on alerts** in the admin header (☰ menu on phones), which registers `public/sw.js` and sends a test push to that device only. iPhones need the back office saved to the home screen first (`app/admin/layout.tsx` points it at `public/office-manifest.json`). Devices that bounce (404/410) are removed automatically. Needs `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT`.
+
+## Weekly books and payouts
+
+1. **Start week** (Finance → This week): stock per strain in ounces, which replaces what's on hand, plus the re-up goal.
+2. Each delivered order books its revenue and profit at `store_settings.cost_per_gram` (set in SQL; currently $2.9286/g from a $410 re-up for 5 oz).
+3. **Close week**: profit fills the re-up fund first. What's left splits by `store_settings.payout_splits`, by default **Hussein 75%, Dominic 20%, investment fund 5%**. The split is edited with the sliders in This week and saved for both partners (**Save split**). Closing writes `week_payouts` (one row per partner) and the investment contribution, and can't be undone.
+
+Weeks closed before the two-partner split still show their old roles (CEO, CFO, Acquisitions, Delivery runner) in History.
 
 ## Accounts and special prices
 

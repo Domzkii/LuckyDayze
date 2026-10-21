@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase/browser'
 import { money, todayInStore } from '@/lib/format'
 import { Button, Dialog, Field, Notice, inputClass } from '@/components/ui'
 import { type FinanceData, runWrites } from './data'
-import { DEFAULT_REUP_GOAL, GRAMS_PER_OZ, GRAMS_PER_QP, type Splits, carryoverFrom, closingBook, formatWeight, projectWeek, roleLabel, round2 } from './math'
+import { DEFAULT_REUP_GOAL, GRAMS_PER_OZ, GRAMS_PER_QP, type Splits, carryoverFrom, closingBook, formatWeight, projectWeek, roleLabel, round2, splitTotal } from './math'
 import { Row, Rows } from './parts'
 
 const c = { cents: true }
@@ -35,6 +35,7 @@ function StartWeekForm({ data, onClose, onDone }: { data: FinanceData; onClose: 
   const gramsFor = (id: string) => Math.max(0, Number(ounces[id]) || 0) * GRAMS_PER_OZ
   const totalGrams = strains.reduce((s, p) => s + gramsFor(p.id), 0)
   const goalValue = Number(goal)
+  const qpPrice = Math.round((Number(data.settings?.cost_per_gram) || 0) * GRAMS_PER_QP)
   const goalError = !(goalValue > 0) ? 'Enter a goal above $0.' : null
 
   async function start() {
@@ -79,7 +80,7 @@ function StartWeekForm({ data, onClose, onDone }: { data: FinanceData; onClose: 
         {carryover > 0 && <> Last week left about <span className="tabular font-semibold text-ink">{formatWeight(carryover)}</span>.</>}
       </p>
 
-      <Field label="Re-up goal" hint={`All profit goes here first. ${(goalValue / 400 || 0).toFixed(1)} QPs at $400 each.`} error={goalError}>
+      <Field label="Re-up goal" hint={`All profit goes here first, before anyone is paid.${qpPrice ? ` About ${(goalValue / qpPrice || 0).toFixed(1)} QPs at ${money(qpPrice)} each.` : ''}`} error={goalError}>
         {props => (
           <div className="relative">
             <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted">$</span>
@@ -147,7 +148,7 @@ export function CloseWeekDialog({ open, onClose, data, splits, onDone }: {
   const preview = projectWeek(weekSales, data.reupFund, splits)
   // Payout lines come from the same book the close writes, so what you see is what gets recorded.
   const book = closingBook(weekSales, data.reupFund, splits)
-  const splitTotal = Object.values(splits).reduce((a, b) => a + b, 0)
+  const total = splitTotal(splits)
 
   async function close() {
     if (!activeWeek) return
@@ -194,30 +195,29 @@ export function CloseWeekDialog({ open, onClose, data, splits, onDone }: {
   return (
     <Dialog open={open} onClose={onClose} title={activeWeek ? `Close week ${activeWeek.week_number}?` : 'Close week'}>
       <div className="flex flex-col gap-6">
-        <p className="text-sm text-muted">This records the week’s totals and pays out by role. It can’t be undone.</p>
+        <p className="text-sm text-muted">This records the week’s totals and pays out Hussein and Dominic. It can’t be undone.</p>
         <Rows>
           <Row label="Revenue" value={money(preview.revenue, c)} />
           <Row label="Profit" value={money(preview.profit, c)} />
           {preview.fundOpen && <Row label="To the re-up fund" value={money(preview.toReup, c)} tone="gold" />}
-          {preview.investment > 0 && <Row label="To the investment fund (5%)" value={money(preview.investment, c)} tone="ok" />}
         </Rows>
-        {preview.fundOpen && preview.teamSurplus === 0 && (
+        {preview.fundOpen && preview.surplus === 0 && (
           <Notice tone="warn">All profit goes to the re-up fund this week. {money(preview.reupNeeded - preview.toReup, c)} still needed after this.</Notice>
         )}
         <div>
           <h3 className="mb-1 text-sm font-semibold">Payouts</h3>
           <Rows>
             {book.payouts.map(p => (
-              <Row key={p.role} label={roleLabel(p.role)} value={money(p.net_payout, c)} tone="gold" />
+              <Row key={p.role} label={roleLabel(p.role)} detail={`${splits[p.role]}%`} value={money(p.net_payout, c)} tone="gold" />
             ))}
-            <Row label="Total paid out" value={money(book.payouts.reduce((s, p) => s + p.net_payout, 0), c)} strong />
+            <Row label="Investment fund" detail={`${splits.investment}%`} value={money(book.investment, c)} tone="ok" />
           </Rows>
         </div>
-        {splitTotal !== 100 && <Notice tone="danger">The profit split adds up to {splitTotal}%, not 100%. Fix it in This week before closing.</Notice>}
+        {total !== 100 && <Notice tone="danger">The profit split adds up to {total}%, not 100%. Fix it in This week before closing.</Notice>}
         {error && <Notice tone="danger">{error}</Notice>}
         <div className="flex gap-3">
           <Button variant="outline" className="flex-1" onClick={onClose}>Cancel</Button>
-          <Button className="flex-1" onClick={close} loading={busy} disabled={!activeWeek || splitTotal !== 100}>Close and pay out</Button>
+          <Button className="flex-1" onClick={close} loading={busy} disabled={!activeWeek || total !== 100}>Close and pay out</Button>
         </div>
       </div>
     </Dialog>
