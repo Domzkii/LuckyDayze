@@ -21,7 +21,7 @@ Customers never write to the database directly. Every customer action goes throu
 ## Set up a new Supabase project
 
 1. Create a project at [supabase.com](https://supabase.com).
-2. Open **SQL Editor** and run each file in `supabase/migrations/` in order (`0001` → `0008`). `0001_init.sql` creates the tables, security rules, the order functions, realtime, and the `products` photo bucket; the later files layer on pricing, the one-deal rule, the October tweaks, customer accounts, staff push alerts (`0007`) and the two-partner split (`0008`).
+2. Open **SQL Editor** and run each file in `supabase/migrations/` in order (`0001` → `0009`). `0001_init.sql` creates the tables, security rules, the order functions, realtime, and the `products` photo bucket; the later files layer on pricing, the one-deal rule, the October tweaks, customer accounts, staff push alerts (`0007`), the two-partner split (`0008`) and referrer points (`0009`).
 3. **Authentication → Providers → Email**: turn off "Allow new users to sign up". Customer accounts are created by `/api/account/signup` with the service key, already confirmed, so no emails are sent and this setting can stay off.
 4. **Authentication → Users → Add user**: create a login for each staff member.
 5. Make them staff (SQL Editor):
@@ -51,6 +51,8 @@ npm run lint
 5. **Cancel** runs `cancel_order()`, which gives back any points spent on a reward.
 
 Signed-in customers send their session token with the order. The server looks up their profile: friends outside the building deliver to their street address, and a special price list (Admin → Accounts) competes as the order's one deal.
+
+**Welcome offer** (`WELCOME_OFFER` in `lib/pricing.ts`): $5 off a signed-in account's first order, on top of the one deal. It only applies on the account's own phone number, for delivery or pickup, when that number has no earlier order that wasn't cancelled. It switches itself off at `endsAt`. To run it again, move `endsAt` (and the `through` wording) and deploy.
 
 Scheduled orders wait in **Scheduled** until staff queue them. Recurring ones roll forward to their next date.
 
