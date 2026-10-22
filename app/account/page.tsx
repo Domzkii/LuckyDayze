@@ -14,6 +14,12 @@ import { Button, Field, Notice, Segmented, Spinner, inputClass } from '@/compone
 export default function AccountPage() {
   const account = useAccount()
 
+  // Checkout's "create an account" link brings people back to their cart once they're in.
+  useEffect(() => {
+    if (account.status !== 'signed-in') return
+    if (new URLSearchParams(window.location.search).get('next') === 'checkout') window.location.replace('/checkout')
+  }, [account.status])
+
   return (
     <>
       <SiteHeader back={{ href: '/', label: 'Menu' }} />
@@ -46,12 +52,13 @@ function SignedOut() {
   const [inviteError, setInviteError] = useState<string | null>(null)
   const [mode, setMode] = useState<'signin' | 'signup'>('signin')
 
-  // An invite link (/account?invite=CODE) opens the friend sign-up.
+  // An invite link (/account?invite=CODE) opens the friend sign-up; /account?signup=1 opens the plain one.
   useEffect(() => {
-    const code = new URLSearchParams(window.location.search).get('invite')
-    if (!code) return
+    const params = new URLSearchParams(window.location.search)
+    const code = params.get('invite')
     /* eslint-disable react-hooks/set-state-in-effect -- reading the URL after mount */
-    setMode('signup')
+    if (code || params.has('signup')) setMode('signup')
+    if (!code) return
     setInvite(code.toUpperCase())
     /* eslint-enable react-hooks/set-state-in-effect */
     fetch(`/api/account/signup?invite=${encodeURIComponent(code)}`)

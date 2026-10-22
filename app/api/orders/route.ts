@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { serviceClient } from '@/lib/supabase/server'
 import { FREQUENCIES, MAX_SCHEDULE_DAYS, PAYMENT_METHODS, PICKUP_PLACE, TIME_WINDOWS, WEIGHTS, formatApt, money, normalizePhone, todayInStore } from '@/lib/format'
-import { quote, type CartLine } from '@/lib/pricing'
+import { quote, welcomeOfferLive, type CartLine } from '@/lib/pricing'
 import {
   REFERRAL_BONUS_POINTS, REFERRAL_GIFTS, REFERRAL_REWARD_KEY, SIGNUP_POINTS, rewardByKey, type ReferralChoice,
 } from '@/lib/rewards'
@@ -177,8 +177,19 @@ export async function POST(request: Request) {
     // prices, whichever is worth most to the customer. lib/pricing decides.
     const banked = fulfillment !== 'scheduled' ? Number(loyalty?.next_order_credit ?? 0) : 0
 
+    // ── Welcome offer ──
+    // A signed-in account's first order, on the account's own number. Not on scheduled orders,
+    // since repeats copy their discounts. Any earlier order that wasn't cancelled rules it out.
+    let welcome = false
+    if (profile && phone === profile.phone && fulfillment !== 'scheduled' && welcomeOfferLive() && !(loyalty && loyalty.purchase_count > 0)) {
+      const { count, error } = await db.from('orders').select('id', { count: 'exact', head: true })
+        .eq('customer_phone', phone).neq('status', 'cancelled')
+      if (error) throw error
+      welcome = count === 0
+    }
+
     // ── Price it ──
-    const priced = quote(lines, products, { sale, credit: banked, special: priceList?.prices })
+    const priced = quote(lines, products, { sale, credit: banked, special: priceList?.prices, welcome })
     const creditUsed = priced.discounts.find(d => d.kind === 'credit')?.amount ?? 0
     if (priced.lines.length === 0) throw new InputError('Your cart is empty.')
     if (fulfillment !== 'pickup' && priced.merchandise < Number(settings.delivery_minimum)) {

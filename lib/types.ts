@@ -73,7 +73,7 @@ export interface OrderItem {
 }
 
 /** What kind of money we gave up. Older orders may not have one; 'house' and 'scheduled' are retired. */
-export type DiscountKind = 'preroll_deal' | 'promo' | 'perk' | 'credit' | 'special' | 'house' | 'scheduled'
+export type DiscountKind = 'preroll_deal' | 'promo' | 'perk' | 'credit' | 'special' | 'house' | 'scheduled' | 'welcome'
 
 export interface Discount {
   label: string

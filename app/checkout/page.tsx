@@ -8,7 +8,7 @@ import {
   CASHTAG, FREQUENCIES, MAX_SCHEDULE_DAYS, PAYMENT_METHODS, TIME_WINDOWS, ZELLE_PHONE, formatDay, formatPhone, money, normalizePhone,
   todayInStore, weightLabel,
 } from '@/lib/format'
-import { perkNudge, quote } from '@/lib/pricing'
+import { WELCOME_OFFER, perkNudge, quote, welcomeOfferLive } from '@/lib/pricing'
 import { REFERRAL_GIFTS, type ReferralChoice } from '@/lib/rewards'
 import { rememberOrder, saveCustomer, savedCustomer } from '@/lib/local'
 import { useCatalog } from '@/lib/use-catalog'
@@ -100,7 +100,10 @@ export default function CheckoutPage() {
   // One deal per order: the spend perk competes with promos and banked credit.
   // lib/pricing picks whichever is worth most to the customer (the server does the same).
   const special = me?.prices ?? null
-  const priced = useMemo(() => quote(lines, products, { sale, credit: banked, special }), [lines, products, sale, banked, special])
+  // New accounts get the welcome offer on their first order; the server re-checks past orders.
+  const welcomeLive = welcomeOfferLive() && method !== 'scheduled'
+  const welcome = !!me && welcomeLive && cleanPhone === me.phone && !(knownAccount && knownAccount.purchase_count > 0)
+  const priced = useMemo(() => quote(lines, products, { sale, credit: banked, special, welcome }), [lines, products, sale, banked, special, welcome])
   const minimum = Number(settings?.delivery_minimum ?? 30)
   const short = method !== 'pickup' ? minimum - priced.merchandise : 0
 
@@ -437,6 +440,11 @@ export default function CheckoutPage() {
               )}
               {/* Special prices usually beat the spend perks, so the nudge would only mislead. */}
               {!special && perkNudge(priced.merchandise) && <p className="text-sm text-gold-ink">{perkNudge(priced.merchandise)}</p>}
+              {welcomeLive && signedIn.status === 'guest' && (
+                <p className="text-sm text-gold-ink">
+                  New here? <Link href="/account?signup=1&next=checkout" className="font-semibold underline underline-offset-2 hover:text-ink">Create an account</Link> for ${WELCOME_OFFER.off} off your first order, through {WELCOME_OFFER.through}.
+                </p>
+              )}
 
               {errors.form && (
                 <div ref={errorRef} tabIndex={-1} data-error>

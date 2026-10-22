@@ -42,6 +42,16 @@ export const PERKS = [
   { min: 150, off: 15 },
 ] as const
 
+/**
+ * New sign-ups: dollars off a first order placed from an account. Stacks on top of the one deal.
+ * Runs through Monday 10/26 at 11:59pm NY time (midnight EDT is 04:00 UTC).
+ */
+export const WELCOME_OFFER = { off: 5, endsAt: '2026-10-27T04:00:00Z', label: 'Welcome: $5 off your first order', through: 'Monday' }
+
+export function welcomeOfferLive(now = new Date()) {
+  return now < new Date(WELCOME_OFFER.endsAt)
+}
+
 /** The spend perk an order of this size earns, or null. */
 export function perkFor(merchandise: number) {
   return [...PERKS].reverse().find(p => merchandise >= p.min) ?? null
@@ -95,6 +105,8 @@ export interface QuoteOptions {
   credit?: number
   /** A signed-in customer's special flower prices. */
   special?: SpecialPrices | null
+  /** A new account's first order during the welcome offer. */
+  welcome?: boolean
 }
 
 /** Flower price for this size from a special price list, if it beats the regular one. */
@@ -184,6 +196,13 @@ export function quote(cart: CartLine[], products: Product[], opts: QuoteOptions)
   const strip = ({ kind, label, value }: Deal) => ({ kind, label, value })
   const deal = best ? strip(best) : null
   const passedOver = ranked.slice(1).map(strip)
+
+  // The welcome offer isn't a deal: it comes off on top, never below zero merchandise.
+  if (opts.welcome) {
+    const left = merchandise - (best?.discount ?? 0)
+    const amount = roundCents(Math.min(WELCOME_OFFER.off, left))
+    if (amount > 0) discounts.push({ label: WELCOME_OFFER.label, amount, kind: 'welcome' })
+  }
 
   const discountTotal = discounts.reduce((s, d) => s + d.amount, 0)
   const total = roundCents(Math.max(0, subtotal - discountTotal))

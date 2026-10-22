@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { ArrowDown, Clock, DoorOpen, RefreshCw, Tag } from 'lucide-react'
+import { ArrowDown, Clock, DoorOpen, Gift, RefreshCw, Tag } from 'lucide-react'
 import { InstagramIcon } from '@/components/icons'
 import { INSTAGRAM, money } from '@/lib/format'
-import { PERKS, quote } from '@/lib/pricing'
+import { PERKS, WELCOME_OFFER, quote, welcomeOfferLive } from '@/lib/pricing'
 import { availableProducts, useCatalog } from '@/lib/use-catalog'
 import type { Product, SaleEvent } from '@/lib/types'
 import { useCart } from '@/components/cart'
@@ -79,6 +79,7 @@ function Storefront() {
         </section>
 
         {sale && <SaleBand sale={sale} />}
+        <WelcomeBand />
         <PerksBand />
 
         <section id="menu" aria-labelledby="menu-title" className="mx-auto max-w-6xl scroll-mt-20 px-4 pb-24 pt-10 sm:px-6">
@@ -182,6 +183,25 @@ function SaleBand({ sale }: { sale: SaleEvent }) {
         <Tag size={18} strokeWidth={1.75} className="shrink-0" />
         <p className="text-sm sm:text-base">
           <span className="font-semibold">{sale.title}.</span> {amount} {scope}, taken off at checkout.
+        </p>
+      </div>
+    </div>
+  )
+}
+
+function WelcomeBand() {
+  // Checked after mount: the page is prerendered, and the offer has an end date.
+  const [live, setLive] = useState(false)
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- the clock is only read in the browser
+  useEffect(() => setLive(welcomeOfferLive()), [])
+  if (!live) return null
+  return (
+    <div className="border-b border-line bg-surface">
+      <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3.5 sm:px-6">
+        <Gift size={18} strokeWidth={1.75} className="shrink-0 text-gold-ink" />
+        <p className="text-sm sm:text-base">
+          <span className="font-semibold">New here?</span> Create an account and get {money(WELCOME_OFFER.off)} off your first order, on top of any deal. Through {WELCOME_OFFER.through}.{' '}
+          <Link href="/account?signup=1" className="font-semibold text-gold-ink underline underline-offset-4 hover:text-ink">Sign up</Link>
         </p>
       </div>
     </div>
