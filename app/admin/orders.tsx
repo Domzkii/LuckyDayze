@@ -6,7 +6,9 @@ import { supabase } from '@/lib/supabase/browser'
 import { Badge, Button, ConfirmDialog, Dialog, Notice, Spinner, cx } from '@/components/ui'
 import { STORE_TIME_ZONE, formatApt, formatPhone, formatTime, money, orderCode, paymentLabel, todayInStore } from '@/lib/format'
 import { rewardByKey } from '@/lib/rewards'
-import type { Loyalty, Order, OrderStatus, Sale } from '@/lib/types'
+import type { Loyalty, Order, OrderStatus, Product, Sale } from '@/lib/types'
+import { HandSaleDialog } from '@/app/finance/hand-sale'
+import { HAND_SELLER } from '@/app/finance/math'
 import { ACTIVE_STATUSES, EmptyState, FulfillmentLabel, StatusBadge, errorText, itemLine, itemSummary, statusLabel } from './shared'
 
 type Filter = 'active' | OrderStatus
@@ -20,6 +22,8 @@ const FILTERS: { value: Filter; label: string }[] = [
   { value: 'delivered', label: 'Delivered' },
   { value: 'cancelled', label: 'Cancelled' },
 ]
+
+type HandRow = Pick<Sale, 'created_at' | 'revenue' | 'grams_sold' | 'product_name'>
 
 const FLOW: OrderStatus[] = ['pending_payment', 'confirmed', 'preparing', 'out_for_delivery']
 const REVENUE_STATUSES: OrderStatus[] = ['confirmed', 'preparing', 'out_for_delivery', 'delivered']
@@ -56,13 +60,35 @@ export function OrdersTab({
     return c
   }, [orders])
 
-  // Sales logged by hand in Finance (Hussein's dad) have no order, so they're read from sales directly.
-  const [handSales, setHandSales] = useState<Pick<Sale, 'created_at' | 'revenue'>[]>([])
+  // Sales logged by hand (Hussein's dad) have no order, so they're read from sales directly.
+  // Rows logged together share a timestamp; each group shows as one entry under Delivered.
+  const [handSales, setHandSales] = useState<HandRow[]>([])
+  const [handTick, setHandTick] = useState(0)
+  const [handOpen, setHandOpen] = useState(false)
+  const [products, setProducts] = useState<Product[]>([])
   useEffect(() => {
-    const since = new Date(Date.now() - 36 * 60 * 60 * 1000).toISOString()
-    supabase().from('sales').select('created_at, revenue').not('seller', 'is', null).gte('created_at', since)
-      .then(({ data }) => setHandSales(data ?? []))
-  }, [orders])
+    const since = new Date(Date.now() - 60 * 86_400_000).toISOString()
+    supabase().from('sales').select('created_at, revenue, grams_sold, product_name')
+      .not('seller', 'is', null).is('order_id', null).gte('created_at', since).order('created_at', { ascending: false })
+      .then(({ data }) => setHandSales((data ?? []) as HandRow[]))
+  }, [orders, handTick])
+
+  async function openHandSale() {
+    const { data } = await supabase().from('products').select('*').eq('category', 'Flower').eq('archived', false).order('name')
+    setProducts((data ?? []) as Product[])
+    setHandOpen(true)
+  }
+
+  const handBatches = useMemo(() => {
+    const groups = new Map<string, HandRow[]>()
+    for (const row of handSales) groups.set(row.created_at, [...(groups.get(row.created_at) ?? []), row])
+    return [...groups].map(([at, rows]) => ({
+      at,
+      rows,
+      eighths: Math.round(rows.reduce((n, r) => n + Number(r.grams_sold), 0) / 3.5),
+      total: rows.reduce((n, r) => n + Number(r.revenue), 0),
+    }))
+  }, [handSales])
 
   const today = todayInStore()
   // A sale counts on the day it was delivered, or the day it was placed if it's still on its way.
@@ -73,6 +99,12 @@ export function OrdersTab({
   const todayCount = todays.length + todaysHand.length
 
   const visible = filter === 'active' ? orders.filter(o => ACTIVE_STATUSES.includes(o.status)) : orders.filter(o => o.status === filter)
+  // Delivered mixes real orders with hand-logged batches, newest first.
+  const entries: ({ kind: 'order'; at: string; order: Order } | { kind: 'hand'; at: string; batch: (typeof handBatches)[number] })[] = [
+    ...visible.map(order => ({ kind: 'order' as const, at: order.delivered_at ?? order.created_at, order })),
+    ...(filter === 'delivered' ? handBatches.map(batch => ({ kind: 'hand' as const, at: batch.at, batch })) : []),
+  ]
+  if (filter === 'delivered') entries.sort((a, b) => b.at.localeCompare(a.at))
   const selected = orders.find(o => o.id === selectedId) ?? null
 
   return (
@@ -81,6 +113,10 @@ export function OrdersTab({
         Today: <span className="tabular font-semibold text-ink">{money(todayRevenue, { cents: false })}</span> from{' '}
         <span className="tabular font-semibold text-ink">{todayCount}</span> paid sale{todayCount === 1 ? '' : 's'}
         {todaysHand.length > 0 && <> · <span className="tabular">{money(handRevenue, { cents: false })}</span> from Hussein’s dad</>}
+        {' · '}
+        <button type="button" onClick={openHandSale} className="font-semibold text-gold-ink underline-offset-2 hover:underline">
+          Log {HAND_SELLER.label}’s sale
+        </button>
       </p>
 
       <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
@@ -96,7 +132,9 @@ export function OrdersTab({
             )}
           >
             {f.label}
-            <span className={cx('tabular text-xs', filter === f.value ? 'text-canvas/70' : 'text-muted')}>{counts[f.value] ?? 0}</span>
+            <span className={cx('tabular text-xs', filter === f.value ? 'text-canvas/70' : 'text-muted')}>
+              {(counts[f.value] ?? 0) + (f.value === 'delivered' ? handBatches.length : 0)}
+            </span>
           </button>
         ))}
       </div>
@@ -105,57 +143,81 @@ export function OrdersTab({
 
       {loading ? (
         <Spinner label="Loading orders" />
-      ) : visible.length === 0 ? (
+      ) : entries.length === 0 ? (
         <EmptyState icon={<Inbox size={28} strokeWidth={1.5} />} title={filter === 'active' ? 'No open orders' : 'Nothing here'}>
           {filter === 'active' ? 'New orders show up here the moment they’re placed.' : 'No orders with this status yet.'}
         </EmptyState>
       ) : (
         <ul className="flex flex-col divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">
-          {visible.map(order => (
-            <li key={order.id}>
-              <button
-                type="button"
-                onClick={() => setSelectedId(order.id)}
-                className="flex w-full flex-col gap-2 px-4 py-4 text-left transition-colors hover:bg-sunken/60"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="display truncate text-lg font-semibold">{order.customer_name}</p>
-                    <p className="text-sm text-muted">{formatTime(order.created_at)}</p>
-                  </div>
-                  <div className="flex shrink-0 flex-col items-end gap-1.5">
-                    <StatusBadge order={order} />
-                    {order.customer_arrived && order.status !== 'delivered' && order.status !== 'cancelled' && (
-                      <Badge tone="danger" className="animate-pulse">
-                        <BellRing size={12} strokeWidth={2} aria-hidden /> Arrived
-                      </Badge>
-                    )}
-                  </div>
+          {entries.map(entry => entry.kind === 'hand' ? (
+            <li key={`hand-${entry.at}`} className="flex flex-col gap-2 px-4 py-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="display truncate text-lg font-semibold">{HAND_SELLER.label}</p>
+                  <p className="text-sm text-muted">{formatTime(entry.at)}</p>
                 </div>
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-                  <FulfillmentLabel fulfillment={order.fulfillment} className="font-semibold" />
-                  <span className="min-w-0 truncate text-muted">
-                    {order.seller ? 'Hussein’s dad hands it off' : order.fulfillment === 'pickup' ? 'Pickup from us' : formatApt(order.customer_address)}
-                  </span>
-                </div>
-                <div className="flex items-end justify-between gap-3">
-                  <p className="line-clamp-2 text-sm text-muted">
-                    {order.payment_method === 'zelle' ? <span className="font-semibold text-ok">Zelle {orderCode(order.id)} · </span>
-                      : order.payment_method === 'applepay' ? <span className="font-semibold text-ok">Apple Pay {orderCode(order.id)} · </span>
-                      : order.payment_method === 'cash' ? <span className="font-semibold text-ok">Cash · </span>
-                      : order.cash_tag && <span className="font-semibold text-ok">${order.cash_tag} · </span>}
-                    {itemSummary(order.items)}
-                  </p>
-                  <span className="tabular shrink-0 font-semibold">{money(Number(order.total), { cents: true })}</span>
-                </div>
-              </button>
+                <Badge tone="ok">Logged by hand</Badge>
+              </div>
+              <div className="flex items-end justify-between gap-3">
+                <p className="line-clamp-2 text-sm text-muted">
+                  <span className="font-semibold text-ok">Cash · </span>
+                  {entry.batch.eighths} × 8th · {entry.batch.rows.map(r => r.product_name).join(', ')}
+                </p>
+                <span className="tabular shrink-0 font-semibold">{money(entry.batch.total, { cents: true })}</span>
+              </div>
             </li>
+          ) : (
+            <OrderRow key={entry.order.id} order={entry.order} onOpen={() => setSelectedId(entry.order.id)} />
           ))}
         </ul>
       )}
 
       <OrderDetail order={selected} onClose={() => setSelectedId(null)} onChanged={onChanged} />
+      <HandSaleDialog open={handOpen} onClose={() => setHandOpen(false)} products={products} onDone={async () => setHandTick(t => t + 1)} />
     </section>
+  )
+}
+
+function OrderRow({ order, onOpen }: { order: Order; onOpen: () => void }) {
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={onOpen}
+        className="flex w-full flex-col gap-2 px-4 py-4 text-left transition-colors hover:bg-sunken/60"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="display truncate text-lg font-semibold">{order.customer_name}</p>
+            <p className="text-sm text-muted">{formatTime(order.created_at)}</p>
+          </div>
+          <div className="flex shrink-0 flex-col items-end gap-1.5">
+            <StatusBadge order={order} />
+            {order.customer_arrived && order.status !== 'delivered' && order.status !== 'cancelled' && (
+              <Badge tone="danger" className="animate-pulse">
+                <BellRing size={12} strokeWidth={2} aria-hidden /> Arrived
+              </Badge>
+            )}
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+          <FulfillmentLabel fulfillment={order.fulfillment} className="font-semibold" />
+          <span className="min-w-0 truncate text-muted">
+            {order.seller ? 'Hussein’s dad hands it off' : order.fulfillment === 'pickup' ? 'Pickup from us' : formatApt(order.customer_address)}
+          </span>
+        </div>
+        <div className="flex items-end justify-between gap-3">
+          <p className="line-clamp-2 text-sm text-muted">
+            {order.payment_method === 'zelle' ? <span className="font-semibold text-ok">Zelle {orderCode(order.id)} · </span>
+              : order.payment_method === 'applepay' ? <span className="font-semibold text-ok">Apple Pay {orderCode(order.id)} · </span>
+              : order.payment_method === 'cash' ? <span className="font-semibold text-ok">Cash · </span>
+              : order.cash_tag && <span className="font-semibold text-ok">${order.cash_tag} · </span>}
+            {itemSummary(order.items)}
+          </p>
+          <span className="tabular shrink-0 font-semibold">{money(Number(order.total), { cents: true })}</span>
+        </div>
+      </button>
+    </li>
   )
 }
 
