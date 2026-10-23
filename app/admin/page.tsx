@@ -15,9 +15,10 @@ import { ScheduledTab } from './scheduled'
 import { CustomersTab } from './customers'
 import { AccountsTab } from './accounts'
 import { PromosTab } from './promos'
+import { LinksTab } from './links'
 import { Switch, errorText } from './shared'
 
-type Tab = 'orders' | 'scheduled' | 'customers' | 'accounts' | 'promos'
+type Tab = 'orders' | 'scheduled' | 'customers' | 'accounts' | 'promos' | 'links'
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'orders', label: 'Orders' },
@@ -25,6 +26,7 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'customers', label: 'Customers' },
   { key: 'accounts', label: 'Accounts' },
   { key: 'promos', label: 'Promos' },
+  { key: 'links', label: 'QR codes' },
 ]
 
 export default function AdminPage() {
@@ -200,6 +202,7 @@ function Admin() {
           {tab === 'customers' && <CustomersTab />}
           {tab === 'accounts' && <AccountsTab />}
           {tab === 'promos' && <PromosTab />}
+          {tab === 'links' && <LinksTab />}
         </div>
       </main>
     </div>

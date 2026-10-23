@@ -13,6 +13,7 @@ import { CartDrawer } from '@/components/cart-drawer'
 import { InstallBanner } from '@/components/install'
 import { ProductCard, ProductSheet } from '@/components/product'
 import { AgeGate, SiteFooter, SiteHeader } from '@/components/site'
+import { rememberSource } from '@/lib/local'
 import { Button, ButtonLink, Spinner, cx } from '@/components/ui'
 
 const LINES = [
@@ -46,6 +47,11 @@ function Storefront() {
   // "Edit" from checkout lands on /?cart=1 with the cart open.
   useEffect(() => {
     const url = new URL(window.location.href)
+    if (url.searchParams.get('src') === 'qr') {
+      rememberSource('qr')
+      url.searchParams.delete('src')
+      window.history.replaceState(null, '', url)
+    }
     if (url.searchParams.get('cart') !== '1') return
     // eslint-disable-next-line react-hooks/set-state-in-effect -- opening from a URL flag after mount
     setCartOpen(true)

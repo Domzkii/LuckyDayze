@@ -108,6 +108,19 @@ export interface Order {
   delivered_at: string | null
   perk: 'prerolls' | 'credit' | 'eighth' | null
   credit_used: number
+  /** Set on orders from a seller's secret page (e.g. 'hussein_dad'); copied onto the sales rows. */
+  seller: string | null
+  /** Where the customer came from: 'qr' (the main QR code), 'secret' (a secret page) or null. */
+  source: string | null
+}
+
+/** A hidden ordering page for someone who sells in person. Staff only. */
+export interface SecretLink {
+  seller: string
+  code: string
+  enabled: boolean
+  price_eighth: number
+  updated_at: string
 }
 
 export interface ScheduledOrder {

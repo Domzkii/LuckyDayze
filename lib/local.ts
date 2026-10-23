@@ -37,6 +37,14 @@ export function rememberOrder(o: RecentOrder) {
   write('ld_orders', [o, ...recentOrders().filter(r => r.id !== o.id)].slice(0, 10))
 }
 
+/** Where this visitor first came from (?src=qr on the QR code). Kept for 30 days, sent with orders. */
+const SOURCE_KEY = 'ld_source'
+export function rememberSource(src: string) { write(SOURCE_KEY, { src, at: Date.now() }) }
+export function visitSource() {
+  const s = read<{ src: string; at: number } | null>(SOURCE_KEY, null)
+  return s && Date.now() - s.at < 30 * 86_400_000 ? s.src : null
+}
+
 const AGE_KEY = 'ld_age_ok'
 const AGE_DAYS = 30
 export function ageVerified() {

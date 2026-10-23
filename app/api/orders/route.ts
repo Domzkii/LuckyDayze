@@ -64,6 +64,7 @@ export async function POST(request: Request) {
       if (!CASHTAG_RE.test(cashTag)) throw new InputError('Please enter your Cash App $Cashtag so we can match your payment.')
     }
     const notes = str(body.notes, 500) || null
+    const source = str(body.source, 10) === 'qr' ? 'qr' : null
 
     // Signed-in customers get their special prices; friends outside the building give a street address.
     const { profile, priceList } = await accountFromRequest(request)
@@ -280,6 +281,7 @@ export async function POST(request: Request) {
         reward_key: rewardKey,
         reward_points: rewardPoints,
         credit_used: creditUsed,
+        source,
       }).select('id').single()
       if (error) {
         if (rewardPoints > 0 || creditUsed > 0) {

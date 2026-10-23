@@ -135,7 +135,7 @@ export function OrdersTab({
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
                   <FulfillmentLabel fulfillment={order.fulfillment} className="font-semibold" />
                   <span className="min-w-0 truncate text-muted">
-                    {order.fulfillment === 'pickup' ? 'Pickup from us' : formatApt(order.customer_address)}
+                    {order.seller ? 'Hussein’s dad hands it off' : order.fulfillment === 'pickup' ? 'Pickup from us' : formatApt(order.customer_address)}
                   </span>
                 </div>
                 <div className="flex items-end justify-between gap-3">
@@ -237,6 +237,12 @@ function OrderDetailBody({ order, onChanged, onClose }: { order: Order; onChange
         <FulfillmentLabel fulfillment={order.fulfillment} className="text-sm font-semibold" />
         <span className="text-sm text-muted">· {formatTime(order.created_at)}</span>
       </div>
+
+      {order.seller && (
+        <Notice title="Hussein’s dad’s order">
+          From his page. Let him know; he hands it off and collects cash. Mark it delivered once he has.
+        </Notice>
+      )}
 
       {order.customer_arrived && !final && (
         <Notice tone="danger" icon={<BellRing size={18} strokeWidth={1.75} />} title="Customer has arrived">

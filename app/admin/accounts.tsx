@@ -250,7 +250,7 @@ function PriceListEditor({ list, regular, inUse, onClose, onSaved }: {
 
 // ─── Invites ─────────────────────────────────────────────────────────────────
 
-function CopyButton({ text, label = 'Copy link' }: { text: string; label?: string }) {
+export function CopyButton({ text, label = 'Copy link' }: { text: string; label?: string }) {
   const [copied, setCopied] = useState(false)
   return (
     <Button

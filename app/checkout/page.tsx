@@ -10,7 +10,7 @@ import {
 } from '@/lib/format'
 import { WELCOME_OFFER, perkNudge, quote, welcomeOfferLive } from '@/lib/pricing'
 import { REFERRAL_GIFTS, type ReferralChoice } from '@/lib/rewards'
-import { rememberOrder, saveCustomer, savedCustomer } from '@/lib/local'
+import { rememberOrder, saveCustomer, savedCustomer, visitSource } from '@/lib/local'
 import { useCatalog } from '@/lib/use-catalog'
 import { authHeaders, useAccount } from '@/lib/use-account'
 import type { Frequency, Fulfillment, PaymentMethod, PublicRewards } from '@/lib/types'
@@ -139,6 +139,7 @@ export default function CheckoutPage() {
         headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({
           fulfillment: method,
+          source: visitSource(),
           name: name.trim(),
           phone: cleanPhone,
           paymentMethod: payment,

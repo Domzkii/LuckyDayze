@@ -21,7 +21,7 @@ Customers never write to the database directly. Every customer action goes throu
 ## Set up a new Supabase project
 
 1. Create a project at [supabase.com](https://supabase.com).
-2. Open **SQL Editor** and run each file in `supabase/migrations/` in order (`0001` → `0011`). `0001_init.sql` creates the tables, security rules, the order functions, realtime, and the `products` photo bucket; the later files layer on pricing, the one-deal rule, the October tweaks, customer accounts, staff push alerts (`0007`), the two-partner split (`0008`) referrer points (`0009`), Apple Pay as a payment method (`0010`) and hand-logged sales for Hussein’s dad (`0011`).
+2. Open **SQL Editor** and run each file in `supabase/migrations/` in order (`0001` → `0012`). `0001_init.sql` creates the tables, security rules, the order functions, realtime, and the `products` photo bucket; the later files layer on pricing, the one-deal rule, the October tweaks, customer accounts, staff push alerts (`0007`), the two-partner split (`0008`) referrer points (`0009`), Apple Pay as a payment method (`0010`), hand-logged sales for Hussein’s dad (`0011`) and his secret 8ths page plus QR tagging (`0012`).
 3. **Authentication → Providers → Email**: turn off "Allow new users to sign up". Customer accounts are created by `/api/account/signup` with the service key, already confirmed, so no emails are sent and this setting can stay off.
 4. **Authentication → Users → Add user**: create a login for each staff member.
 5. Make them staff (SQL Editor):
