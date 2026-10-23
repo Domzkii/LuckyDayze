@@ -57,7 +57,8 @@ export function OrdersTab({
   }, [orders])
 
   const today = todayInStore()
-  const todays = orders.filter(o => storeDay.format(new Date(o.created_at)) === today && REVENUE_STATUSES.includes(o.status))
+  // A sale counts on the day it was delivered, or the day it was placed if it's still on its way.
+  const todays = orders.filter(o => storeDay.format(new Date(o.delivered_at ?? o.created_at)) === today && REVENUE_STATUSES.includes(o.status))
   const todayRevenue = todays.reduce((s, o) => s + Number(o.total || 0), 0)
 
   const visible = filter === 'active' ? orders.filter(o => ACTIVE_STATUSES.includes(o.status)) : orders.filter(o => o.status === filter)
