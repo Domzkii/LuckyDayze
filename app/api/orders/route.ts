@@ -57,7 +57,7 @@ export async function POST(request: Request) {
     const phone = normalizePhone(str(body.phone, 30))
     if (!phone) throw new InputError('Please enter a 10-digit US phone number.')
     const paymentMethod = str(body.paymentMethod, 10) as PaymentMethod
-    if (!PAYMENT_METHODS.some(m => m.value === paymentMethod)) throw new InputError('Choose how you’ll pay: Cash App, Zelle or cash.')
+    if (!PAYMENT_METHODS.some(m => m.value === paymentMethod)) throw new InputError('Choose how you’ll pay: Cash App, Zelle, Apple Pay or cash.')
     let cashTag: string | null = null
     if (paymentMethod === 'cashapp') {
       cashTag = str(body.cashTag, 30).replace(/^\$/, '').replace(/\s/g, '')

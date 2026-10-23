@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { CalendarDays, Check, DoorOpen, KeyRound } from 'lucide-react'
 import {
-  CASHTAG, FREQUENCIES, MAX_SCHEDULE_DAYS, PAYMENT_METHODS, TIME_WINDOWS, ZELLE_PHONE, formatDay, formatPhone, money, normalizePhone,
+  APPLE_CASH_PHONE, CASHTAG, FREQUENCIES, MAX_SCHEDULE_DAYS, PAYMENT_METHODS, TIME_WINDOWS, ZELLE_PHONE, formatDay, formatPhone, money, normalizePhone,
   todayInStore, weightLabel,
 } from '@/lib/format'
 import { WELCOME_OFFER, perkNudge, quote, welcomeOfferLive } from '@/lib/pricing'
@@ -186,7 +186,7 @@ export default function CheckoutPage() {
             We’ll reach out to confirm your delivery for <span className="font-semibold text-ink">{formatDay(scheduled.date)}</span>.
             {payment === 'cash'
               ? <>Have <span className="tabular font-semibold text-ink">{money(scheduled.total, { cents: true })}</span> in cash ready on the day.</>
-              : <>Pay <span className="tabular font-semibold text-ink">{money(scheduled.total, { cents: true })}</span> {payment === 'zelle' ? `on Zelle to ${formatPhone(ZELLE_PHONE)}` : `to $${CASHTAG}`} when we confirm.</>}
+              : <>Pay <span className="tabular font-semibold text-ink">{money(scheduled.total, { cents: true })}</span> {payment === 'zelle' ? `on Zelle to ${formatPhone(ZELLE_PHONE)}` : payment === 'applepay' ? `with Apple Pay to ${formatPhone(APPLE_CASH_PHONE)}` : `to $${CASHTAG}`} when we confirm.</>}
           </p>
           <ButtonLink href="/" size="lg" className="mt-10">Back to the menu</ButtonLink>
         </main>
@@ -223,7 +223,7 @@ export default function CheckoutPage() {
       <SiteHeader back={{ href: '/', label: 'Menu' }} />
       <main className="mx-auto max-w-6xl px-4 pb-24 pt-8 sm:px-6 sm:pt-12">
         <h1 className="display text-4xl font-semibold sm:text-5xl">Checkout</h1>
-        <p className="mt-2 text-muted">Place your order, then pay with Cash App, Zelle or cash.</p>
+        <p className="mt-2 text-muted">Place your order, then pay with Cash App, Zelle, Apple Pay or cash.</p>
 
         <form onSubmit={submit} noValidate className="mt-10 grid gap-10 lg:grid-cols-[minmax(0,1fr)_400px] lg:gap-14">
           <div className="flex flex-col gap-12">
@@ -319,6 +319,7 @@ export default function CheckoutPage() {
                 <p className="text-sm font-semibold">How you’ll pay</p>
                 <Segmented label="How you’ll pay" value={payment} onChange={setPayment} size="sm" options={PAYMENT_METHODS.map(m => ({ value: m.value, label: m.label }))} />
                 {payment === 'zelle' && <p className="text-sm text-muted">You’ll get our Zelle number and a memo code after you place the order.</p>}
+                {payment === 'applepay' && <p className="text-sm text-muted">You’ll send Apple Cash from Messages after you place the order. We’ll give you the number and a code.</p>}
                 {payment === 'cash' && <p className="text-sm text-muted">We approve cash orders first, then you pay {method === 'pickup' ? 'when you pick up' : 'at the door'}.</p>}
               </div>
               {payment === 'cashapp' && (
@@ -460,7 +461,7 @@ export default function CheckoutPage() {
                   ? 'Nothing to pay yet. We’ll reach out to confirm before your day.'
                   : payment === 'cash'
                     ? `You’ll pay ${totalLabel} in cash ${method === 'pickup' ? 'at pickup' : 'at the door'}.`
-                    : `Next you’ll pay ${totalLabel} ${payment === 'zelle' ? 'on Zelle' : `to $${CASHTAG} on Cash App`}.`}
+                    : `Next you’ll pay ${totalLabel} ${payment === 'zelle' ? 'on Zelle' : payment === 'applepay' ? 'with Apple Pay' : `to $${CASHTAG} on Cash App`}.`}
               </p>
             </div>
           </aside>

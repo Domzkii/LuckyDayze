@@ -8,7 +8,7 @@ Cannabis delivery and pickup for residents of one building, plus invited friends
 | --- | --- | --- |
 | `/` | Customers | Menu, product details, cart |
 | `/checkout` | Customers | Delivery, pickup or scheduled; places the order first, payment second |
-| `/order/[id]` | Customers | Payment (Cash App, Zelle or cash), then live status (link is private to the customer) |
+| `/order/[id]` | Customers | Payment (Cash App, Zelle, Apple Pay or cash), then live status (link is private to the customer) |
 | `/track` | Customers | Orders from this device, or look up by phone |
 | `/rewards` | Customers | Points, rewards, referral code |
 | `/app` | Customers | How to add LuckyDayze to the home screen (iPhone, Android, desktop) |
@@ -21,7 +21,7 @@ Customers never write to the database directly. Every customer action goes throu
 ## Set up a new Supabase project
 
 1. Create a project at [supabase.com](https://supabase.com).
-2. Open **SQL Editor** and run each file in `supabase/migrations/` in order (`0001` → `0009`). `0001_init.sql` creates the tables, security rules, the order functions, realtime, and the `products` photo bucket; the later files layer on pricing, the one-deal rule, the October tweaks, customer accounts, staff push alerts (`0007`), the two-partner split (`0008`) and referrer points (`0009`).
+2. Open **SQL Editor** and run each file in `supabase/migrations/` in order (`0001` → `0010`). `0001_init.sql` creates the tables, security rules, the order functions, realtime, and the `products` photo bucket; the later files layer on pricing, the one-deal rule, the October tweaks, customer accounts, staff push alerts (`0007`), the two-partner split (`0008`) referrer points (`0009`) and Apple Pay as a payment method (`0010`).
 3. **Authentication → Providers → Email**: turn off "Allow new users to sign up". Customer accounts are created by `/api/account/signup` with the service key, already confirmed, so no emails are sent and this setting can stay off.
 4. **Authentication → Users → Add user**: create a login for each staff member.
 5. Make them staff (SQL Editor):
@@ -45,7 +45,7 @@ npm run lint
 ## How an order flows
 
 1. Customer places the order at `/checkout`. Status: **pending payment**.
-2. They pay from their order page: Cash App to $Luckydayz3, or Zelle with the order code in the memo. Cash orders wait for staff to approve them, then are collected at the door.
+2. They pay from their order page: Cash App to $Luckydayz3, Zelle with the order code in the memo, or Apple Cash from Messages to the Zelle number with the code in the message. Cash orders wait for staff to approve them, then are collected at the door.
 3. Staff move it along in `/admin`: payment received → preparing → out for delivery (or ready for pickup) → delivered. **Mark delivered** is one tap; deliveries stay in the building, so no delivery cost is recorded.
 4. **Delivered** runs `complete_order()` once: loyalty points, referral bonus, inventory, sales rows for finance, and the Popular badge. Running it twice does nothing.
 5. **Cancel** runs `cancel_order()`, which gives back any points spent on a reward.

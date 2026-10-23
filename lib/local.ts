@@ -5,7 +5,7 @@
 export interface SavedCustomer {
   name: string
   phone: string
-  payment?: 'cashapp' | 'zelle' | 'cash'
+  payment?: 'cashapp' | 'zelle' | 'applepay' | 'cash'
   cashTag: string
   address: string
 }

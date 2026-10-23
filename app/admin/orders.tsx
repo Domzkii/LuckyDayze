@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, BellRing, Banknote, DoorOpen, ExternalLink, Gift, Inbox, MapPin, Phone, StickyNote } from 'lucide-react'
 import { supabase } from '@/lib/supabase/browser'
 import { Badge, Button, ConfirmDialog, Dialog, Notice, Spinner, cx } from '@/components/ui'
-import { STORE_TIME_ZONE, formatApt, formatPhone, formatTime, money, orderCode, todayInStore } from '@/lib/format'
+import { STORE_TIME_ZONE, formatApt, formatPhone, formatTime, money, orderCode, paymentLabel, todayInStore } from '@/lib/format'
 import { rewardByKey } from '@/lib/rewards'
 import type { Loyalty, Order, OrderStatus } from '@/lib/types'
 import { ACTIVE_STATUSES, EmptyState, FulfillmentLabel, StatusBadge, errorText, itemLine, itemSummary, statusLabel } from './shared'
@@ -128,6 +128,7 @@ export function OrdersTab({
                 <div className="flex items-end justify-between gap-3">
                   <p className="line-clamp-2 text-sm text-muted">
                     {order.payment_method === 'zelle' ? <span className="font-semibold text-ok">Zelle {orderCode(order.id)} · </span>
+                      : order.payment_method === 'applepay' ? <span className="font-semibold text-ok">Apple Pay {orderCode(order.id)} · </span>
                       : order.payment_method === 'cash' ? <span className="font-semibold text-ok">Cash · </span>
                       : order.cash_tag && <span className="font-semibold text-ok">${order.cash_tag} · </span>}
                     {itemSummary(order.items)}
@@ -237,6 +238,11 @@ function OrderDetailBody({ order, onChanged, onClose }: { order: Order; onChange
         {order.payment_method === 'zelle' && (
           <p className="inline-flex min-h-11 items-center gap-2 font-semibold text-ok">
             Zelle · memo code <span className="tabular tracking-[0.15em]">{orderCode(order.id)}</span>
+          </p>
+        )}
+        {order.payment_method === 'applepay' && (
+          <p className="inline-flex min-h-11 items-center gap-2 font-semibold text-ok">
+            Apple Pay · message code <span className="tabular tracking-[0.15em]">{orderCode(order.id)}</span>
           </p>
         )}
         {order.payment_method === 'cash' && (
@@ -373,7 +379,7 @@ function OrderDetailBody({ order, onChanged, onClose }: { order: Order; onChange
           <>
             {order.customer_name}’s {money(Number(order.total), { cents: true })} order will be cancelled.
             {order.reward_points > 0 && ` Their ${order.reward_points} reward points go back to their account.`}
-            {order.status !== 'pending_payment' && order.payment_method !== 'cash' && ` If they already paid, refund them in ${order.payment_method === 'zelle' ? 'Zelle' : 'Cash App'}.`}
+            {order.status !== 'pending_payment' && order.payment_method !== 'cash' && ` If they already paid, refund them in ${paymentLabel(order.payment_method)}.`}
           </>
         }
         confirmLabel="Cancel order"

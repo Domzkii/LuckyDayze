@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { Check, Copy, ExternalLink, KeyRound } from 'lucide-react'
-import { CASHTAG, ZELLE_PHONE, cashAppLink, formatPhone, formatTime, money, orderCode, weightLabel } from '@/lib/format'
+import { APPLE_CASH_PHONE, CASHTAG, ZELLE_PHONE, appleCashLink, cashAppLink, formatPhone, formatTime, money, orderCode, weightLabel } from '@/lib/format'
 import type { OrderStatus, PublicOrder } from '@/lib/types'
 import { InstallCard } from '@/components/install'
 import { SiteHeader } from '@/components/site'
@@ -120,7 +120,9 @@ function OrderView({ order, placed, onChange }: { order: PublicOrder; placed: bo
 
       {order.status === 'pending_payment' && order.payment_method !== 'cash' && (order.payment_method === 'zelle'
         ? <ZelleCard total={order.total} code={orderCode(order.id)} />
-        : <PayCard total={order.total} firstName={order.first_name} />)}
+        : order.payment_method === 'applepay'
+          ? <ApplePayCard total={order.total} code={orderCode(order.id)} />
+          : <PayCard total={order.total} firstName={order.first_name} />)}
       {order.payment_method === 'cash' && !FINAL.includes(order.status) && order.status !== 'confirmed' && (
         <Notice tone="neutral" title={`Paying cash: ${money(order.total, { cents: true })}`}>Exact change helps.</Notice>
       )}
@@ -257,6 +259,41 @@ function ZelleCard({ total, code }: { total: number; code: string }) {
           <CopyButton text={code} label="Copy memo code" />
         </div>
         <p className="text-sm text-on-night-muted">Open Zelle in your bank’s app. This page updates on its own once we see the payment.</p>
+      </div>
+    </section>
+  )
+}
+
+/** Apple Cash is sent from a Messages chat, so the button opens one to our number with the code typed in. */
+function ApplePayCard({ total, code }: { total: number; code: string }) {
+  return (
+    <section aria-labelledby="pay-title" className="overflow-hidden rounded-3xl bg-night text-on-night">
+      <div className="flex flex-col gap-6 p-6 sm:p-8">
+        <h2 id="pay-title" className="sr-only">Pay with Apple Pay</h2>
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-sm text-on-night-muted">Send exactly</p>
+            <p className="tabular display text-5xl font-semibold text-gold">{money(total, { cents: true })}</p>
+          </div>
+          <div className="sm:text-right">
+            <p className="text-sm text-on-night-muted">with Apple Cash to</p>
+            <div className="flex items-center gap-1">
+              <p className="tabular display text-2xl font-semibold">{formatPhone(APPLE_CASH_PHONE)}</p>
+              <CopyButton text={APPLE_CASH_PHONE} label="Copy number" />
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center justify-between gap-4 rounded-2xl bg-white/5 px-4 py-3">
+          <div>
+            <p className="text-sm text-on-night-muted">Put this code in your message</p>
+            <p className="tabular display text-2xl font-semibold tracking-[0.15em]">{code}</p>
+          </div>
+          <CopyButton text={code} label="Copy code" />
+        </div>
+        <ButtonLink href={appleCashLink(code)} variant="gold" size="lg" className="w-full">
+          Open Messages <ExternalLink size={18} strokeWidth={1.75} />
+        </ButtonLink>
+        <p className="text-sm text-on-night-muted">In the chat, tap the + and choose Apple Cash. This page updates on its own once we see the payment.</p>
       </div>
     </section>
   )

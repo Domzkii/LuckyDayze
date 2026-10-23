@@ -2,7 +2,7 @@ export type Category = 'Flower' | 'Pre-Rolls'
 export type StrainType = 'Sativa' | 'Indica' | 'Hybrid'
 export type Fulfillment = 'delivery' | 'pickup' | 'scheduled'
 export type Tier = 'guest' | 'member' | 'house'
-export type PaymentMethod = 'cashapp' | 'zelle' | 'cash'
+export type PaymentMethod = 'cashapp' | 'zelle' | 'applepay' | 'cash'
 export type Frequency = 'once' | 'weekly' | 'biweekly' | 'monthly'
 
 export type OrderStatus =

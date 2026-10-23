@@ -71,7 +71,7 @@ function Finance() {
 
   return (
     <div className="min-h-dvh">
-      <header className="sticky top-0 z-30 border-b border-line bg-canvas/95 backdrop-blur-sm">
+      <header className="sticky top-0 z-30 border-b border-line bg-canvas/95 pt-[env(safe-area-inset-top)] backdrop-blur-sm">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <Wordmark sub="Finance" />
           <nav aria-label="Staff" className="flex items-center gap-1">

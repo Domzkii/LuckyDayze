@@ -1,5 +1,7 @@
 export const CASHTAG = 'Luckydayz3'
 export const ZELLE_PHONE = '7184198493'
+/** Apple Cash goes to the same number as Zelle, sent from Messages. */
+export const APPLE_CASH_PHONE = ZELLE_PHONE
 export const INSTAGRAM = 'lucky_dayze'
 export const BOROUGHS = ['Manhattan', 'Brooklyn'] as const
 /** Everything happens in one building: pickup is at my door, delivery goes to theirs. */
@@ -30,6 +32,7 @@ export const WEIGHT_LABELS: Record<string, string> = { '3.5': '1/8 oz', '7': '1/
 export const PAYMENT_METHODS = [
   { value: 'cashapp', label: 'Cash App' },
   { value: 'zelle', label: 'Zelle' },
+  { value: 'applepay', label: 'Apple Pay' },
   { value: 'cash', label: 'Cash' },
 ] as const
 export function paymentLabel(method: string | null | undefined) {
@@ -74,6 +77,11 @@ export function firstName(name: string) {
 
 export function cashAppLink(amount?: number) {
   return amount && amount > 0 ? `https://cash.app/$${CASHTAG}/${amount.toFixed(2)}` : `https://cash.app/$${CASHTAG}`
+}
+
+/** Opens a Messages chat to our Apple Cash number with the order code already typed. */
+export function appleCashLink(code: string) {
+  return `sms:+1${APPLE_CASH_PHONE}&body=${encodeURIComponent(`LuckyDayze ${code}`)}`
 }
 
 /** Today's calendar date in New York, as YYYY-MM-DD. */
