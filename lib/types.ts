@@ -181,7 +181,8 @@ export interface Week {
 export interface Sale {
   id: string
   created_at: string
-  order_id: string
+  /** Null for a hand sale, which has no order behind it. */
+  order_id: string | null
   week_id: string | null
   product_id: string | null
   product_name: string
@@ -196,6 +197,8 @@ export interface Sale {
   kind: 'sale' | 'discount' | 'reward'
   /** For discounts, the DiscountKind; for rewards, the reward key (perk_prerolls, free_eighth, referral_preroll…). */
   reward_type: string | null
+  /** Who sold it in person (see HAND_SELLERS). Null for app orders. */
+  seller: string | null
 }
 
 export interface WeekPayout {

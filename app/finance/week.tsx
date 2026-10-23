@@ -1,16 +1,21 @@
 'use client'
 
-import { CalendarPlus } from 'lucide-react'
+import { useState } from 'react'
+import { CalendarPlus, Trash2 } from 'lucide-react'
+import { supabase } from '@/lib/supabase/browser'
 import { formatDay, money } from '@/lib/format'
-import { Badge, Button, Notice } from '@/components/ui'
+import { Badge, Button, ConfirmDialog, IconButton, Notice, Segmented } from '@/components/ui'
+import type { Sale } from '@/lib/types'
 import type { FinanceData } from './data'
-import { DEFAULT_REUP_GOAL, GRAMS_PER_OZ, SPLIT_PARTS, type Splits, formatWeight, projectWeek, roleLabel, splitTotal } from './math'
+import { DEFAULT_REUP_GOAL, GRAMS_PER_OZ, HAND_SELLER, SPLIT_PARTS, type Splits, formatWeight, projectWeek, roleLabel, sellerLabel, splitTotal, sum } from './math'
 import { Giveaways } from './giveaways'
 import { Empty, Meter, Row, Rows, Section } from './parts'
 
 const c = { cents: true }
 
-export function ThisWeek({ data, splits, splitsDirty, splitsSaving, splitsError, onSplitsChange, onSplitsSave, onSplitsReset, onStart, onClose }: {
+type SalesFilter = 'all' | 'app' | 'hand'
+
+export function ThisWeek({ data, splits, splitsDirty, splitsSaving, splitsError, onSplitsChange, onSplitsSave, onSplitsReset, onStart, onClose, onLogHandSale, onChanged }: {
   data: FinanceData
   splits: Splits
   splitsDirty: boolean
@@ -21,12 +26,35 @@ export function ThisWeek({ data, splits, splitsDirty, splitsSaving, splitsError,
   onSplitsReset: () => void
   onStart: () => void
   onClose: () => void
+  onLogHandSale: () => void
+  onChanged: () => Promise<void>
 }) {
+  const [salesFilter, setSalesFilter] = useState<SalesFilter>('all')
+  const [removing, setRemoving] = useState<Sale | null>(null)
+  const [removeBusy, setRemoveBusy] = useState(false)
+  const [removeError, setRemoveError] = useState<string | null>(null)
   const activeWeek = data.weeks.find(w => w.status === 'active')
   const weekSales = activeWeek ? data.sales.filter(s => s.week_id === activeWeek.id) : []
   const p = projectWeek(weekSales, data.reupFund, splits)
   const fund = data.reupFund
   const total = splitTotal(splits)
+  const soldRows = weekSales.filter(s => (s.kind ?? 'sale') === 'sale')
+  const handRows = soldRows.filter(s => s.seller)
+  const shownRows = salesFilter === 'all' ? soldRows : soldRows.filter(s => (salesFilter === 'hand') === !!s.seller)
+
+  async function removeHandSale() {
+    if (!removing) return
+    setRemoveBusy(true)
+    setRemoveError(null)
+    const { error } = await supabase().rpc('remove_hand_sale', { p_sale_id: removing.id })
+    if (error) {
+      setRemoveBusy(false)
+      return setRemoveError(`Couldn’t remove it: ${error.message}`)
+    }
+    await onChanged()
+    setRemoveBusy(false)
+    setRemoving(null)
+  }
 
   return (
     <div className="flex flex-col gap-10">
@@ -42,12 +70,22 @@ export function ThisWeek({ data, splits, splitsDirty, splitsSaving, splitsError,
               <h2 className="display text-3xl font-semibold">Week {activeWeek.week_number}</h2>
               <p className="mt-1 text-sm text-muted">Started {formatDay(activeWeek.start_date)}</p>
             </div>
-            <Button variant="gold" onClick={onClose}>Close week</Button>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={onLogHandSale}>Log {HAND_SELLER.label}’s sale</Button>
+              <Button variant="gold" onClick={onClose}>Close week</Button>
+            </div>
           </div>
           <Rows>
             <Row label="Revenue" value={money(p.revenue, c)} strong tone="gold" />
             <Row label="Profit" value={money(p.profit, c)} strong />
             <Row label="Sold" value={formatWeight(p.grams)} />
+            {handRows.length > 0 && (
+              <Row
+                label={`${HAND_SELLER.label}’s sales`}
+                detail={`Included above · ${formatWeight(sum(handRows, s => s.grams_sold))}`}
+                value={money(sum(handRows, s => s.revenue), c)}
+              />
+            )}
             {p.delivery > 0 && <Row label="Delivery costs" value={money(p.delivery, c)} tone="danger" />}
           </Rows>
         </section>
@@ -126,23 +164,50 @@ export function ThisWeek({ data, splits, splitsDirty, splitsSaving, splitsError,
 
       {activeWeek && (
         <Section title="Sales this week">
-          {weekSales.filter(s => (s.kind ?? 'sale') === 'sale').length === 0 ? (
-            <p className="text-sm text-muted">No deliveries booked this week yet.</p>
+          {handRows.length > 0 && (
+            <Segmented
+              label="Show sales from"
+              size="sm"
+              value={salesFilter}
+              onChange={setSalesFilter}
+              className="mb-3"
+              options={[
+                { value: 'all', label: 'All' },
+                { value: 'app', label: 'App' },
+                { value: 'hand', label: HAND_SELLER.label },
+              ]}
+            />
+          )}
+          {salesFilter !== 'all' && shownRows.length > 0 && (
+            <p className="tabular mb-1 text-sm text-muted">
+              {money(sum(shownRows, s => s.revenue), c)} · {formatWeight(sum(shownRows, s => s.grams_sold))} · {money(sum(shownRows, s => s.net_profit), c)} profit
+            </p>
+          )}
+          {shownRows.length === 0 ? (
+            <p className="text-sm text-muted">No sales booked this week yet.</p>
           ) : (
             <ul className="flex flex-col">
-              {weekSales.filter(s => (s.kind ?? 'sale') === 'sale').map(sale => (
+              {shownRows.map(sale => (
                 <li key={sale.id} className="border-b border-line py-3 last:border-b-0">
                   <div className="flex items-baseline justify-between gap-4 text-sm">
                     <div className="min-w-0">
                       <p className="font-semibold">{sale.product_name}</p>
                       <p className="tabular text-xs text-muted">
+                        {sale.seller && `${sellerLabel(sale.seller)} · `}
                         {(Number(sale.grams_sold) / GRAMS_PER_OZ).toFixed(2)} oz ({Number(sale.grams_sold)} g) · {formatDay(sale.created_at.slice(0, 10))}
                         {Number(sale.delivery_cost) > 0 && ` · ${money(Number(sale.delivery_cost), c)} delivery`}
                       </p>
                     </div>
-                    <div className="tabular shrink-0 text-right">
-                      <p className="font-semibold">{money(Number(sale.revenue), c)}</p>
-                      <p className="text-xs text-ok">+{money(Number(sale.net_profit), c)} profit</p>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <div className="tabular text-right">
+                        <p className="font-semibold">{money(Number(sale.revenue), c)}</p>
+                        <p className="text-xs text-ok">+{money(Number(sale.net_profit), c)} profit</p>
+                      </div>
+                      {sale.seller && (
+                        <IconButton label={`Remove ${sale.product_name} sale`} onClick={() => { setRemoveError(null); setRemoving(sale) }}>
+                          <Trash2 size={16} strokeWidth={1.75} />
+                        </IconButton>
+                      )}
                     </div>
                   </div>
                 </li>
@@ -151,6 +216,22 @@ export function ThisWeek({ data, splits, splitsDirty, splitsSaving, splitsError,
           )}
         </Section>
       )}
+
+      <ConfirmDialog
+        open={!!removing}
+        onClose={() => setRemoving(null)}
+        onConfirm={removeHandSale}
+        loading={removeBusy}
+        tone="danger"
+        title="Remove this sale?"
+        confirmLabel="Remove sale"
+        body={removing && (
+          <>
+            <p>{removing.product_name}, {Number(removing.grams_sold)} g for {money(Number(removing.revenue), c)}. The weight goes back into stock.</p>
+            {removeError && <Notice tone="danger" className="mt-3">{removeError}</Notice>}
+          </>
+        )}
+      />
     </div>
   )
 }

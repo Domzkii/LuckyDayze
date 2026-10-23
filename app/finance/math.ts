@@ -13,6 +13,15 @@ export type RoleKey = (typeof ROLES)[number]['key']
 export type SplitKey = (typeof SPLIT_PARTS)[number]['key']
 export type Splits = Record<SplitKey, number>
 
+/** People who sell in person without the app; a partner logs their sales by hand. */
+export const HAND_SELLERS = [{ key: 'hussein_dad', label: 'Hussein’s dad' }] as const
+export const HAND_SELLER = HAND_SELLERS[0]
+export const HAND_PRICE_EIGHTH = 20
+
+export function sellerLabel(key: string | null) {
+  return HAND_SELLERS.find(s => s.key === key)?.label ?? key ?? 'App'
+}
+
 export const DEFAULT_SPLITS: Splits = { hussein: 75, dominic: 20, investment: 5 }
 export const DEFAULT_REUP_GOAL = 410
 export const GRAMS_PER_OZ = 28

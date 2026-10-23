@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase/browser'
 import { Badge, Button, ConfirmDialog, Dialog, Notice, Spinner, cx } from '@/components/ui'
 import { STORE_TIME_ZONE, formatApt, formatPhone, formatTime, money, orderCode, paymentLabel, todayInStore } from '@/lib/format'
 import { rewardByKey } from '@/lib/rewards'
-import type { Loyalty, Order, OrderStatus } from '@/lib/types'
+import type { Loyalty, Order, OrderStatus, Sale } from '@/lib/types'
 import { ACTIVE_STATUSES, EmptyState, FulfillmentLabel, StatusBadge, errorText, itemLine, itemSummary, statusLabel } from './shared'
 
 type Filter = 'active' | OrderStatus
@@ -56,10 +56,21 @@ export function OrdersTab({
     return c
   }, [orders])
 
+  // Sales logged by hand in Finance (Hussein's dad) have no order, so they're read from sales directly.
+  const [handSales, setHandSales] = useState<Pick<Sale, 'created_at' | 'revenue'>[]>([])
+  useEffect(() => {
+    const since = new Date(Date.now() - 36 * 60 * 60 * 1000).toISOString()
+    supabase().from('sales').select('created_at, revenue').not('seller', 'is', null).gte('created_at', since)
+      .then(({ data }) => setHandSales(data ?? []))
+  }, [orders])
+
   const today = todayInStore()
   // A sale counts on the day it was delivered, or the day it was placed if it's still on its way.
   const todays = orders.filter(o => storeDay.format(new Date(o.delivered_at ?? o.created_at)) === today && REVENUE_STATUSES.includes(o.status))
-  const todayRevenue = todays.reduce((s, o) => s + Number(o.total || 0), 0)
+  const todaysHand = handSales.filter(s => storeDay.format(new Date(s.created_at)) === today)
+  const handRevenue = todaysHand.reduce((s, h) => s + Number(h.revenue || 0), 0)
+  const todayRevenue = todays.reduce((s, o) => s + Number(o.total || 0), 0) + handRevenue
+  const todayCount = todays.length + todaysHand.length
 
   const visible = filter === 'active' ? orders.filter(o => ACTIVE_STATUSES.includes(o.status)) : orders.filter(o => o.status === filter)
   const selected = orders.find(o => o.id === selectedId) ?? null
@@ -68,7 +79,8 @@ export function OrdersTab({
     <section aria-label="Orders" className="flex flex-col gap-4">
       <p className="text-sm text-muted">
         Today: <span className="tabular font-semibold text-ink">{money(todayRevenue, { cents: false })}</span> from{' '}
-        <span className="tabular font-semibold text-ink">{todays.length}</span> paid order{todays.length === 1 ? '' : 's'}
+        <span className="tabular font-semibold text-ink">{todayCount}</span> paid sale{todayCount === 1 ? '' : 's'}
+        {todaysHand.length > 0 && <> · <span className="tabular">{money(handRevenue, { cents: false })}</span> from Hussein’s dad</>}
       </p>
 
       <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">

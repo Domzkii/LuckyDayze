@@ -1,14 +1,15 @@
 import { AlertTriangle } from 'lucide-react'
 import { formatDay, money } from '@/lib/format'
 import type { FinanceData } from './data'
-import { GRAMS_PER_QP, LOW_STOCK_GRAMS, ROLES, formatWeight, roleLabel, sum } from './math'
+import { GRAMS_PER_QP, HAND_SELLER, LOW_STOCK_GRAMS, ROLES, formatWeight, roleLabel, sum } from './math'
 import { Giveaways } from './giveaways'
 import { Meter, Row, Rows, Section } from './parts'
 
 export function Overview({ data }: { data: FinanceData }) {
   const { sales, weeks, payouts, investments, products, settings } = data
   const closedWeeks = weeks.filter(w => w.status === 'closed')
-  const orderCount = new Set(sales.map(s => s.order_id)).size
+  const orderCount = new Set(sales.flatMap(s => s.order_id ? [s.order_id] : [])).size
+  const handSales = sales.filter(s => s.seller)
   const invested = sum(investments, i => i.contribution)
   const strains = products.filter(p => p.category === 'Flower' && !p.archived)
   const costPerGram = Number(settings?.cost_per_gram) || 0
@@ -22,6 +23,9 @@ export function Overview({ data }: { data: FinanceData }) {
           <Row label="Net profit" detail="After discounts and free items" value={money(sum(sales, s => s.net_profit), c)} strong />
           <Row label="Invested" detail="Its share of profit once the re-up fund is covered" value={money(invested, c)} tone="ok" />
           <Row label="Orders delivered" value={orderCount} />
+          {handSales.length > 0 && (
+            <Row label={`${HAND_SELLER.label}’s sales`} detail={formatWeight(sum(handSales, s => s.grams_sold))} value={money(sum(handSales, s => s.revenue), c)} />
+          )}
           <Row label="Weeks closed" value={closedWeeks.length} />
           {settings && (
             <Row label="Cost basis" value={`${money(costPerGram, c)}/g (${money(costPerGram * GRAMS_PER_QP, { cents: false })} per QP)`} />

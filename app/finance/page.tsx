@@ -13,6 +13,7 @@ import { Overview } from './overview'
 import { ThisWeek } from './week'
 import { CloseWeekDialog, StartWeekDialog } from './week-dialogs'
 import { History } from './history'
+import { HandSaleDialog } from './hand-sale'
 import { Products } from './products'
 
 const TABS = [
@@ -38,6 +39,7 @@ function Finance() {
   const [splitsError, setSplitsError] = useState<string | null>(null)
   const [startOpen, setStartOpen] = useState(false)
   const [closeOpen, setCloseOpen] = useState(false)
+  const [handOpen, setHandOpen] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([])
 
@@ -146,6 +148,8 @@ function Finance() {
             onSplitsReset={() => { setDraftSplits(null); setSplitsError(null) }}
             onStart={() => setStartOpen(true)}
             onClose={() => setCloseOpen(true)}
+            onLogHandSale={() => setHandOpen(true)}
+            onChanged={reload}
           />
         ) : tab === 'history' ? (
           <History data={data} />
@@ -154,6 +158,7 @@ function Finance() {
         )}
       </main>
 
+      <HandSaleDialog open={handOpen} onClose={() => setHandOpen(false)} products={data.products} onDone={reload} />
       <StartWeekDialog open={startOpen} onClose={() => setStartOpen(false)} data={data} onDone={reload} />
       <CloseWeekDialog
         open={closeOpen}
