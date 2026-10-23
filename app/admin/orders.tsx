@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, BellRing, Banknote, DoorOpen, ExternalLink, Gift, Inbox, MapPin, Phone, StickyNote } from 'lucide-react'
+import { ArrowLeft, BellRing, Banknote, DoorOpen, ExternalLink, Gift, Inbox, MapPin, Phone, Plus, StickyNote } from 'lucide-react'
 import { supabase } from '@/lib/supabase/browser'
 import { Badge, Button, ConfirmDialog, Dialog, Notice, Spinner, cx } from '@/components/ui'
 import { STORE_TIME_ZONE, formatApt, formatPhone, formatTime, money, orderCode, paymentLabel, todayInStore } from '@/lib/format'
@@ -113,11 +113,10 @@ export function OrdersTab({
         Today: <span className="tabular font-semibold text-ink">{money(todayRevenue, { cents: false })}</span> from{' '}
         <span className="tabular font-semibold text-ink">{todayCount}</span> paid sale{todayCount === 1 ? '' : 's'}
         {todaysHand.length > 0 && <> · <span className="tabular">{money(handRevenue, { cents: false })}</span> from Hussein’s dad</>}
-        {' · '}
-        <button type="button" onClick={openHandSale} className="font-semibold text-gold-ink underline-offset-2 hover:underline">
-          Log {HAND_SELLER.label}’s sale
-        </button>
       </p>
+      <Button variant="outline" onClick={openHandSale} className="self-start">
+        <Plus size={18} strokeWidth={1.75} /> Log {HAND_SELLER.label}’s sale
+      </Button>
 
       <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
         {FILTERS.map(f => (
