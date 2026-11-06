@@ -60,6 +60,7 @@ function Storefront() {
   }, [])
 
   const open = settings?.is_open ?? true
+  const closed = settings?.store_closed ?? false
   const { flower, preRolls } = availableProducts(products)
   const cartTotal = quote(lines, products, { sale }).total
 
@@ -75,7 +76,7 @@ function Storefront() {
           <p className="mt-5 max-w-xl text-lg text-muted sm:text-xl">
             {line} Flower and pre-rolls, brought right to your door.
           </p>
-          <StoreStatus open={open} loading={status === 'loading'} />
+          <StoreStatus open={open} closed={closed} loading={status === 'loading'} />
           <div className="mt-8 flex flex-wrap gap-3">
             <a href="#menu" className="inline-flex min-h-14 items-center gap-2 rounded-full bg-ink px-7 font-semibold text-canvas transition-colors hover:bg-ink/85">
               Shop the menu <ArrowDown size={18} strokeWidth={1.75} />
@@ -109,7 +110,7 @@ function Storefront() {
             </div>
           )}
 
-          {status === 'ready' && flower.length + preRolls.length === 0 && <EmptyMenu open={open} />}
+          {status === 'ready' && flower.length + preRolls.length === 0 && <EmptyMenu open={open && !closed} />}
 
           {flower.length > 0 && (
             <MenuSection id="flower" title="Flower" note={`${flower.length} strain${flower.length === 1 ? '' : 's'}`}>
@@ -147,8 +148,22 @@ function Storefront() {
   )
 }
 
-function StoreStatus({ open, loading }: { open: boolean; loading: boolean }) {
+function StoreStatus({ open, closed, loading }: { open: boolean; closed: boolean; loading: boolean }) {
   if (loading) return <div className="mt-6 h-6" />
+  if (closed) {
+    return (
+      <p className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm font-semibold">
+        <span className="inline-flex items-center gap-2">
+          <span className="size-2 rounded-full bg-warn" aria-hidden />
+          We’re closed right now
+        </span>
+        <span className="inline-flex items-center gap-1.5 text-muted">
+          <Clock size={15} strokeWidth={1.75} />
+          No orders for the moment. Check back soon.
+        </span>
+      </p>
+    )
+  }
   return (
     <p className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm font-semibold">
       <span className="inline-flex items-center gap-2">

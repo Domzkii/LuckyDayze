@@ -44,9 +44,13 @@ npm run lint
 
 ## How an order flows
 
+The admin header has two switches. **Delivery** (`store_settings.is_open`) stops same-day delivery only. **Store** (`store_settings.store_closed`, migration 0013) stops every kind of order; the menu stays visible.
+
+Pickup never shows an address: staff tell the customer when and where.
+
 1. Customer places the order at `/checkout`. Status: **pending payment**.
 2. They pay from their order page: Cash App to $Luckydayz3, Zelle with the order code in the memo, or Apple Cash from Messages to the Zelle number with the code in the message. Cash orders wait for staff to approve them, then are collected at the door.
-3. Staff move it along in `/admin`: payment received → preparing → out for delivery (or ready for pickup) → delivered. **Mark delivered** is one tap; deliveries stay in the building, so no delivery cost is recorded.
+3. Staff move it along in `/admin`: payment received → preparing → out for delivery (or ready for pickup) → delivered. **Mark delivered** is one tap; no delivery cost is recorded.
 4. **Delivered** runs `complete_order()` once: loyalty points, referral bonus, inventory, sales rows for finance, and the Popular badge. Running it twice does nothing.
 5. **Cancel** runs `cancel_order()`, which gives back any points spent on a reward.
 
@@ -79,7 +83,7 @@ Accounts are optional; guests can still order. Staff manage everything in **Admi
 - **Invite links**: `/account?invite=CODE`, optionally tied to a price list that is applied when the friend signs up. Each link works once.
 - **Passwords**: staff can reset a customer's password from the account row.
 
-At sign-up people choose "In the building" (apartment) or "Somewhere else" (street address). Anyone can pick "Somewhere else"; there is no approval step yet.
+At sign-up people choose "In the building" (apartment) or "In Brooklyn" (street address). Checkout offers the same choice for delivery, guests included. Anyone can pick Brooklyn and the address isn't checked, so staff read it before accepting; there is no approval step yet.
 
 ## Home-screen install
 

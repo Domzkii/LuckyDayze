@@ -4,8 +4,8 @@ export const ZELLE_PHONE = '7184198493'
 export const APPLE_CASH_PHONE = ZELLE_PHONE
 export const INSTAGRAM = 'lucky_dayze'
 export const BOROUGHS = ['Manhattan', 'Brooklyn'] as const
-/** Everything happens in one building: pickup is at my door, delivery goes to theirs. */
-export const PICKUP_PLACE = 'My door'
+/** Staff tell pickup customers when and where, so no address goes on the order. */
+export const PICKUP_PLACE = 'Pickup'
 
 /** "4B" → "Apt 4B"; leaves "Apt 4B", "#4B" and street addresses alone. */
 export function formatApt(value: string | null | undefined) {

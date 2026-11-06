@@ -1,5 +1,5 @@
 export type Category = 'Flower' | 'Pre-Rolls'
-export type StrainType = 'Sativa' | 'Indica' | 'Hybrid'
+export type StrainType = 'Sativa' | 'Indica' | 'Hybrid' | 'Sativa leaning hybrid' | 'Indica leaning hybrid'
 export type Fulfillment = 'delivery' | 'pickup' | 'scheduled'
 export type Tier = 'guest' | 'member' | 'house'
 export type PaymentMethod = 'cashapp' | 'zelle' | 'applepay' | 'cash'
@@ -32,7 +32,10 @@ export interface Product {
 
 export interface StoreSettings {
   id: number
+  /** Delivery on or off. */
   is_open: boolean
+  /** The whole store: no orders of any kind while this is on. */
+  store_closed: boolean
   delivery_minimum: number
   cost_per_gram: number
   /** Share of profit after the re-up fund, in percent: { hussein, dominic, investment }. */

@@ -8,6 +8,7 @@ export interface SavedCustomer {
   payment?: 'cashapp' | 'zelle' | 'applepay' | 'cash'
   cashTag: string
   address: string
+  deliverTo?: 'building' | 'brooklyn'
 }
 
 export interface RecentOrder {

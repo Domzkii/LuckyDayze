@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { serviceClient } from '@/lib/supabase/server'
 import { fail, handle, isUuid } from '@/lib/server/http'
 
-/** Customer taps "I'm at the door" for a pickup. Staff see it live in admin. */
+/** Customer taps "I'm here" for a pickup. Staff see it live in admin. */
 export async function POST(_request: Request, ctx: { params: Promise<{ id: string }> }) {
   return handle(async () => {
     const { id } = await ctx.params

@@ -12,8 +12,8 @@ import { Badge, Button, Dialog, Segmented, cx } from './ui'
 const LOW_STOCK_GRAMS = 14
 
 export function StrainBadge({ type }: { type: Product['strain_type'] }) {
-  const tone = type === 'Sativa' ? 'warn' : type === 'Indica' ? 'indica' : 'ok'
-  return <Badge tone={tone}>{type}</Badge>
+  const tone = type.startsWith('Sativa') ? 'warn' : type.startsWith('Indica') ? 'indica' : 'ok'
+  return <Badge tone={tone} className="whitespace-normal!">{type}</Badge>
 }
 
 export function ProductImage({ product, index = 0, sizes, className = '', priority }: {
@@ -32,6 +32,8 @@ const TILE_TONES: Record<Product['strain_type'], string> = {
   Sativa: 'bg-warn-tint text-warn',
   Indica: 'bg-indica-tint text-indica',
   Hybrid: 'bg-ok-tint text-ok',
+  'Sativa leaning hybrid': 'bg-warn-tint text-warn',
+  'Indica leaning hybrid': 'bg-indica-tint text-indica',
 }
 
 /**
@@ -48,7 +50,7 @@ function LabelTile({ product, className = '' }: { product: Product; className?: 
       <span className="absolute inset-3 rounded-[inherit] border border-current opacity-20" />
       <Leaf size={18} strokeWidth={1.5} className="mb-3 opacity-50" />
       <span className="display text-[clamp(2.75rem,9vw,4.5rem)] font-medium italic leading-none tracking-tight">{monogram}</span>
-      <span className="mt-3 text-[11px] font-semibold uppercase tracking-[0.22em] opacity-75">{caption}</span>
+      <span className="mt-3 px-5 text-center text-[11px] font-semibold uppercase tracking-[0.22em] opacity-75">{caption}</span>
     </div>
   )
 }

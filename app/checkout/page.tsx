@@ -35,6 +35,7 @@ export default function CheckoutPage() {
   const friend = me?.kind === 'friend'
 
   const open = settings?.is_open ?? true
+  const closed = settings?.store_closed ?? false
   const [fulfillment, setFulfillment] = useState<Fulfillment | null>(null)
   const method: Fulfillment = fulfillment ?? (open ? 'delivery' : 'pickup')
 
@@ -43,6 +44,7 @@ export default function CheckoutPage() {
   const [payment, setPayment] = useState<PaymentMethod>('cashapp')
   const [cashTag, setCashTag] = useState('')
   const [address, setAddress] = useState('')
+  const [deliverTo, setDeliverTo] = useState<'building' | 'brooklyn'>('building')
   const [notes, setNotes] = useState('')
   const [date, setDate] = useState('')
   const [timeWindow, setTimeWindow] = useState<string | null>(null)
@@ -66,6 +68,7 @@ export default function CheckoutPage() {
     if (saved.cashTag) setCashTag(saved.cashTag)
     if (saved.payment && PAYMENT_METHODS.some(m => m.value === saved.payment)) setPayment(saved.payment)
     if (saved.address) setAddress(saved.address)
+    if (saved.deliverTo) setDeliverTo(saved.deliverTo)
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [])
 
@@ -76,8 +79,11 @@ export default function CheckoutPage() {
     setName(me.name)
     setPhone(me.phone)
     setAddress((me.kind === 'friend' ? me.street_address : me.apt) ?? '')
+    setDeliverTo('building')
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [me])
+
+  const street = friend || deliverTo === 'brooklyn'
 
   // Recognize returning customers to show their points and any banked credit.
   const cleanPhone = normalizePhone(phone)
@@ -113,7 +119,7 @@ export default function CheckoutPage() {
     if (name.trim().length < 2) e.name = 'Enter your name.'
     if (!cleanPhone) e.phone = 'Enter a 10-digit US phone number.'
     if (payment === 'cashapp' && !/^[A-Za-z][A-Za-z0-9_-]{0,19}$/.test(cashTag.replace(/^\$/, '').trim())) e.cashTag = 'Enter your Cash App $Cashtag, like $JaneDoe.'
-    if (method !== 'pickup' && !address.trim()) e.address = friend ? 'Enter your street address.' : 'Enter your apartment number.'
+    if (method !== 'pickup' && !address.trim()) e.address = street ? 'Enter your street address.' : 'Enter your apartment number.'
     if (method === 'scheduled' && !date) e.date = 'Choose a delivery date.'
     if (showReferral && referralCode.trim() && !referralChoice) e.referral = 'Choose your free pre-roll, or save it for later.'
     if (short > 0) e.form = `Delivery starts at ${money(minimum)}. Add ${money(short, { cents: true })} more, or switch to pickup.`
@@ -145,6 +151,7 @@ export default function CheckoutPage() {
           paymentMethod: payment,
           cashTag: payment === 'cashapp' ? cashTag.replace(/^\$/, '').trim() : '',
           address: method === 'pickup' ? '' : address.trim(),
+          deliverTo,
           notes: notes.trim(),
           scheduledDate: method === 'scheduled' ? date : null,
           timeWindow: method === 'scheduled' ? timeWindow : null,
@@ -160,7 +167,7 @@ export default function CheckoutPage() {
         requestAnimationFrame(() => errorRef.current?.focus())
         return
       }
-      saveCustomer({ name: name.trim(), phone: cleanPhone!, payment, cashTag: cashTag.replace(/^\$/, '').trim(), address: method === 'pickup' ? address : address.trim() })
+      saveCustomer({ name: name.trim(), phone: cleanPhone!, payment, cashTag: cashTag.replace(/^\$/, '').trim(), address: method === 'pickup' ? address : address.trim(), deliverTo })
       clear()
       if (data.kind === 'scheduled') {
         setScheduled({ date, total: data.total })
@@ -200,6 +207,19 @@ export default function CheckoutPage() {
       <>
         <SiteHeader back={{ href: '/', label: 'Menu' }} />
         <Spinner label="Loading your cart" />
+      </>
+    )
+  }
+
+  if (closed) {
+    return (
+      <>
+        <SiteHeader back={{ href: '/', label: 'Menu' }} />
+        <main className="mx-auto flex max-w-md flex-col items-center px-6 py-24 text-center">
+          <h1 className="display text-3xl font-semibold">We’re closed right now.</h1>
+          <p className="mt-3 text-muted">We can’t take orders at the moment. Your cart will be here when we’re back.</p>
+          <ButtonLink href="/" size="lg" className="mt-8">Back to the menu</ButtonLink>
+        </main>
       </>
     )
   }
@@ -248,7 +268,7 @@ export default function CheckoutPage() {
                   onChange={() => setFulfillment('pickup')}
                   icon={<KeyRound size={20} strokeWidth={1.75} />}
                   title="Pick up from us"
-                  detail="Come to my door when it’s ready. No minimum."
+                  detail="We’ll let you know when and where. No minimum."
                 />
                 <ChoiceCard
                   name="fulfillment"
@@ -333,12 +353,24 @@ export default function CheckoutPage() {
                   )}
                 </Field>
               )}
-              {method !== 'pickup' && friend && (
-                <Field label="Street address" error={errors.address} hint="Where we deliver. Change it here for just this order.">
+              {method !== 'pickup' && !friend && (
+                <div className="flex flex-col gap-2">
+                  <p className="text-sm font-semibold">Where should we bring it?</p>
+                  <Segmented
+                    label="Where should we bring it?"
+                    value={deliverTo}
+                    onChange={next => { setDeliverTo(next); setAddress('') }}
+                    size="sm"
+                    options={[{ value: 'building', label: 'In the building' }, { value: 'brooklyn', label: 'In Brooklyn' }]}
+                  />
+                </div>
+              )}
+              {method !== 'pickup' && street && (
+                <Field label="Street address" error={errors.address} hint={friend ? 'Where we deliver. Change it here for just this order.' : 'Brooklyn only for now. Include your apartment or floor if there is one.'}>
                   {p => <input {...p} autoComplete="street-address" maxLength={120} value={address} onChange={e => setAddress(e.target.value)} className={inputClass} />}
                 </Field>
               )}
-              {method !== 'pickup' && !friend && (
+              {method !== 'pickup' && !street && (
                 <Field label="Apartment number" error={errors.address} hint="Your door number, like 4B. We bring it right up.">
                   {p => (
                     <input {...p} autoComplete="address-line2" autoCapitalize="characters" maxLength={20} value={address}

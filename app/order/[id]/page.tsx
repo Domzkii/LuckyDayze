@@ -27,14 +27,14 @@ function headline(o: PublicOrder) {
   const pickup = o.fulfillment === 'pickup'
   switch (o.status) {
     case 'pending_payment': return o.payment_method === 'cash'
-      ? { title: 'Waiting for approval.', body: `Your cash order is in. We’ll approve it shortly, then have ${money(o.total, { cents: true })} ready${pickup ? ' when you come by' : ' at the door'}.` }
+      ? { title: 'Waiting for approval.', body: `Your cash order is in. We’ll approve it shortly, then have ${money(o.total, { cents: true })} ready${pickup ? ' for pickup' : ' at the door'}.` }
       : { title: `Send ${money(o.total, { cents: true })} to finish.`, body: 'Your order is saved. It goes to the kitchen the moment your payment lands.' }
     case 'confirmed': return o.payment_method === 'cash'
-      ? { title: 'Approved.', body: `Thanks, ${o.first_name}. Have ${money(o.total, { cents: true })} in cash ready${pickup ? ' when you come by' : ' at the door'}.` }
+      ? { title: 'Approved.', body: `Thanks, ${o.first_name}. Have ${money(o.total, { cents: true })} in cash ready${pickup ? ' for pickup' : ' at the door'}.` }
       : { title: 'Payment received.', body: `Thanks, ${o.first_name}. We’re lining your order up now.` }
     case 'preparing': return { title: 'We’re getting it ready.', body: pickup ? 'We’ll update this page the moment it’s ready to grab.' : 'A driver heads out as soon as it’s packed.' }
     case 'out_for_delivery': return pickup
-      ? { title: 'Ready for pickup.', body: 'Come to my door and tap “I’m at the door” when you get here.' }
+      ? { title: 'Ready for pickup.', body: 'We’ll let you know where to meet. Tap “I’m here” when you get there.' }
       : { title: 'On the way.', body: 'Your driver is headed over. Keep your phone close.' }
     case 'delivered': return { title: pickup ? 'Picked up. Enjoy.' : 'Delivered. Enjoy.', body: 'Points from this order are already on your Lucky Rewards account.' }
     case 'cancelled': return { title: 'This order was cancelled.', body: 'If you already paid, we’ll sort out a refund with you directly.' }
@@ -339,11 +339,11 @@ function PickupCard({ order, onChange }: { order: PublicOrder; onChange: () => v
         <KeyRound size={20} strokeWidth={1.75} className="mt-1 shrink-0 text-gold-ink" />
         <div>
           <h2 id="pickup-title" className="text-sm font-semibold text-muted">Pickup</h2>
-          <p className="display text-xl font-semibold">At my door</p>
+          <p className="display text-xl font-semibold">We’ll let you know when and where</p>
         </div>
       </div>
       {order.customer_arrived && order.status !== 'delivered' && (
-        <Notice tone="ok" icon={<Check size={18} strokeWidth={2} />}>We know you’re at the door. Coming now.</Notice>
+        <Notice tone="ok" icon={<Check size={18} strokeWidth={2} />}>We know you’re here. Coming now.</Notice>
       )}
       {canArrive && (
         <>
@@ -360,7 +360,7 @@ function PickupCard({ order, onChange }: { order: PublicOrder; onChange: () => v
               onChange()
             }}
           >
-            I’m at the door
+            I’m here
           </Button>
           {error && <p className="text-sm text-danger">{error}</p>}
         </>

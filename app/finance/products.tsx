@@ -10,7 +10,7 @@ import type { Category, Product, StrainType } from '@/lib/types'
 import { Badge, Button, Dialog, Field, Notice, Segmented, cx, inputClass } from '@/components/ui'
 import { formatWeight } from './math'
 
-const STRAIN_TYPES: StrainType[] = ['Hybrid', 'Sativa', 'Indica']
+const STRAIN_TYPES: StrainType[] = ['Hybrid', 'Sativa', 'Indica', 'Sativa leaning hybrid', 'Indica leaning hybrid']
 
 export function Products({ products, onChanged }: { products: Product[]; onChanged: () => Promise<void> }) {
   const [editing, setEditing] = useState<Product | 'new' | null>(null)
@@ -201,7 +201,7 @@ function ProductForm({ product, onCancel, onSaved }: { product: Product | null; 
 
       <div className="flex flex-col gap-1.5">
         <span className="text-sm font-semibold">Strain type</span>
-        <Segmented label="Strain type" value={form.strain_type} options={STRAIN_TYPES.map(t => ({ value: t, label: t }))} onChange={v => set('strain_type', v)} />
+        <Segmented label="Strain type" value={form.strain_type} options={STRAIN_TYPES.map(t => ({ value: t, label: <span className="whitespace-nowrap">{t}</span> }))} onChange={v => set('strain_type', v)} />
       </div>
 
       <Field label="THC" optional hint="As it should read on the menu, e.g. 24%">

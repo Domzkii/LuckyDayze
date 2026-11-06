@@ -191,12 +191,12 @@ function SignUpForm({ invite }: { invite: string | null }) {
             value={where}
             onChange={w => { setWhere(w); setPlace('') }}
             size="sm"
-            options={[{ value: 'building', label: 'In the building' }, { value: 'elsewhere', label: 'Somewhere else' }]}
+            options={[{ value: 'building', label: 'In the building' }, { value: 'elsewhere', label: 'In Brooklyn' }]}
           />
         </div>
       )}
       {friend ? (
-        <Field label="Street address" hint="Where we deliver. Include the apartment or floor if there is one.">
+        <Field label="Street address" hint={invite ? 'Where we deliver. Include the apartment or floor if there is one.' : 'Brooklyn only for now. Include your apartment or floor if there is one.'}>
           {p => <input {...p} autoComplete="street-address" maxLength={120} value={place} onChange={e => setPlace(e.target.value)} className={inputClass} />}
         </Field>
       ) : (

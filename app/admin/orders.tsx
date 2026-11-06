@@ -271,7 +271,7 @@ function OrderDetailBody({ order, onChanged, onClose }: { order: Order; onChange
     onChanged()
   }
 
-  // Deliveries stay in the building, so there's no delivery cost to record.
+  // We don't track a delivery cost, in the building or in Brooklyn.
   async function complete() {
     setBusy('delivered')
     setError(null)
@@ -301,7 +301,7 @@ function OrderDetailBody({ order, onChanged, onClose }: { order: Order; onChange
 
       {order.customer_arrived && !final && (
         <Notice tone="danger" icon={<BellRing size={18} strokeWidth={1.75} />} title="Customer has arrived">
-          They’re at the door.
+          They’re here for their pickup.
         </Notice>
       )}
 
@@ -342,7 +342,7 @@ function OrderDetailBody({ order, onChanged, onClose }: { order: Order; onChange
         ) : order.fulfillment === 'pickup' ? (
           <p className="inline-flex items-start gap-2 py-2">
             <MapPin size={16} strokeWidth={1.75} className="mt-0.5 shrink-0 text-muted" aria-hidden />
-            <span>Picking up at your door</span>
+            <span>Picking up. Tell them when and where.</span>
           </p>
         ) : null}
         {loyalty && (

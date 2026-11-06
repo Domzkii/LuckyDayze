@@ -66,11 +66,11 @@ export async function POST(request: Request) {
     const notes = str(body.notes, 500) || null
     const source = str(body.source, 10) === 'qr' ? 'qr' : null
 
-    // Signed-in customers get their special prices; friends outside the building give a street address.
+    // Signed-in customers get their special prices. Friends and Brooklyn deliveries give a street address.
     const { profile, priceList } = await accountFromRequest(request)
-    const friend = profile?.kind === 'friend'
-    const address = str(body.address, friend ? 120 : 40)
-    const missingAddress = friend ? 'Please enter your street address.' : 'Please enter your apartment number.'
+    const street = profile?.kind === 'friend' || body.deliverTo === 'brooklyn'
+    const address = str(body.address, street ? 120 : 40)
+    const missingAddress = street ? 'Please enter your street address.' : 'Please enter your apartment number.'
 
     const lines = parseLines(body.lines)
     const productIds = [...new Set(lines.map(l => l.productId).filter((id): id is string => !!id))]
@@ -88,6 +88,8 @@ export async function POST(request: Request) {
     const sale = (saleRes.data ?? null) as SaleEvent | null
     let loyalty = (loyaltyRes.data ?? null) as Loyalty | null
 
+    if (settings.store_closed) throw new InputError('We’re closed right now, so we can’t take orders. Check back soon.')
+
     let place = ''
     let scheduledDate = ''
     let timeWindow: string | null = null
@@ -97,7 +99,7 @@ export async function POST(request: Request) {
     if (fulfillment === 'delivery') {
       if (!settings.is_open) throw new InputError('Delivery is closed right now. Pickup and scheduled delivery are still open.')
       if (!address) throw new InputError(missingAddress)
-      place = friend ? address : formatApt(address)
+      place = street ? address : formatApt(address)
     } else if (fulfillment === 'pickup') {
       place = PICKUP_PLACE
     } else {
@@ -109,7 +111,7 @@ export async function POST(request: Request) {
       timeWindow = (TIME_WINDOWS as readonly string[]).includes(str(body.timeWindow, 40)) ? str(body.timeWindow, 40) : null
       const f = str(body.frequency, 10)
       frequency = FREQUENCIES.some(o => o.value === f) ? (f as Frequency) : 'once'
-      place = friend ? address : formatApt(address)
+      place = street ? address : formatApt(address)
     }
 
     // ── Stock ──

@@ -67,7 +67,7 @@ function Admin() {
         setArrivals(prev => [...prev, ...newlyArrived.map(o => ({ id: o.id, name: o.customer_name, where: o.pickup_location_address }))])
         if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
           for (const o of newlyArrived) {
-            const body = `${o.customer_name} is at the door for their pickup.`
+            const body = `${o.customer_name} is here for their pickup.`
             // Home-screen apps on iPhone have no Notification constructor; the service worker can still show one.
             navigator.serviceWorker?.getRegistration()
               .then(reg => { if (reg) return reg.showNotification('Customer arrived', { body, icon: '/logo-192.png' }); new Notification('Customer arrived', { body, icon: '/logo-192.png' }) })
@@ -139,7 +139,7 @@ function Admin() {
         {arrivals.map(a => (
           <Notice key={a.id} tone="danger" icon={<BellRing size={18} strokeWidth={1.75} />} title={`${a.name} has arrived`}>
             <div className="mt-1 flex flex-wrap items-center gap-2">
-              <span>At the door for their pickup.</span>
+              <span>They’re here for their pickup.</span>
               <Button size="sm" variant="outline" onClick={() => { setTab('orders'); setFocusOrderId(a.id); setArrivals(p => p.filter(x => x.id !== a.id)) }}>
                 Open order
               </Button>
@@ -241,7 +241,6 @@ function AdminHeader({ live }: { live: boolean }) {
           </span>
         )}
         <div className="ml-auto flex items-center gap-1">
-          <StoreSwitch />
           <nav aria-label="Admin" className="hidden items-center md:flex">{secondary}</nav>
           <ThemeToggle />
           <IconButton label={menuOpen ? 'Close menu' : 'Open menu'} aria-expanded={menuOpen} aria-controls="admin-menu" className="md:hidden" onClick={() => setMenuOpen(v => !v)}>
@@ -249,6 +248,7 @@ function AdminHeader({ live }: { live: boolean }) {
           </IconButton>
         </div>
       </div>
+      <StoreSwitches />
       {menuOpen && (
         <nav id="admin-menu" aria-label="Admin" className="mx-auto flex max-w-3xl flex-col border-t border-line px-2 py-2 md:hidden">
           {live && (
@@ -263,44 +263,50 @@ function AdminHeader({ live }: { live: boolean }) {
   )
 }
 
-function StoreSwitch() {
-  const [open, setOpen] = useState<boolean | null>(null)
+/** Delivery has its own switch. Closing the store stops every kind of order. */
+function StoreSwitches() {
+  const [status, setStatus] = useState<{ deliveryOpen: boolean; storeOpen: boolean } | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const client = supabase()
-    client.from('store_settings').select('is_open').eq('id', 1).maybeSingle().then(({ data }) => {
-      if (data) setOpen(data.is_open)
+    const apply = (row: { is_open?: boolean; store_closed?: boolean }) => {
+      if (typeof row.is_open === 'boolean') setStatus({ deliveryOpen: row.is_open, storeOpen: !row.store_closed })
+    }
+    client.from('store_settings').select('*').eq('id', 1).maybeSingle().then(({ data }) => {
+      if (data) apply(data)
     })
     const channel = client
       .channel('admin-store-status')
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'store_settings' }, payload => {
-        const next = (payload.new as { is_open?: boolean }).is_open
-        if (typeof next === 'boolean') setOpen(next)
-      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'store_settings' }, payload => apply(payload.new))
       .subscribe()
     return () => { client.removeChannel(channel) }
   }, [])
 
-  async function change(next: boolean) {
+  async function change(patch: { is_open: boolean } | { store_closed: boolean }) {
     setBusy(true)
     setError(null)
-    const { error } = await supabase().from('store_settings').update({ is_open: next, updated_at: new Date().toISOString() }).eq('id', 1)
+    const { error } = await supabase().from('store_settings').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', 1)
     setBusy(false)
     if (error) return setError(errorText(error))
-    setOpen(next)
+    setStatus(prev => prev && ('is_open' in patch ? { ...prev, deliveryOpen: patch.is_open } : { ...prev, storeOpen: !patch.store_closed }))
   }
 
-  if (open === null) return null
+  if (status === null) return null
+  const storeLabel = status.storeOpen ? 'Store open' : 'Store closed'
+  const deliveryLabel = status.deliveryOpen ? 'Delivery open' : 'Delivery closed'
   return (
-    <div className="flex items-center gap-1.5">
-      <span className={cx('text-sm font-semibold', open ? 'text-ok' : 'text-muted')} aria-hidden>
-        <span className="sm:hidden">{open ? 'Open' : 'Closed'}</span>
-        <span className="hidden sm:inline">{open ? 'Delivery open' : 'Delivery closed'}</span>
-      </span>
-      <Switch checked={open} onChange={change} busy={busy} label={open ? 'Delivery open' : 'Delivery closed'} />
-      {error && <span role="alert" className="text-xs font-semibold text-danger" title={error}>Didn’t save</span>}
+    <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-end gap-x-5 gap-y-1 px-4 pb-2">
+      {error && <span role="alert" className="mr-auto text-xs font-semibold text-danger" title={error}>Didn’t save</span>}
+      <div className="flex items-center gap-1.5">
+        <span className={cx('text-sm font-semibold', status.storeOpen ? 'text-ok' : 'text-danger')} aria-hidden>{storeLabel}</span>
+        <Switch checked={status.storeOpen} onChange={open => change({ store_closed: !open })} busy={busy} label={storeLabel} />
+      </div>
+      <div className="flex items-center gap-1.5">
+        <span className={cx('text-sm font-semibold', status.deliveryOpen ? 'text-ok' : 'text-muted')} aria-hidden>{deliveryLabel}</span>
+        <Switch checked={status.deliveryOpen} onChange={open => change({ is_open: open })} busy={busy} label={deliveryLabel} />
+      </div>
     </div>
   )
 }
